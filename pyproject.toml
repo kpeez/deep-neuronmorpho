@@ -21,6 +21,7 @@ torch = "^2.0.0"
 dgl = "^1.0.1"
 pyyaml = "^6.0"
 pyarrow = "^11.0.0"
+morphopy = "^0.7.2"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -118,7 +119,10 @@ exclude = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["deep_neuronmorpho.*.*", "morphopy.*", "networkx", "scipy.*", "dgl.*",]
+module = [
+  "deep_neuronmorpho.*", "deep_neuronmorpho.*.*","morphopy.*", 
+  "networkx", "scipy.*", "dgl.*"
+]
 ignore_missing_imports = true
 warn_return_any = false
 disallow_any_unimported = false
