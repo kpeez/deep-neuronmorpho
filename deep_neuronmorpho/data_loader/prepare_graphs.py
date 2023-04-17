@@ -116,18 +116,16 @@ def create_neuron_graph(swc_file: str | Path, resample_dist: int | float | None 
         # expand position to x, y, z
         x, y, z = neuron_graph.nodes[node]["pos"]
         radius = neuron_graph.nodes[node]["radius"]
-        node_attrs = (
-            [
-                x,
-                y,
-                z,
-                radius,
-                nx.dijkstra_path_length(neuron_graph, 1, node, weight="path_length"),
-                euclidean((x, y, z), (soma_x, soma_y, soma_z)),
-            ]
-            + angle_stats
-            + branch_stats
-        )
+        node_attrs = [
+            x,
+            y,
+            z,
+            radius,
+            nx.dijkstra_path_length(neuron_graph, 1, node, weight="path_length"),
+            euclidean((x, y, z), (soma_x, soma_y, soma_z)),
+            *angle_stats,
+            *branch_stats,
+        ]
 
         neuron_graph.nodes[node].clear()
         neuron_graph.nodes[node].update({"nattrs": [np.float32(attr) for attr in node_attrs]})
