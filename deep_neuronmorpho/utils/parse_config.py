@@ -36,6 +36,8 @@ class Config:
         for k, v in conf_dict.items():
             if isinstance(v, dict):
                 object.__setattr__(self, k, Config(v))
+            elif isinstance(v, str) and "path" in v:
+                object.__setattr__(self, k, Path(v))
             else:
                 object.__setattr__(self, k, v)
 
@@ -71,18 +73,11 @@ class ModelConfig(Config):
     To initialize a ModelConfig, provide the path to the config file.
 
     Example:
-        cfg = ModelConfig('myconfig.yml')
-
-    Attributes:
-        root_path (str): The root path where the model is located.
-        data (Config): A `Config` object containing parameters for the data.
-        model (Config): A `Config` object containing parameters for the model architecture.
-        training (Config): A `Config` object containing parameters for the training.
-        augmentation (Config): A `Config` object containing parameters for data augmentation.
-        logging (Config): A `Config` object containing parameters for logging.
+        cfg = ModelConfig('/path_to_config/myconfig.yml')
     """
 
     def __init__(self, config_file: str | Path) -> None:
+        object.__setattr__(self, "config_file", str(config_file))
         config_dict = load_config(config_file)
         super().__init__(config_dict)
 
