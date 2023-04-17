@@ -1,5 +1,6 @@
 # datasets/docs
 data
+dev-notebooks
 *.csv
 
 # IDE temp files #
