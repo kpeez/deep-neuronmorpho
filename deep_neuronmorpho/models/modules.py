@@ -17,14 +17,13 @@ def linear_block(input_dim: int, output_dim: int) -> nn.Sequential:
 
 
 class MLP(nn.Module):
-    """MLP with linear output layer.
+    """Simple MLP implementation.
 
-    Args:
-        input_dim (int): Input dimension.
-        hidden_dim (int): Hidden layer dimension.
-        output_dim (int): Output dimension.
-        num_layers (int): Number of layers. There are num_layers - 2 hidden layers.
+    Attributes:
+        layers (nn.ModuleList): List of layers in the MLP.
 
+    Methods:
+        forward: Pass inputs through MLP layers.
     """
 
     def __init__(
@@ -34,6 +33,18 @@ class MLP(nn.Module):
         hidden_dim: int,
         num_layers: int,
     ) -> None:
+        """Initialize MLP.
+
+        Args:
+            input_dim (int): Input dimension.
+            hidden_dim (int): Hidden layer dimension.
+            output_dim (int): Output dimension.
+            num_layers (int): Number of layers. There are num_layers - 2 hidden layers.
+
+
+        Raises:
+            ValueError: If num_layers is less than 1.
+        """
         super().__init__()
 
         self.layers = nn.ModuleList()
