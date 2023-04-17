@@ -1,0 +1,45 @@
+# Data configuration
+root_path: "insert_path"
+data:
+  train_data_path: "data/train/"
+  val_data_path: "data/validation/"
+  test_data_path: "data/test/"
+  num_workers: 1
+  batch_size: 64
+  normalize_features: True
+
+# Model configuration
+model:
+  num_gnn_layers: 5 # input,
+  num_mlp_layers: 2
+  dim_hidden: 64
+  # norm_attrs: False
+  use_self_loop: True # net_learn_eps = False in Zhao code
+  use_edge_weight: True # attention
+  learn_eps: False # learnable eps in GNN
+  aggregation: "sum" # "sum", "mean", "max"
+  graph_pooling: "max" # "sum", "mean", "max"
+  fuse_gnn_layers: "cat" # ["sum", "mean", "max", 'wsum', 'cat]
+  fuse_streams: "wsum" # ["sum", "mean", "max", 'wsum', 'cat]
+
+# Trainig configuration
+training:
+  lr_init: 0.01
+  seed_list: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  shuffle: True
+  max_epochs: 400
+  lr_patience_epochs: 60
+  decay_steps: 20
+  decay_rate: 0.6
+  contra_loss_temp: 0.2
+  dropout_prob: 0.5
+
+# Augmentation info
+augmentation:
+  method: "None"
+  aug_params: "None"
+
+# Logging configuration
+logging:
+  log_dir: "saved/logs"
+  chkpt_dir: "saved/models"
