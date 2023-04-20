@@ -16,7 +16,7 @@ model:
   # norm_attrs: False
   use_self_loop: True # net_learn_eps = False in Zhao code
   use_edge_weight: True # attention
-  learn_eps: False # learnable eps in GNN
+  learn_eps: False # learnable eps in GINConv
   aggregation: "sum" # "sum", "mean", "max"
   graph_pooling: "max" # "sum", "mean", "max"
   fuse_gnn_layers: "cat" # ["sum", "mean", "max", 'wsum', 'cat]
