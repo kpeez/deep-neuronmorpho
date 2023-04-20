@@ -22,6 +22,7 @@ dgl = "^1.0.1"
 pyyaml = "^6.0"
 pyarrow = "^11.0.0"
 morphopy = "^0.7.2"
+tensorboard = "^2.12.2"
 
 
 [tool.poetry.group.dev.dependencies]
