@@ -1,59 +1,13 @@
 """Prepare neuron graphs for conversion to DGL datasets."""
 from pathlib import Path
 
+import dgl
 import networkx as nx
 import numpy as np
-import pandas as pd
-from morphopy.neurontree import NeuronTree as nt
 from scipy import stats
 from scipy.spatial.distance import euclidean
 
-
-def load_swc_file(swc_file: Path | str) -> pd.DataFrame:
-    """Load swc file.
-
-    Args:
-        swc_file (Path): Path to swc file.
-
-    Returns:
-        pd.DataFrame: SWC data.
-    """
-    swc_data = pd.read_csv(
-        swc_file,
-        sep=" ",
-        header=None,
-        names=["n", "type", "x", "y", "z", "radius", "parent"],
-    )
-
-    if swc_data[["x", "y", "z"]].iloc[0].all() != 0.0:
-        x, y, z = swc_data[["x", "y", "z"]].iloc[0]
-        swc_data[["x", "y", "z"]] = swc_data[["x", "y", "z"]] - [x, y, z]
-
-    return swc_data
-
-
-def load_neuron_tree(
-    neuron_swc: pd.DataFrame,
-    resample_dist: int | float | None = None,
-) -> nt.NeuronTree:
-    """Load NeuronTree from MorphoPy.
-
-    Args:
-        neuron_swc (pd.DataFrame): swc data.
-        resample_dist (float, optional): Resample distance in microns. Defaults to None.
-
-    Returns:
-        NeuronTree: NeuronTree object.
-    """
-    if "id" in neuron_swc.columns:
-        neuron_swc.rename(columns={"id": "n"}, inplace=True)
-
-    neuron_tree = nt.NeuronTree(neuron_swc)
-
-    if resample_dist:
-        neuron_tree = neuron_tree.resample_tree(resample_dist)
-
-    return neuron_tree
+from deep_neuronmorpho.data_loader.process_swc import load_swc_file, swc_to_neuron_tree
 
 
 def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
@@ -79,12 +33,11 @@ def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
     return attr_stats
 
 
-def create_neuron_graph(swc_file: str | Path, resample_dist: int | float | None = None) -> nx.Graph:
+def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     """Create networkx graph of neuron from swc format.
 
     Args:
         swc_file (str | Path): Morphopy NeuronTree object of neuron swc data.
-        resample_dist (int | float, optional): Resample distance in microns. Defaults to None.
 
     Returns:
         nx.Graph: Graph of neuron.
@@ -103,7 +56,7 @@ def create_neuron_graph(swc_file: str | Path, resample_dist: int | float | None 
             13.-18. branch attrs (n=6): min, mean, median, max, std, num of branch lengths.
     """
     swc_data = load_swc_file(swc_file)
-    neuron_tree = load_neuron_tree(swc_data, resample_dist=resample_dist)
+    neuron_tree = swc_to_neuron_tree(swc_data)
     # get branch angles and branch lengths
     angles = list(neuron_tree.get_branch_angles().values())
     branches = list(neuron_tree.get_segment_length().values())
@@ -135,3 +88,26 @@ def create_neuron_graph(swc_file: str | Path, resample_dist: int | float | None 
         del edge_data["euclidean_dist"]
 
     return neuron_graph
+
+
+def swc_to_dgl(swc_data_path: Path) -> list[dgl.DGLGraph]:
+    """Convert a neuron swc file into a DGL graph.
+
+    Args:
+        swc_data_path (Path): Path to swc data.
+        resample_dist (int, optional): Resample distance in microns. Defaults to 10.
+
+    Returns:
+        list[dgl.DGLGraph]: List of DGL graphs.
+    """
+    neuron_graphs = []
+    for file in swc_data_path.glob("*.swc"):
+        neuron_graph = create_neuron_graph(file)
+        neuron_graphs.append(
+            dgl.from_networkx(
+                neuron_graph,
+                node_attrs=["nattrs"],
+                edge_attrs=["path_length"],
+            )
+        )
+    return neuron_graphs
