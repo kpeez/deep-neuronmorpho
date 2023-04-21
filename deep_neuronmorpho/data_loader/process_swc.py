@@ -94,16 +94,15 @@ def downsample_swc_files(swc_files: Path, resample_dist: int | float) -> None:
         swc_files (Path): Path to folder containing swc files.
         resample_dist (int | float): Distance to resample neuron, in microns.
     """
+    export_dir = export_dir = Path(f"{swc_files}_resampled_{resample_dist}um")
+    if not export_dir.exists():
+        export_dir.mkdir(exist_ok=True)
+
     swc_files_list = list(swc_files.glob("*.swc"))
     for swc_file in ProgressBar(swc_files_list, desc="Resampling neurons: "):
         neuron_tree = swc_to_neuron_tree(swc_file)
         neuron_tree = neuron_tree.resample_tree(resample_dist)
-
-        swc_dir, old_filename = swc_file.parent, swc_file.name
-        export_dir = Path(f"{swc_dir}_resampled_{resample_dist}um")
-        if not export_dir.exists():
-            export_dir.mkdir(exist_ok=True)
-        new_filename = old_filename.replace(".swc", f"-resampled_{resample_dist}um.swc")
+        new_filename = swc_file.name.replace(".swc", f"-resampled_{resample_dist}um.swc")
         neuron_tree.to_swc().to_csv(f"{export_dir}/{new_filename}", sep=" ", index=False)
 
 
