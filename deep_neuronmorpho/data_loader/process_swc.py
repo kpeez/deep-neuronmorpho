@@ -111,7 +111,7 @@ def downsample_swc_files(swc_files: Path, resample_dist: int | float) -> None:
             neuron_tree = neuron_tree.resample_tree(resample_dist)
 
             swc_dir, old_filename = swc_file.parent, swc_file.name
-            export_dir = Path(f"{swc_dir}_resampled")
+            export_dir = Path(f"{swc_dir}_resampled_{resample_dist}um")
             if not export_dir.exists():
                 export_dir.mkdir(exist_ok=True)
             new_filename = old_filename.replace(".swc", f"-resampled_{resample_dist}um.swc")
