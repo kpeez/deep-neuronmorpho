@@ -8,6 +8,38 @@ from morphopy.neurontree import NeuronTree as nt
 from tqdm import tqdm
 
 
+def set_swc_dtypes(swc_data: pd.DataFrame) -> pd.DataFrame:
+    """Set dtypes for swc data. Sets ints to int32 and floats to float32.
+
+    Args:
+        swc_data (pd.DataFrame): DataFrame of swc data.
+
+    Returns:
+        pd.DataFrame: DataFrame of swc data with correct dtypes set.
+    """
+    int_cols = ["n", "type", "parent"]
+    float_cols = ["x", "y", "z", "radius"]
+    col_type = {col: np.int32 for col in int_cols} | {col: np.float32 for col in float_cols}
+
+    return swc_data.astype(col_type)
+
+
+def set_swc_soma_coords(swc_data: pd.DataFrame) -> pd.DataFrame:
+    """Set coordinates of soma to (0, 0, 0).
+
+    Args:
+        swc_data (pd.DataFrame): DataFrame of swc data.
+
+    Returns:
+        pd.DataFrame: DataFrame of swc data with soma set to (0, 0, 0).
+    """
+    if swc_data[["x", "y", "z"]].iloc[0].all() != 0.0:
+        x, y, z = swc_data[["x", "y", "z"]].iloc[0]
+        swc_data[["x", "y", "z"]] = swc_data[["x", "y", "z"]] - [x, y, z]
+
+    return swc_data
+
+
 def load_swc_file(swc_file: Path | str) -> pd.DataFrame:
     """Load swc file.
 
@@ -24,22 +56,27 @@ def load_swc_file(swc_file: Path | str) -> pd.DataFrame:
         names=["n", "type", "x", "y", "z", "radius", "parent"],
     )
 
-    if swc_data[["x", "y", "z"]].iloc[0].all() != 0.0:
-        x, y, z = swc_data[["x", "y", "z"]].iloc[0]
-        swc_data[["x", "y", "z"]] = swc_data[["x", "y", "z"]] - [x, y, z]
+    # check for header
+    if (swc_data.columns[1:] == swc_data.iloc[0][1:]).all():
+        swc_data.drop(0, inplace=True)
+        swc_data.reset_index(drop=True, inplace=True)
+
+    swc_data = set_swc_dtypes(swc_data)
+    swc_data = set_swc_soma_coords(swc_data)
 
     return swc_data
 
 
-def swc_to_neuron_tree(neuron_swc: pd.DataFrame) -> nt.NeuronTree:
+def swc_to_neuron_tree(swc_file: Path | str) -> nt.NeuronTree:
     """Load NeuronTree from MorphoPy.
 
     Args:
-        neuron_swc (pd.DataFrame): swc data.
+        swc_file (Path | str): Path to swc file.
 
     Returns:
         NeuronTree: NeuronTree object.
     """
+    neuron_swc = load_swc_file(swc_file)
     if "id" in neuron_swc.columns:
         neuron_swc.rename(columns={"id": "n"}, inplace=True)
 
@@ -70,8 +107,7 @@ def downsample_swc_files(swc_files: Path, resample_dist: int | float) -> None:
             if n % increment_value == 0:
                 pbar.update(increment_value)
 
-            neuron = load_swc_file(swc_file)
-            neuron_tree = swc_to_neuron_tree(neuron)
+            neuron_tree = swc_to_neuron_tree(swc_file)
             neuron_tree = neuron_tree.resample_tree(resample_dist)
 
             swc_dir, old_filename = swc_file.parent, swc_file.name
