@@ -7,7 +7,7 @@ import numpy as np
 from scipy import stats
 from scipy.spatial.distance import euclidean
 
-from deep_neuronmorpho.data_loader.process_swc import load_swc_file, swc_to_neuron_tree
+from deep_neuronmorpho.data_loader.process_swc import swc_to_neuron_tree
 
 
 def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
@@ -55,8 +55,7 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
             7.-12. angle attrs (n=6): min, mean, median, max, std, num of branch angles.
             13.-18. branch attrs (n=6): min, mean, median, max, std, num of branch lengths.
     """
-    swc_data = load_swc_file(swc_file)
-    neuron_tree = swc_to_neuron_tree(swc_data)
+    neuron_tree = swc_to_neuron_tree(swc_file)
     # get branch angles and branch lengths
     angles = list(neuron_tree.get_branch_angles().values())
     branches = list(neuron_tree.get_segment_length().values())
@@ -90,7 +89,7 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     return neuron_graph
 
 
-def swc_to_dgl(swc_data_path: Path) -> list[dgl.DGLGraph]:
+def dgl_from_swc(swc_data_path: Path) -> list[dgl.DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
     Args:
