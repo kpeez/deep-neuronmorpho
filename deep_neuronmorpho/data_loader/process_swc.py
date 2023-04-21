@@ -5,7 +5,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from morphopy.neurontree import NeuronTree as nt
-from tqdm import tqdm
+
+from deep_neuronmorpho.utils.progress import ProgressBar
 
 
 def set_swc_dtypes(swc_data: pd.DataFrame) -> pd.DataFrame:
@@ -94,28 +95,16 @@ def downsample_swc_files(swc_files: Path, resample_dist: int | float) -> None:
         resample_dist (int | float): Distance to resample neuron, in microns.
     """
     swc_files_list = list(swc_files.glob("*.swc"))
-    num_iterations = len(swc_files_list)
-    percent_increment = 5
-    increment_value = int(np.ceil(num_iterations * percent_increment / 100))
-    with tqdm(
-        total=num_iterations,
-        desc="Resampling neurons: ",
-        bar_format="{desc}[{n_fmt}/{total_fmt}]{percentage:3.0f}%|{bar}"
-        "{postfix} [{elapsed}<{remaining}]",
-    ) as pbar:
-        for n, swc_file in enumerate(swc_files_list):
-            if n % increment_value == 0:
-                pbar.update(increment_value)
+    for swc_file in ProgressBar(swc_files_list, desc="Resampling neurons: "):
+        neuron_tree = swc_to_neuron_tree(swc_file)
+        neuron_tree = neuron_tree.resample_tree(resample_dist)
 
-            neuron_tree = swc_to_neuron_tree(swc_file)
-            neuron_tree = neuron_tree.resample_tree(resample_dist)
-
-            swc_dir, old_filename = swc_file.parent, swc_file.name
-            export_dir = Path(f"{swc_dir}_resampled_{resample_dist}um")
-            if not export_dir.exists():
-                export_dir.mkdir(exist_ok=True)
-            new_filename = old_filename.replace(".swc", f"-resampled_{resample_dist}um.swc")
-            neuron_tree.to_swc().to_csv(f"{export_dir}/{new_filename}", sep=" ", index=False)
+        swc_dir, old_filename = swc_file.parent, swc_file.name
+        export_dir = Path(f"{swc_dir}_resampled_{resample_dist}um")
+        if not export_dir.exists():
+            export_dir.mkdir(exist_ok=True)
+        new_filename = old_filename.replace(".swc", f"-resampled_{resample_dist}um.swc")
+        neuron_tree.to_swc().to_csv(f"{export_dir}/{new_filename}", sep=" ", index=False)
 
 
 if __name__ == "__main__":

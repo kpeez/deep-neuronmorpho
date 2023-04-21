@@ -8,6 +8,7 @@ from scipy import stats
 from scipy.spatial.distance import euclidean
 
 from deep_neuronmorpho.data_loader.process_swc import swc_to_neuron_tree
+from deep_neuronmorpho.utils.progress import ProgressBar
 
 
 def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
@@ -89,18 +90,18 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     return neuron_graph
 
 
-def dgl_from_swc(swc_data_path: Path) -> list[dgl.DGLGraph]:
+def dgl_from_swc(swc_files: list[Path]) -> list[dgl.DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
     Args:
-        swc_data_path (Path): Path to swc data.
+        swc_files (list[Path]): List of swc files.
         resample_dist (int, optional): Resample distance in microns. Defaults to 10.
 
     Returns:
         list[dgl.DGLGraph]: List of DGL graphs.
     """
     neuron_graphs = []
-    for file in swc_data_path.glob("*.swc"):
+    for file in ProgressBar(swc_files, desc="Creating DGL graphs:"):
         neuron_graph = create_neuron_graph(file)
         neuron_graphs.append(
             dgl.from_networkx(
