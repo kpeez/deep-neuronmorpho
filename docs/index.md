@@ -5,4 +5,4 @@
 [![Commit activity](https://img.shields.io/github/commit-activity/m/kpeez/deep-neuronmorpho)](https://img.shields.io/github/commit-activity/m/kpeez/deep-neuronmorpho)
 [![License](https://img.shields.io/github/license/kpeez/deep-neuronmorpho)](https://img.shields.io/github/license/kpeez/deep-neuronmorpho)
 
-Deep learning based approaches t for neuron morphology embeddings.
+Deep learning based approaches for neuron morphology embeddings.
