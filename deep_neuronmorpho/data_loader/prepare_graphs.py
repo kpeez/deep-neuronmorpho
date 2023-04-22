@@ -4,10 +4,13 @@ from pathlib import Path
 import dgl
 import networkx as nx
 import numpy as np
+from dgl.data import DGLDataset
+from dgl.data.utils import load_graphs, save_graphs
 from scipy import stats
 from scipy.spatial.distance import euclidean
 
 from deep_neuronmorpho.data_loader.process_swc import swc_to_neuron_tree
+from deep_neuronmorpho.utils.progress import ProgressBar
 
 
 def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
@@ -89,18 +92,18 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     return neuron_graph
 
 
-def dgl_from_swc(swc_data_path: Path) -> list[dgl.DGLGraph]:
+def dgl_from_swc(swc_files: list[Path]) -> list[dgl.DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
     Args:
-        swc_data_path (Path): Path to swc data.
+        swc_files (list[Path]): List of swc files.
         resample_dist (int, optional): Resample distance in microns. Defaults to 10.
 
     Returns:
         list[dgl.DGLGraph]: List of DGL graphs.
     """
     neuron_graphs = []
-    for file in swc_data_path.glob("*.swc"):
+    for file in ProgressBar(swc_files, desc="Creating DGL graphs:"):
         neuron_graph = create_neuron_graph(file)
         neuron_graphs.append(
             dgl.from_networkx(
@@ -110,3 +113,74 @@ def dgl_from_swc(swc_data_path: Path) -> list[dgl.DGLGraph]:
             )
         )
     return neuron_graphs
+
+
+class NeuronGraphDataset(DGLDataset):
+    """A dataset consisting of DGLGraphs representing neuron morphologies.
+
+    Args:
+        graphs_path (Path): The path to the SWC file directory.
+        self_loop (bool, optional): Whether to add self-loops to each graph. Defaults to False.
+        data_name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
+
+    Attributes:
+        graphs_path (Path): The path to the SWC file directory.
+        export_dir (Path): The path to the directory where the processed dataset will be saved.
+        self_loop (bool): Whether to add self-loops to each graph.
+        graphs (list[dgl.DGLGraph]): The list of DGLGraphs representing neuron morphologies.
+
+    See Also:
+        Documentation for DGLDataset: https://docs.dgl.ai/en/latest/api/python/dgl.data.html#dgl.data.DGLDataset
+    """
+
+    def __init__(
+        self,
+        graphs_path: Path,
+        self_loop: bool = False,
+        data_name: str = "neuron_graph_dataset",
+    ):
+        self.graphs_path = graphs_path
+        self.export_dir = Path(self.graphs_path.parent / "processed")
+        super().__init__(name=data_name, raw_dir=self.export_dir)
+        self.self_loop = self_loop
+        self.graphs: list = []
+
+        self.load()
+
+    def load(self) -> None:
+        """Load the dataset from disk.
+
+        If the dataset has not been cached, it will be created and cached.
+        """
+        if self.has_cache():
+            self.graphs = load_graphs(str(self.cached_graphs_path))[0]
+        else:
+            self.graphs = dgl_from_swc(list(self.graphs_path.glob("*.swc")))
+
+    def save(self) -> None:
+        """Save the dataset to disk."""
+        if not self.export_dir.exists():
+            self.export_dir.mkdir(exist_ok=True)
+        save_graphs(f"{self.export_dir}/{super().name}_dgl_graphs.bin", self.graphs)
+
+    def has_cache(self) -> bool:
+        """Determine whether there exists a cached dataset.
+
+        Returns:
+            bool: True if there exists a cached dataset, False otherwise.
+        """
+        cached_file_path = self.cached_graphs_path
+        return cached_file_path.exists()
+
+    @property
+    def cached_graphs_path(self) -> Path:
+        """The path to the cached graphs."""
+        return Path(self.graphs_path.parent / "processed" / f"{super().name}_dgl_graphs.bin")
+
+    def __len__(self) -> int:
+        """Return the number of graphs in the dataset."""
+        return len(self.graphs)
+
+    def __getitem__(self, idx: int) -> dgl.DGLGraph:
+        """Get the idx-th sample."""
+        return self.graphs[idx]
