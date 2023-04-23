@@ -100,10 +100,13 @@ def downsample_swc_files(swc_files: Path, resample_dist: int | float) -> None:
 
     swc_files_list = list(swc_files.glob("*.swc"))
     for swc_file in ProgressBar(swc_files_list, desc="Resampling neurons: "):
-        neuron_tree = swc_to_neuron_tree(swc_file)
-        neuron_tree = neuron_tree.resample_tree(resample_dist)
-        new_filename = swc_file.name.replace(".swc", f"-resampled_{resample_dist}um.swc")
-        neuron_tree.to_swc().to_csv(f"{export_dir}/{new_filename}", sep=" ", index=False)
+        try:
+            neuron_tree = swc_to_neuron_tree(swc_file)
+            neuron_tree = neuron_tree.resample_tree(resample_dist)
+            new_filename = swc_file.name.replace(".swc", f"-resampled_{resample_dist}um.swc")
+            neuron_tree.to_swc().to_csv(f"{export_dir}/{new_filename}", sep=" ", index=False)
+        except Exception as e:
+            print(f"Error processing {swc_file}. {e}")
 
 
 if __name__ == "__main__":
