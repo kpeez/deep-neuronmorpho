@@ -55,6 +55,7 @@ def load_swc_file(swc_file: Path | str) -> pd.DataFrame:
         sep=" ",
         header=None,
         names=["n", "type", "x", "y", "z", "radius", "parent"],
+        low_memory=False,
     )
 
     # check for header
