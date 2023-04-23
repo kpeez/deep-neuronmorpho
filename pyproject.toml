@@ -33,6 +33,7 @@ pre-commit = "^3"
 ipykernel = "^6"
 notebook = "^6.5"
 pandas-stubs = "*"
+typer = "^0.7.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.2.0"
