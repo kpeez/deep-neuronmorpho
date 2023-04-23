@@ -141,21 +141,20 @@ class NeuronGraphDataset(DGLDataset):
     ):
         self.graphs_path = graphs_path
         self.export_dir = Path(self.graphs_path.parent / "processed")
-        super().__init__(name=data_name, raw_dir=self.export_dir)
-        self.self_loop = self_loop
         self.graphs: list = []
+        self.self_loop = self_loop
+        super().__init__(name=data_name, raw_dir=self.export_dir)
 
-        self.load()
+    def process(self) -> None:
+        """Process the input data into a list of DGLGraphs."""
+        self.graphs = dgl_from_swc(list(self.graphs_path.glob("*.swc")))
 
     def load(self) -> None:
         """Load the dataset from disk.
 
         If the dataset has not been cached, it will be created and cached.
         """
-        if self.has_cache():
-            self.graphs = load_graphs(str(self.cached_graphs_path))[0]
-        else:
-            self.graphs = dgl_from_swc(list(self.graphs_path.glob("*.swc")))
+        self.graphs = load_graphs(str(self.cached_graphs_path))[0]
 
     def save(self) -> None:
         """Save the dataset to disk."""
@@ -184,3 +183,30 @@ class NeuronGraphDataset(DGLDataset):
     def __getitem__(self, idx: int) -> dgl.DGLGraph:
         """Get the idx-th sample."""
         return self.graphs[idx]
+
+
+if __name__ == "__main__":
+    import typer
+
+    app = typer.Typer()
+
+    @app.command()
+    def create_dataset(
+        input_dir: str = typer.Argument(  # noqa: B008
+            ..., help="Path to the directory containing the .swc files."
+        ),
+        self_loop: bool = typer.Option(  # noqa: B008
+            False,
+            help="Optional flag to add self-loops to each graph.",
+        ),
+    ) -> None:
+        """Create a processed dataset of graphs from the .swc files in the specified directory.
+
+        Args:
+            input_dir (str): Path to the directory containing the .swc files.
+            self_loop (bool): Optional flag to add self-loops to each graph. Defaults to False.
+        """
+        graphs_dir = Path(input_dir)
+        NeuronGraphDataset(graphs_path=graphs_dir, self_loop=self_loop)
+
+    app()
