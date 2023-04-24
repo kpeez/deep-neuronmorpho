@@ -47,13 +47,9 @@ class ProgressBar:
             desc=desc,
             total=self.num_iterations,
             bar_format=bar_format,
+            miniters=self.increment_value,
             **kwargs,
         )
-
-    def update(self) -> None:
-        """Update the progress bar if the increment value is reached."""
-        if self.pbar.n % self.increment_value == 0:
-            self.pbar.update(self.increment_value)
 
     def __iter__(self) -> Any:
         """Iterate over the iterable and update the progress bar.
@@ -62,5 +58,4 @@ class ProgressBar:
             Any: The next item in the iterable.
         """
         for item in self.pbar:
-            self.update()
             yield item
