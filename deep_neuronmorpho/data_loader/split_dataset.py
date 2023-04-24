@@ -5,11 +5,11 @@ import shutil
 from pathlib import Path
 from typing import Tuple
 
-import typer
+from typer import Typer
 
 from deep_neuronmorpho.utils.progress import ProgressBar
 
-app = typer.Typer()
+app = Typer()
 
 
 @app.command()
