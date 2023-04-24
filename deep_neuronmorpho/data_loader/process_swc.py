@@ -1,10 +1,10 @@
 """Process SWC files."""
-import argparse
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from morphopy.neurontree import NeuronTree as nt
+from typer import Argument, Typer
 
 from deep_neuronmorpho.utils.progress import ProgressBar
 
@@ -95,7 +95,7 @@ def downsample_swc_files(swc_files: Path, resample_dist: int | float) -> None:
         swc_files (Path): Path to folder containing swc files.
         resample_dist (int | float): Distance to resample neuron, in microns.
     """
-    export_dir = export_dir = Path(f"{swc_files}_resampled_{resample_dist}um")
+    export_dir = Path(f"{swc_files}_resampled_{resample_dist}um")
     if not export_dir.exists():
         export_dir.mkdir(exist_ok=True)
 
@@ -111,20 +111,31 @@ def downsample_swc_files(swc_files: Path, resample_dist: int | float) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--swc_files",
-        type=str,
-        help="Path to folder containing swc files.",
-    )
-    parser.add_argument(
-        "--resample_dist",
-        type=int,
-        help="Distance to resample neuron, in microns.",
-    )
-    args = parser.parse_args()
+    app = Typer()
 
-    swc_files = Path(args.swc_files)
-    resample_dist = args.resample_dist
+    @app.command()
+    def main(
+        swc_files: Path = Argument(  # noqa: B008
+            ...,
+            help="Path to folder containing swc files.",
+        ),
+        resample_dist: int = Argument(  # noqa: B008
+            ...,
+            help="Distance to resample neuron, in microns.",
+        ),
+    ) -> None:
+        """Downsample and export .swc neuron morphology files to a specified distance.
 
-    downsample_swc_files(swc_files, resample_dist)
+        This function takes a folder containing .swc files and resamples the neuron morphologies
+        to a specified distance in microns. The resampled files are saved in a new folder in the
+        parent directory of the input folder.
+
+        Args:
+            swc_files (Path): Path to folder containing .swc files.
+            resample_dist (Union[int, float]): Distance to resample neuron, in microns.
+        """
+        print(f"Resampling neurons in {swc_files} to {resample_dist} um.")
+        downsample_swc_files(swc_files, resample_dist)
+        print("Done resampling neurons.")
+
+    app()
