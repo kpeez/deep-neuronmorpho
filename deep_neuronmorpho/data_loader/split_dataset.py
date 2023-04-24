@@ -59,4 +59,6 @@ def create_data_splits(
 
 
 if __name__ == "__main__":
+    print("Splitting dataset into train, val, and test sets...")
     app()
+    print("Done splitting dataset.")
