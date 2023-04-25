@@ -136,7 +136,7 @@ class NeuronGraphDataset(DGLDataset):
     def __init__(
         self,
         graphs_path: Path,
-        self_loop: bool = False,
+        self_loop: bool = True,
         data_name: str = "neuron_graph_dataset",
     ):
         self.graphs_path = graphs_path
@@ -149,6 +149,9 @@ class NeuronGraphDataset(DGLDataset):
         """Process the input data into a list of DGLGraphs."""
         self.graphs = dgl_from_swc(list(self.graphs_path.glob("*.swc")))
 
+        if self.self_loop:
+            self.graphs = [dgl.add_self_loop(dgl.remove_self_loop(graph)) for graph in self.graphs]
+
     def load(self) -> None:
         """Load the dataset from disk.
 
@@ -160,7 +163,7 @@ class NeuronGraphDataset(DGLDataset):
         """Save the dataset to disk."""
         if not self.export_dir.exists():
             self.export_dir.mkdir(exist_ok=True)
-        save_graphs(f"{self.export_dir}/{super().name}_dgl_graphs.bin", self.graphs)
+        save_graphs(f"{self.export_dir}/{super().name}.bin", self.graphs)
 
     def has_cache(self) -> bool:
         """Determine whether there exists a cached dataset.
