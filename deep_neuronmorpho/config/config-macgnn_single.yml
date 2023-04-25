@@ -20,8 +20,8 @@ model:
   learn_eps: False # learnable eps in GINConv
   aggregation_type: "sum" # "sum", "mean", "max"
   graph_pooling_type: "max" # "sum", "mean", "max"
-  fuse_gnn_layers: "cat" # ["sum", "mean", "max", "wsum", "cat"]
-  fuse_streams: "wsum" # ["sum", "mean", "max", "wsum", "cat"]
+  gnn_layers_aggregation: "cat" # ["sum", "mean", "max", "wsum", "cat"]
+  stream_aggregation: "wsum" # ["sum", "mean", "max", "wsum", "cat"]
 
 # Trainig configuration
 training:
