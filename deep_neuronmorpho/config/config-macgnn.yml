@@ -10,18 +10,21 @@ data:
 
 # Model configuration
 model:
-  num_gnn_layers: 5 # input,
+  num_gnn_layers: 5
   num_mlp_layers: 2
-  input_dim: 18 # dimension of node features
   hidden_dim: 64
+  output_dim: 320 # hidden_dim * num_gnn_layers
+  attrs_streams:
+    geometric: (0, 3)
+    topological: (4, 17)
   # norm_attrs: False
   #use_self_loop: True # net_learn_eps = False in Zhao code
   use_edge_weight: False # attention
   learn_eps: False # learnable eps in GINConv
-  aggregation_type: "sum" # "sum", "mean", "max"
   graph_pooling_type: "max" # "sum", "mean", "max"
-  fuse_gnn_layers: "cat" # ["sum", "mean", "max", 'wsum', 'cat]
-  fuse_streams: "wsum" # ["sum", "mean", "max", 'wsum', 'cat]
+  neighbor_aggregation: "sum" # "sum", "mean", "max"
+  gnn_layers_aggregation: "cat" # ["sum", "mean", "max", "wsum", "cat"]
+  stream_aggregation: "sum" # ["sum", "mean", "max", "wsum", "cat"]
 
 # Trainig configuration
 training:
