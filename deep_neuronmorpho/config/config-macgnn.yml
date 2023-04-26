@@ -21,10 +21,10 @@ model:
   #use_self_loop: True # net_learn_eps = False in Zhao code
   use_edge_weight: False # attention
   learn_eps: False # learnable eps in GINConv
-  aggregation_type: "sum" # "sum", "mean", "max"
   graph_pooling_type: "max" # "sum", "mean", "max"
+  neighbor_aggregation: "sum" # "sum", "mean", "max"
   gnn_layers_aggregation: "cat" # ["sum", "mean", "max", "wsum", "cat"]
-  stream_aggregation: "wsum" # ["sum", "mean", "max", "wsum", "cat"]
+  stream_aggregation: "sum" # ["sum", "mean", "max", "wsum", "cat"]
 
 # Trainig configuration
 training:
