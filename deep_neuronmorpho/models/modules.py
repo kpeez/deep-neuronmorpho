@@ -2,9 +2,8 @@
 
 
 import dgl
-import torch
 from dgl.nn.pytorch import GINConv
-from torch import nn
+from torch import Tensor, nn
 
 
 def linear_block(input_dim: int, output_dim: int) -> nn.Sequential:
@@ -56,14 +55,14 @@ class MLP(nn.Module):
 
         self.mlp = nn.Sequential(*layers)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         """Pass inputs through MLP layers.
 
         Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, input_size).
+            x (Tensor): Input tensor of shape (batch_size, input_size).
 
         Returns:
-            torch.Tensor: Output tensor of shape (batch_size, output_size),
+            Tensor: Output tensor of shape (batch_size, output_size),
             where output_size is the size of the last layer in the MLP.
         """
         return self.mlp(x)
@@ -115,22 +114,61 @@ class GINBlock(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,
+        x: Tensor,
         graph: dgl.DGLGraph,
-        edge_weight: torch.Tensor | None = None,
-    ) -> torch.Tensor:
+        edge_weight: Tensor | None = None,
+    ) -> Tensor:
         """Forward pass of the GINBlock.
 
         Args:
-            x (torch.Tensor): The input node features.
+            x (Tensor): The input node features.
             graph (dgl.DGLGraph): The input graph.
-            edge_weight (torch.Tensor, optional): The edge weights. Defaults to None.
+            edge_weight (Tensor, optional): The edge weights. Defaults to None.
 
         Returns:
-            torch.Tensor: The output node features after applying the GINBlock.
+            Tensor: The output node features after applying the GINBlock.
         """
         x = self.gin_conv(graph, x, edge_weight)
         x = self.bn(x)
         x = self.activation(x)
         x = self.dropout(x)
         return x
+
+
+def create_gnn_layers(
+    num_gnn_layers: int,
+    input_dim: int,
+    hidden_dim: int,
+    num_mlp_layers: int,
+    aggregation_type: str,
+    dropout_prob: float,
+    learn_eps: bool,
+) -> nn.ModuleList:
+    """Create a list of GNN layers (GINBlocks) for a given configuration.
+
+    Args:
+        num_gnn_layers (int): The number of GNN layers to create.
+        input_dim (int): The input dimension of the first GINBlock layer.
+        hidden_dim (int): The hidden dimension for all GINBlock layers.
+        num_mlp_layers (int): The number of MLP layers within each GINBlock.
+        aggregation_type (str): The type of aggregation for each GINBlock.
+        dropout_prob (float): The dropout probability for each GINBlock.
+        learn_eps (bool): Whether to learn the epsilon parameter in each GINBlock.
+
+    Returns:
+        nn.ModuleList: A list of GNN layers (GINBlocks) with the given configuration.
+    """
+    gnn_layers = nn.ModuleList()
+    for layer in range(num_gnn_layers):
+        input_dim = input_dim if layer == 0 else hidden_dim
+        gnn_layers.append(
+            GINBlock(
+                input_dim=input_dim,
+                hidden_dim=hidden_dim,
+                num_mlp_layers=num_mlp_layers,
+                aggregator_type=aggregation_type,
+                dropout_prob=dropout_prob,
+                learn_eps=learn_eps,
+            )
+        )
+    return gnn_layers
