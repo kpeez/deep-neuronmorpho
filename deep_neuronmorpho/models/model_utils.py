@@ -7,6 +7,25 @@ from dgl.nn.pytorch import AvgPooling, MaxPooling, SumPooling
 from torch import Tensor, nn
 
 
+def load_attrs_streams(attrs_streams: dict[str, str]) -> dict[str, list[int]]:
+    """Load attribute streams from a dictionary containing the range of indices.
+
+    Args:
+        attrs_streams (dict[str, str]): A dictionary where the keys are stream names,
+        and the values are a tuple the index range (inclusive) in string format.
+
+    Returns:
+        dict[str, list[int]]: A dictionary where the keys are stream names,
+        and the values are lists of indices corresponding to the given index range.
+    """
+    attrs_idxs = {}
+    for name, stream in attrs_streams.items():
+        start, end = eval(stream)
+        attrs_idxs[name] = list(range(start, end + 1))
+
+    return attrs_idxs
+
+
 def create_pooling_layer(pooling_type: str) -> nn.Module:
     """Create a pooling layer for the given pooling type.
 
@@ -37,20 +56,20 @@ def aggregate_tensors(
     aggregation_method: str = "cat",
     dim: int = -1,
     weights: Tensor | None = None,
-) -> torch.Tensor:
+) -> Tensor:
     """Aggregates tensor data according to the specified aggregation method.
 
     Args:
-        tensor_data (torch.Tensor): The tensor data to be aggregated.
+        tensor_data (Tensor): The tensor data to be aggregated.
         aggregation_method (str, optional): The method used to aggregate tensor data.
             Defaults to "cat".
         dim (int, optional): The dimension along which the aggregation is performed.
             Defaults to -1.
-        weights (Optional[torch.Tensor], optional): The weights for the weighted sum
+        weights (Optional[Tensor], optional): The weights for the weighted sum
             aggregation method. Required if the aggregation method is 'wsum'. Defaults to None.
 
     Returns:
-        torch.Tensor: The aggregated tensor data.
+        Tensor: The aggregated tensor data.
 
     Raises:
         NotImplementedError: If the aggregation method is not implemented.
