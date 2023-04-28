@@ -135,7 +135,7 @@ class GINBlock(nn.Module):
         return x
 
 
-def create_gnn_layers(
+def create_gin_layers(
     num_gnn_layers: int,
     input_dim: int,
     hidden_dim: int,
