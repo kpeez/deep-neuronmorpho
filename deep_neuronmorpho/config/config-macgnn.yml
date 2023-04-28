@@ -24,7 +24,7 @@ model:
   graph_pooling_type: "max" # "sum", "mean", "max"
   neighbor_aggregation: "sum" # "sum", "mean", "max"
   gnn_layers_aggregation: "cat" # ["sum", "mean", "max", "wsum", "cat"]
-  stream_aggregation: "sum" # ["sum", "mean", "max", "wsum", "cat"]
+  stream_aggregation: "wsum" # ["sum", "mean", "max", "wsum", "cat"]
 
 # Trainig configuration
 training:
