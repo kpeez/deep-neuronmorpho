@@ -23,6 +23,7 @@ pyyaml = "^6.0"
 pyarrow = "^11.0.0"
 morphopy = "^0.7.2"
 tensorboard = "^2.12.2"
+typer = "^0.7.0"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -33,7 +34,6 @@ pre-commit = "^3"
 ipykernel = "^6"
 notebook = "^6.5"
 pandas-stubs = "*"
-typer = "^0.7.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.2.0"
