@@ -44,28 +44,12 @@ class MLP(nn.Module):
             raise ValueError("Number of layers must be at least 1.")
 
         layers = []
-        if num_layers == 1:  # no hidden layers
-            layers.append(linear_block(input_dim, output_dim))
-        else:  # at least one hidden layer
+        for _layer in range(num_layers - 1):
             layers.append(linear_block(input_dim, hidden_dim))
-            for _layer in range(num_layers - 2):
-                layers.append(linear_block(hidden_dim, hidden_dim))
-
-            layers.append(linear_block(hidden_dim, output_dim))
+            input_dim = hidden_dim
+        layers.append(linear_block(hidden_dim, output_dim))
 
         self.mlp = nn.Sequential(*layers)
-
-    def forward(self, x: Tensor) -> Tensor:
-        """Pass inputs through MLP layers.
-
-        Args:
-            x (Tensor): Input tensor of shape (batch_size, input_size).
-
-        Returns:
-            Tensor: Output tensor of shape (batch_size, output_size),
-            where output_size is the size of the last layer in the MLP.
-        """
-        return self.mlp(x)
 
 
 class GINBlock(nn.Module):
