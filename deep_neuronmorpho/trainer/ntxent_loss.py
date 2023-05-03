@@ -11,9 +11,9 @@ class NTXEntLoss(nn.Module):
         Defaults to 1.0.
 
     Inputs:
-        - batch_embeddings (Tensor): A tensor of shape `(batch_size, embedding_dim)`
+        - embed_a (Tensor): A tensor of shape `(batch_size, embedding_dim)`
         containing the embeddings for the original data.
-        - batch_augmented_embeddings (Tensor): A tensor of shape `(batch_size, embedding_dim)`
+        - embed_b (Tensor): A tensor of shape `(batch_size, embedding_dim)`
         containing the embeddings for the augmented data.
 
     Returns:
@@ -34,28 +34,20 @@ class NTXEntLoss(nn.Module):
         self.temperature = temperature
         self.cosine_similarity = nn.CosineSimilarity(dim=-1)
 
-    def forward(self, batch_embeddings: Tensor, batch_augmented_embeddings: Tensor) -> Tensor:
+    def forward(self, embed_a: Tensor, embed_b: Tensor) -> Tensor:
         """Computes the NT-Xent loss."""
         # Input shape: (batch_size, embedding_dim)
-        batch_size = batch_embeddings.size(0)
-        embeddings = torch.cat([batch_embeddings, batch_augmented_embeddings], dim=0)
-
-        # Compute the cosine similarity matrix
-        sim_matrix = self.cosine_similarity(embeddings.unsqueeze(1), embeddings.unsqueeze(0))
-        sim_matrix /= self.temperature
-
-        # Create the negative mask
-        negative_mask = (
-            ~(torch.eye(batch_size, dtype=bool, device=batch_embeddings.device))  # type: ignore
-        ).repeat(2, 2)
-
-        # Compute the loss
-        exp_sim_matrix = torch.exp(sim_matrix) * negative_mask.float()
-        sum_exp_sim_matrix = torch.sum(exp_sim_matrix, dim=-1)
-
-        pos_indices = torch.arange(batch_size, device=batch_embeddings.device)
-        positive_sim = sim_matrix[pos_indices, batch_size + pos_indices]
-        negative_sim_sum = sum_exp_sim_matrix[:batch_size]
-        loss = -torch.log(torch.exp(positive_sim) / negative_sim_sum).mean()
+        embeddings = torch.cat([embed_a, embed_b], dim=0)
+        n_samples = len(embeddings)
+        # Compute cosine similarity matrix
+        sim = self.cosine_similarity(embeddings.unsqueeze(1), embeddings.unsqueeze(0))
+        sim_exp = torch.exp(sim / self.temperature)
+        # Remove diagonal elements (self-similarity)
+        mask = ~torch.eye(n_samples, device=sim_exp.device).bool()
+        neg = sim_exp.masked_select(mask).view(n_samples, -1).sum(dim=-1)
+        # Positive similarity
+        pos = torch.exp(torch.sum(embed_a * embed_b, dim=-1) / self.temperature)
+        pos = torch.cat([pos, pos], dim=0)
+        loss = -torch.log(pos / neg).mean()
 
         return loss
