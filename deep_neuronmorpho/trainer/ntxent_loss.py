@@ -33,21 +33,22 @@ class NTXEntLoss(nn.Module):
         super().__init__()
         self.temperature = temperature
         self.cosine_similarity = nn.CosineSimilarity(dim=-1)
+        self.mask: Tensor | None = None
 
     def forward(self, embed_a: Tensor, embed_b: Tensor) -> Tensor:
         """Computes the NT-Xent loss."""
-        # Input shape: (batch_size, embedding_dim)
         embeddings = torch.cat([embed_a, embed_b], dim=0)
         n_samples = len(embeddings)
+        # Create mask for diagonal elements if not already cached or if batch size changed
+        if self.mask is None or self.mask.shape[0] != n_samples:
+            self.mask = ~torch.eye(n_samples, device=embeddings.device).bool()
         # Compute cosine similarity matrix
         sim = self.cosine_similarity(embeddings.unsqueeze(1), embeddings.unsqueeze(0))
         sim_exp = torch.exp(sim / self.temperature)
         # Remove diagonal elements (self-similarity)
-        mask = ~torch.eye(n_samples, device=sim_exp.device).bool()
-        neg = sim_exp.masked_select(mask).view(n_samples, -1).sum(dim=-1)
-        # Positive similarity
-        pos = torch.exp(torch.sum(embed_a * embed_b, dim=-1) / self.temperature)
-        pos = torch.cat([pos, pos], dim=0)
+        neg = sim_exp.masked_select(self.mask).view(n_samples, -1).sum(dim=-1)
+        # Positive pair similarities for each pair, both (i,j) and (j,i)
+        pos = torch.diag(sim_exp[: len(embed_a), len(embed_b) :]).repeat(2)
         loss = -torch.log(pos / neg).mean()
 
         return loss
