@@ -51,6 +51,10 @@ class MLP(nn.Module):
 
         self.mlp = nn.Sequential(*layers)
 
+    def forward(self, x: Tensor) -> Tensor:
+        """Forward pass of the MLP."""
+        return self.mlp(x)
+
 
 class GINBlock(nn.Module):
     """GINBlock represents a single GIN layer in the GNN.
