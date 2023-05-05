@@ -29,20 +29,20 @@ class MACGNN(nn.Module):
     def __init__(self, args: ModelConfig) -> None:
         super().__init__()
 
-        self.args = args
+        self.args = args.model
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.use_edge_weight = args.model.use_edge_weight
-        self.learn_eps = args.model.learn_eps
-        self.hidden_dim = args.model.hidden_dim
-        self.output_dim = args.model.output_dim
-        self.num_mlp_layers = args.model.num_mlp_layers
-        self.num_gnn_layers = args.model.num_gnn_layers
-        self.graph_pooling_type = args.model.graph_pooling_type
-        self.neighbor_aggregation = args.model.neighbor_aggregation
-        self.gnn_layers_aggregation = args.model.gnn_layers_aggregation
-        self.stream_aggregation = args.model.stream_aggregation
-        self.dropout_prob = args.training.dropout_prob
-        self.attrs_streams = load_attrs_streams(args.model.attrs_streams.to_dict())
+        self.use_edge_weight = self.args.use_edge_weight
+        self.learn_eps = self.args.learn_eps
+        self.hidden_dim = self.args.hidden_dim
+        self.output_dim = self.args.output_dim
+        self.num_mlp_layers = self.args.num_mlp_layers
+        self.num_gnn_layers = self.args.num_gnn_layers
+        self.graph_pooling_type = self.args.graph_pooling_type
+        self.neighbor_aggregation = self.args.neighbor_aggregation
+        self.gnn_layers_aggregation = self.args.gnn_layers_aggregation
+        self.stream_aggregation = self.args.stream_aggregation
+        self.dropout_prob = self.args.dropout_prob
+        self.attrs_streams = load_attrs_streams(self.args.attrs_streams.to_dict())
         self.num_streams = len(self.attrs_streams)
         self.streams_weights = None
         self.gnn_streams = nn.ModuleDict()
