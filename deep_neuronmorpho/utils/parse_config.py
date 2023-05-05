@@ -5,9 +5,6 @@ from typing import Any
 
 import yaml
 
-MODEL_NAME = "macgnn_single"
-CONFIG_FILE = Path.cwd().parent / f"models/config/config-{MODEL_NAME}.yml"
-
 
 def load_config(config_file: str | Path) -> dict[str, Any]:
     """Load model config file.
