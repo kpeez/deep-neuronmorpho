@@ -40,8 +40,15 @@ training:
 
 # Augmentation info
 augmentation:
-  method: "None"
-  aug_params: "None"
+  order: [perturb, rotate]
+  params:
+    perturb:
+      prop: 0.5
+      std_noise: 2.0
+    rotate: {} # no args needed
+    # drop_branches:
+    #   prop: 0.02
+    #   deg_power: 2.0
 
 # Logging configuration
 logging:
