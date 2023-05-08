@@ -14,6 +14,7 @@ model:
   num_mlp_layers: 2
   hidden_dim: 64
   output_dim: 320 # hidden_dim * num_gnn_layers
+  dropout_prob: 0.5
   attrs_streams:
     geometric: (0, 3)
     topological: (4, 17)
@@ -36,12 +37,18 @@ training:
   decay_steps: 20
   decay_rate: 0.6
   contra_loss_temp: 0.2
-  dropout_prob: 0.5
 
 # Augmentation info
 augmentation:
-  method: "None"
-  aug_params: "None"
+  order: [perturb, rotate]
+  params:
+    perturb:
+      prop: 0.5
+      std_noise: 2.0
+    rotate: {} # no args needed
+    # drop_branches:
+    #   prop: 0.02
+    #   deg_power: 2.0
 
 # Logging configuration
 logging:

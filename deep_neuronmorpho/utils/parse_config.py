@@ -5,9 +5,6 @@ from typing import Any
 
 import yaml
 
-MODEL_NAME = "macgnn_single"
-CONFIG_FILE = Path.cwd().parent / f"models/config/config-{MODEL_NAME}.yml"
-
 
 def load_config(config_file: str | Path) -> dict[str, Any]:
     """Load model config file.
@@ -112,3 +109,33 @@ class ModelConfig(Config):
             else:
                 items.append(f"{key}: {repr(value)}")
         return "\n".join(items)
+
+
+def validate_model_config(config: dict[str, Any]) -> None:
+    """Validate the model section of the config file.
+
+    Args:
+        config (dict[str, Any]): Model configuration.
+
+    Raises:
+        ValueError: Error if any of the required parameters are missing.
+    """
+    required_params = [
+        "use_edge_weight",
+        "learn_eps",
+        "hidden_dim",
+        "output_dim",
+        "num_mlp_layers",
+        "num_gnn_layers",
+        "graph_pooling_type",
+        "neighbor_aggregation",
+        "gnn_layers_aggregation",
+        "stream_aggregation",
+        "dropout_prob",
+        "attrs_streams",
+    ]
+
+    missing_params = [param for param in required_params if param not in config]
+
+    if missing_params:
+        raise ValueError(f"Missing required parameters in ModelConfig: {missing_params}")
