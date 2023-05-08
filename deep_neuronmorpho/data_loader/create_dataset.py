@@ -136,14 +136,14 @@ class NeuronGraphDataset(DGLDataset):
     def __init__(
         self,
         graphs_path: Path,
+        dataset_name: str = "neuron_graph_dataset",
         self_loop: bool = True,
-        data_name: str = "neuron_graph_dataset",
     ):
         self.graphs_path = graphs_path
         self.export_dir = Path(self.graphs_path.parent / "processed")
         self.graphs: list = []
         self.self_loop = self_loop
-        super().__init__(name=data_name, raw_dir=self.export_dir)
+        super().__init__(name=dataset_name, raw_dir=self.export_dir)
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
@@ -177,7 +177,7 @@ class NeuronGraphDataset(DGLDataset):
     @property
     def cached_graphs_path(self) -> Path:
         """The path to the cached graphs."""
-        return Path(self.graphs_path.parent / "processed" / f"{super().name}_dgl_graphs.bin")
+        return Path(self.graphs_path.parent / "processed" / f"{super().name}.bin")
 
     def __len__(self) -> int:
         """Return the number of graphs in the dataset."""
@@ -198,6 +198,7 @@ if __name__ == "__main__":
         input_dir: str = typer.Argument(  # noqa: B008
             ..., help="Path to the directory containing the .swc files."
         ),
+        dataset_name: str = typer.Option(..., help="Name of the dataset."),  # noqa: B008
         self_loop: bool = typer.Option(  # noqa: B008
             False,
             help="Optional flag to add self-loops to each graph.",
@@ -207,9 +208,10 @@ if __name__ == "__main__":
 
         Args:
             input_dir (str): Path to the directory containing the .swc files.
+            dataset_name (str): Name of the dataset.
             self_loop (bool): Optional flag to add self-loops to each graph. Defaults to False.
         """
         graphs_dir = Path(input_dir)
-        NeuronGraphDataset(graphs_path=graphs_dir, self_loop=self_loop)
+        NeuronGraphDataset(graphs_path=graphs_dir, dataset_name=dataset_name, self_loop=self_loop)
 
     app()
