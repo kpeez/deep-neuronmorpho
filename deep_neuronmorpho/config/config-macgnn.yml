@@ -31,12 +31,13 @@ model:
 training:
   lr_init: 0.01
   seed_list: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  contra_loss_temp: 0.2
   shuffle: True
   max_epochs: 400
   lr_patience_epochs: 60
+  lr_scheduler: "step" # ["cosine", "step"]
   decay_steps: 20
   decay_rate: 0.6
-  contra_loss_temp: 0.2
 
 # Augmentation info
 augmentation:
