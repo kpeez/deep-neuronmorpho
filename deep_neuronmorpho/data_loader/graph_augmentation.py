@@ -1,4 +1,5 @@
 """Graph augmentations of neuron structures for contrastive learning."""
+import inspect
 from copy import deepcopy
 from typing import Callable
 
@@ -35,13 +36,12 @@ class GraphAugmenter:
     """
 
     def __init__(self, augmentation_params: dict[str, dict[str, str | float]] | None = None):
-        self.augmentation_params = augmentation_params or {}
         self.augmentation_funcs: dict[str, Callable[..., DGLGraph]] = {
             "perturb": self.perturb_node_positions,
             "rotate": self.rotate_graph_nodes,
         }
+        self.augmentation_params = augmentation_params or self.get_default_aug_params()
         self.validate_augmentations()
-
         self.augmented_graphs = None
 
     def validate_augmentations(self) -> None:
@@ -49,6 +49,23 @@ class GraphAugmenter:
         for aug in self.augmentation_params:
             if aug not in self.augmentation_funcs:
                 raise ValueError(f"Augmentation function: '{aug}' not supported.")
+
+    def get_default_aug_params(self) -> dict[str, dict[str, str | float]]:
+        """Get default augmentation parameters if none are provided."""
+        default_arguments = {}
+        for func_name, func in self.augmentation_funcs.items():
+            signature = inspect.signature(func)
+            default_arguments.update(
+                {
+                    func_name: {
+                        name: param.default
+                        for name, param in signature.parameters.items()
+                        if param.default != inspect.Parameter.empty
+                    }
+                }
+            )
+
+        return default_arguments
 
     @staticmethod
     def perturb_node_positions(
