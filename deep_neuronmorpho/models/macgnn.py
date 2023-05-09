@@ -29,7 +29,7 @@ class MACGNN(nn.Module):
     def __init__(self, args: ModelConfig, device: torch.device | None = None) -> None:
         super().__init__()
 
-        self.args = args.model
+        self.args = args
         validate_model_config(self.args.to_dict())
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.use_edge_weight = self.args.use_edge_weight
