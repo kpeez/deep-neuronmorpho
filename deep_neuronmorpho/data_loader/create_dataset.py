@@ -6,6 +6,7 @@ import networkx as nx
 import numpy as np
 from dgl.data import DGLDataset
 from dgl.data.utils import load_graphs, save_graphs
+from dgl.dataloading import GraphDataLoader
 from scipy import stats
 from scipy.spatial.distance import euclidean
 
@@ -104,15 +105,51 @@ def dgl_from_swc(swc_files: list[Path]) -> list[dgl.DGLGraph]:
     """
     neuron_graphs = []
     for file in ProgressBar(swc_files, desc="Creating DGL graphs:"):
-        neuron_graph = create_neuron_graph(file)
-        neuron_graphs.append(
-            dgl.from_networkx(
-                neuron_graph,
-                node_attrs=["nattrs"],
-                edge_attrs=["path_length"],
+        try:
+            neuron_graph = create_neuron_graph(file)
+            neuron_graphs.append(
+                dgl.from_networkx(
+                    neuron_graph,
+                    node_attrs=["nattrs"],
+                    edge_attrs=["path_length"],
+                )
             )
-        )
+        except Exception as e:
+            print(f"Error creating DGL graph for {file}: {e}")
+
     return neuron_graphs
+
+
+def create_dataloaders(
+    train_dataset: DGLDataset,
+    val_dataset: DGLDataset,
+    batch_size: int,
+    shuffle: bool = True,
+) -> tuple[GraphDataLoader, GraphDataLoader]:
+    """Create dataloaders for training and validation datasets.
+
+    Args:
+        train_dataset (DGLDataset): Training dataset.
+        val_dataset (DGLDataset): Validation dataset.
+        batch_size (int): Batch size.
+        shuffle (bool): Whether to shuffle the training data. Defaults to True.
+
+    Returns:
+        tuple[GraphDataLoader, GraphDataLoader]: _description_
+    """
+    train_loader = GraphDataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        drop_last=False,
+    )
+    val_loader = GraphDataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        drop_last=False,
+    )
+    return train_loader, val_loader
 
 
 class NeuronGraphDataset(DGLDataset):
