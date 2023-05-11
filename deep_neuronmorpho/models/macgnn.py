@@ -13,14 +13,14 @@ import torch
 from dgl import DGLGraph
 from torch import Tensor, nn
 
-from deep_neuronmorpho.models.model_utils import (
+from ..utils import ModelConfig, validate_model_config
+from .model_utils import (
     aggregate_tensor,
     compute_embedding_dim,
     create_pooling_layer,
     load_attrs_streams,
 )
-from deep_neuronmorpho.models.modules import create_gin_layers, linear_block
-from deep_neuronmorpho.utils.parse_config import ModelConfig, validate_model_config
+from .modules import create_gin_layers, linear_block
 
 
 class MACGNN(nn.Module):

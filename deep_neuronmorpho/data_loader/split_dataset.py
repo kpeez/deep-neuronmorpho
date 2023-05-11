@@ -7,7 +7,7 @@ from typing import Tuple
 
 from typer import Typer
 
-from deep_neuronmorpho.utils.progress import ProgressBar
+from ..utils import ProgressBar
 
 app = Typer()
 
