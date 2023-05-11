@@ -2,6 +2,9 @@
 data
 dev-notebooks
 *.csv
+*.pt
+*.pth
+*tfevents*
 
 # IDE temp files #
 .vscode/
