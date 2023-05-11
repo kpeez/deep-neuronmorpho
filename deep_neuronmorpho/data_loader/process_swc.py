@@ -6,7 +6,7 @@ import pandas as pd
 from morphopy.neurontree import NeuronTree as nt
 from typer import Argument, Typer
 
-from deep_neuronmorpho.utils.progress import ProgressBar
+from ..utils import ProgressBar
 
 
 def set_swc_dtypes(swc_data: pd.DataFrame) -> pd.DataFrame:

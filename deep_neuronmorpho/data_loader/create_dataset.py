@@ -10,8 +10,8 @@ from dgl.dataloading import GraphDataLoader
 from scipy import stats
 from scipy.spatial.distance import euclidean
 
-from deep_neuronmorpho.data_loader.process_swc import swc_to_neuron_tree
-from deep_neuronmorpho.utils.progress import ProgressBar
+from ..utils import ProgressBar
+from .process_swc import swc_to_neuron_tree
 
 
 def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
