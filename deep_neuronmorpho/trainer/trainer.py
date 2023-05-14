@@ -8,7 +8,7 @@ from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
 
 from ..data_loader import GraphAugmenter
-from ..utils import ModelConfig, ProgressBar
+from ..utils import ModelConfig, ProgressBar, setup_logger
 
 
 class ContrastiveTrainer:
@@ -80,18 +80,19 @@ class ContrastiveTrainer:
         augmenter: GraphAugmenter,
         optimizer: optim.Optimizer,
         lr_scheduler: optim.lr_scheduler._LRScheduler,
-        loss: nn.Module,
+        loss_fn: nn.Module,
         device: torch.device,
     ):
         self.config = config
         self.model = model
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
-        self.loss = loss
+        self.loss_fn = loss_fn
         self.augmenter = augmenter
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.device = device
+        self.logger = setup_logger(self.log_dir)
         self.best_val_loss = float("inf")
 
     def _calculate_loss(self, batch: DGLGraph) -> float:
@@ -106,7 +107,7 @@ class ContrastiveTrainer:
         augmented_batch = self.augmenter.augment_batch(batch)
         ypred = self.model(batch)
         ypred_aug = self.model(augmented_batch)
-        loss = self.loss(ypred, ypred_aug)
+        loss = self.loss_fn(ypred, ypred_aug)
         return loss
 
     def _process_batch(self, dataloader: GraphDataLoader, train_mode: bool = True) -> float:
@@ -153,21 +154,24 @@ class ContrastiveTrainer:
         Args:
             num_epochs (int, optional): Number of epochs to train for. If 0, train until
                 the validation loss stops improving or until the max number of epochs is reached.
-                Defaults to 0.
+                Defaults to 0 (max epochs in model config).
 
         """
-        writer = SummaryWriter(self.log_dir)
-
-        bad_epochs = 0
         num_epochs = self.max_epochs if num_epochs == 0 else num_epochs
+        writer = SummaryWriter(self.log_dir)
+        self.logger.info(f"Training model for {num_epochs} epochs...")
+        bad_epochs = 0
         for epoch in ProgressBar(range(num_epochs), desc="Training epochs:"):
             train_loss = self.train_step()
             val_loss = self.eval_step()
             writer.add_scalar("loss/train", train_loss, epoch, new_style=True)
             writer.add_scalar("loss/val", val_loss, epoch, new_style=True)
-            print(
-                f"Epoch {epoch+1}/{num_epochs}: Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}"
+            self.logger.info(
+                f"Epoch {epoch+1}/{num_epochs}: "
+                f"Train Loss: {train_loss:.4f} | "
+                f"Val Loss: {val_loss:.4f}"
             )
+
             self.lr_scheduler.step()
 
             if val_loss < self.best_val_loss:
@@ -178,7 +182,9 @@ class ContrastiveTrainer:
                 bad_epochs += 1
 
             if bad_epochs > self.config.training.patience:
-                print(f"Stopping training after {epoch+1} epochs: Validation loss at plateau")
+                self.logger.info(
+                    f"Stopping training after {epoch+1} epochs: Validation loss at plateau"
+                )
                 break
 
         writer.close()
@@ -224,16 +230,16 @@ class ContrastiveTrainer:
         chkpt_file = self.checkpoint_dir / chkpt_name
 
         if chkpt_file.is_file():
-            print(f"Loading checkpoint from {chkpt_file}")
+            self.logger.info(f"Loading checkpoint from {chkpt_file}")
             checkpoint = torch.load(chkpt_file, map_location=self.device)
 
             self.model.load_state_dict(checkpoint[self.config.model.name])
             self.optimizer.load_state_dict(checkpoint["optimizer"])
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
             self.best_val_loss = checkpoint["val_loss"]
-
-            print(
-                f"Loaded model at epoch {checkpoint['epoch']} with validation loss {checkpoint['val_loss']:.4f}"
+            self.logger.info(
+                f"Loaded model at epoch {checkpoint['epoch']} with "
+                f"validation loss {checkpoint['val_loss']:.4f}"
             )
         else:
             raise FileNotFoundError(f"Checkpoint file {chkpt_file} not found")
