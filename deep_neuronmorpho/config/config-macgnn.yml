@@ -1,15 +1,6 @@
-# Data configuration
-root_path: "insert_path"
-data:
-  train_data_path: "data/train/"
-  val_data_path: "data/validation/"
-  test_data_path: "data/test/"
-  num_workers: 1
-  batch_size: 64
-  normalize_features: True
-
 # Model configuration
 model:
+  name: "macgnn"
   num_gnn_layers: 5
   num_mlp_layers: 2
   hidden_dim: 64
@@ -29,15 +20,17 @@ model:
 
 # Trainig configuration
 training:
+  batch_size: 64
   lr_init: 0.01
   seed_list: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
   contra_loss_temp: 0.2
   shuffle: True
   max_epochs: 400
-  lr_patience_epochs: 60
+  patience: 60
   lr_scheduler: "step" # ["cosine", "step"]
-  decay_steps: 20
-  decay_rate: 0.6
+  lr_decay_steps: 20
+  lr_decay_rate: 0.6
+  # num_workers: 1
 
 # Augmentation info
 augmentation:
