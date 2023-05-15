@@ -142,7 +142,7 @@ def dgl_from_swc(swc_files: list[Path]) -> list[dgl.DGLGraph]:
                 dgl.from_networkx(
                     neuron_graph,
                     node_attrs=["nattrs"],
-                    edge_attrs=["path_length"],
+                    edge_attrs=["edge_weight"],
                 )
             )
         except Exception as e:
@@ -188,7 +188,7 @@ class NeuronGraphDataset(DGLDataset):
 
     Args:
         graphs_path (Path): The path to the SWC file directory.
-        self_loop (bool, optional): Whether to add self-loops to each graph. Defaults to False.
+        self_loop (bool, optional): Whether to add self-loops to each graph. Defaults to True.
         data_name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
 
     Attributes:
@@ -218,7 +218,12 @@ class NeuronGraphDataset(DGLDataset):
         self.graphs = dgl_from_swc(list(self.graphs_path.glob("*.swc")))
 
         if self.self_loop:
-            self.graphs = [dgl.add_self_loop(dgl.remove_self_loop(graph)) for graph in self.graphs]
+            self.graphs = [
+                dgl.add_self_loop(
+                    dgl.remove_self_loop(graph), edge_feat_names=["edge_weight"], fill_data=1.0
+                )
+                for graph in self.graphs
+            ]
 
     def load(self) -> None:
         """Load the dataset from disk.
