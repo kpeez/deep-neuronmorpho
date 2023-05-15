@@ -10,8 +10,7 @@ model:
     geometric: (0, 3)
     topological: (4, 17)
   # norm_attrs: False
-  #use_self_loop: True # net_learn_eps = False in Zhao code
-  use_edge_weight: False # attention
+  use_edge_weight: True # attention
   learn_eps: False # learnable eps in GINConv
   graph_pooling_type: "max" # "sum", "mean", "max"
   neighbor_aggregation: "sum" # "sum", "mean", "max"
