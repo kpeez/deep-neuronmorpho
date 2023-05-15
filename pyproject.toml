@@ -2,7 +2,7 @@
 name = "deep_neuronmorpho"
 version = "0.0.1"
 description = "Deep learning based approaches for neuron morphology embeddings."
-authors = ["Kyle Puhger <fkrpuhger@gmail.com>"]
+authors = ["Kyle Puhger <krpuhger@gmail.com>"]
 repository = "https://github.com/kpeez/deep-neuronmorpho"
 documentation = "https://kpeez.github.io/deep-neuronmorpho/"
 readme = "README.md"

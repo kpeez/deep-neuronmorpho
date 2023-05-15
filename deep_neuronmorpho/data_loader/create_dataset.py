@@ -37,6 +37,37 @@ def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
     return attr_stats
 
 
+def compute_edge_weights(G: nx.Graph, epsilon: float = 1.0) -> nx.Graph:
+    """Compute edge attention weights for a graph.
+
+    Args:
+        G (nx.Graph): Graph to compute edge weights for.
+        epsilon (float, optional): Small constant to prevent division by zero. Defaults to 1.0.
+
+    Returns:
+        nx.Graph: Graph with attention weights added as edge attributes.
+    """
+    for u, v in G.edges:
+        G.add_edge(v, u)
+    node_coeffs = {node: 1.0 / (ndata["nattrs"][5] + epsilon) for node, ndata in G.nodes(data=True)}
+    for node in G.nodes():
+        neighbors = list(G.neighbors(node))
+        local_coeffs = np.float32([node_coeffs[neighbor] for neighbor in neighbors])
+        attention_coeffs = np.exp(local_coeffs) / np.sum(np.exp(local_coeffs))
+
+        edge_weights = (
+            (neighbor, coeff) for neighbor, coeff in zip(neighbors, attention_coeffs, strict=True)
+        )
+
+        for neighbor, weight in edge_weights:
+            if G.has_edge(node, neighbor):
+                G[node][neighbor]["edge_weight"] = weight
+            else:
+                G.add_edge(node, neighbor, edge_weight=weight)
+
+    return G
+
+
 def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     """Create networkx graph of neuron from swc format.
 
@@ -82,13 +113,13 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
             *angle_stats,
             *branch_stats,
         ]
-
         neuron_graph.nodes[node].clear()
         neuron_graph.nodes[node].update({"nattrs": [np.float32(attr) for attr in node_attrs]})
-    # euclidean_dist is duplicate of path_dist for edges so remove
-    # TODO: fix to compute "attention" instead
     for _, _, edge_data in neuron_graph.edges(data=True):
         del edge_data["euclidean_dist"]
+        del edge_data["path_length"]
+
+    neuron_graph = compute_edge_weights(neuron_graph)
 
     return neuron_graph
 
@@ -111,7 +142,7 @@ def dgl_from_swc(swc_files: list[Path]) -> list[dgl.DGLGraph]:
                 dgl.from_networkx(
                     neuron_graph,
                     node_attrs=["nattrs"],
-                    edge_attrs=["path_length"],
+                    edge_attrs=["edge_weight"],
                 )
             )
         except Exception as e:
@@ -157,7 +188,7 @@ class NeuronGraphDataset(DGLDataset):
 
     Args:
         graphs_path (Path): The path to the SWC file directory.
-        self_loop (bool, optional): Whether to add self-loops to each graph. Defaults to False.
+        self_loop (bool, optional): Whether to add self-loops to each graph. Defaults to True.
         data_name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
 
     Attributes:
@@ -177,7 +208,7 @@ class NeuronGraphDataset(DGLDataset):
         self_loop: bool = True,
     ):
         self.graphs_path = graphs_path
-        self.export_dir = Path(self.graphs_path.parent / "processed")
+        self.export_dir = Path(self.graphs_path.parent / "dgl_datasets")
         self.graphs: list = []
         self.self_loop = self_loop
         super().__init__(name=dataset_name, raw_dir=self.export_dir)
@@ -187,7 +218,12 @@ class NeuronGraphDataset(DGLDataset):
         self.graphs = dgl_from_swc(list(self.graphs_path.glob("*.swc")))
 
         if self.self_loop:
-            self.graphs = [dgl.add_self_loop(dgl.remove_self_loop(graph)) for graph in self.graphs]
+            self.graphs = [
+                dgl.add_self_loop(
+                    dgl.remove_self_loop(graph), edge_feat_names=["edge_weight"], fill_data=1.0
+                )
+                for graph in self.graphs
+            ]
 
     def load(self) -> None:
         """Load the dataset from disk.
@@ -214,7 +250,7 @@ class NeuronGraphDataset(DGLDataset):
     @property
     def cached_graphs_path(self) -> Path:
         """The path to the cached graphs."""
-        return Path(self.graphs_path.parent / "processed" / f"{super().name}.bin")
+        return Path(self.graphs_path.parent / "dgl_datasets" / f"{super().name}.bin")
 
     def __len__(self) -> int:
         """Return the number of graphs in the dataset."""

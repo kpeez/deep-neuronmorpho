@@ -4,6 +4,7 @@ dev-notebooks
 *.csv
 *.pt
 *.pth
+*.log
 *tfevents*
 
 # IDE temp files #

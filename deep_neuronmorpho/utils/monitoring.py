@@ -1,7 +1,7 @@
-"""Progress bars for various tasks.
-
-For example, loading/exporting/processing files or training/evaluating models.
-"""
+"""Utilities for monitoring the training process."""
+import logging
+from datetime import datetime as dt
+from pathlib import Path
 from typing import Any, Collection
 
 import numpy as np
@@ -59,3 +59,23 @@ class ProgressBar:
         """
         for item in self.pbar:
             yield item
+
+
+def setup_logger(log_dir: Path) -> logging.Logger:
+    """Create a logger for logging training progress."""
+    # Create a logger
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    # log messages to the console
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    # writing log messages to a file
+    log_filename = f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-training.log"
+    file_handler = logging.FileHandler(log_dir / log_filename)
+    file_handler.setLevel(logging.INFO)
+
+    # Add the handlers to the logger
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+
+    return logger
