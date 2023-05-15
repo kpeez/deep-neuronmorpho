@@ -40,6 +40,8 @@ def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
 def compute_edge_weights(G: nx.Graph, epsilon: float = 1.0) -> nx.Graph:
     """Compute edge attention weights for a graph.
 
+    Based on the method described in [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206).
+
     Args:
         G (nx.Graph): Graph to compute edge weights for.
         epsilon (float, optional): Small constant to prevent division by zero. Defaults to 1.0.
