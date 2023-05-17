@@ -92,7 +92,7 @@ class ContrastiveTrainer:
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.device = device
-        self.logger = setup_logger(self.log_dir)
+        self.logger = setup_logger(self.log_dir, session="train")
         self.best_val_loss = float("inf")
 
     def _calculate_loss(self, batch: DGLGraph) -> float:
