@@ -4,11 +4,13 @@ from pathlib import Path
 import dgl
 import networkx as nx
 import numpy as np
+import torch
 from dgl.data import DGLDataset
 from dgl.data.utils import load_graphs, save_graphs
 from dgl.dataloading import GraphDataLoader
 from scipy import stats
 from scipy.spatial.distance import euclidean
+from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
 from ..utils import ProgressBar
 from .process_swc import swc_to_neuron_tree
@@ -104,12 +106,12 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     for node in neuron_graph.nodes():
         # expand position to x, y, z
         x, y, z = neuron_graph.nodes[node]["pos"]
-        radius = neuron_graph.nodes[node]["radius"]
+
         node_attrs = [
             x,
             y,
             z,
-            radius,
+            # neuron_graph.nodes[node]["radius"], # uncomment to include radius
             nx.dijkstra_path_length(neuron_graph, 1, node, weight="path_length"),
             euclidean((x, y, z), (soma_x, soma_y, soma_z)),
             *angle_stats,
@@ -185,13 +187,79 @@ def create_dataloaders(
     return train_loader, val_loader
 
 
+class GraphScaler:
+    """A class used to standardize the node attributes of DGLGraphs in a dataset.
+
+    Args:
+        scale_xyz (str, optional): The type of scaling to apply to the first three node attributes
+            which represent the x, y, z coordinates.
+            Accepted values are 'standard', 'robust', and 'minmax'. Defaults to 'standard'.
+        scale_attrs (str, optional): The type of scaling to apply to the remaining node attributes.
+            Accepted values are 'standard', 'robust', and 'minmax'. Defaults to 'robust'.
+
+    Attributes:
+        scale_xyz (Scaler): The scaler object for the first three node attributes.
+        scale_attrs (Scaler): The scaler object for the remaining node attributes.
+        fitted (bool): Indicates whether the scalers have been fitted to a dataset.
+    """
+
+    def __init__(self, scale_xyz: str = "standard", scale_attrs: str = "robust"):
+        scaler_dict = {
+            "standard": StandardScaler(),
+            "robust": RobustScaler(),
+            "minmax": MinMaxScaler(),
+        }
+        self.scale_xyz = scaler_dict[scale_xyz]
+        self.scale_attrs = scaler_dict[scale_attrs]
+        self.fitted = False
+
+    def fit(self, graphs):
+        """Fit the scalers to the node attributes of the graphs in the dataset.
+
+        Args:
+            graphs (list[DGLGraph]): The list of graphs to fit the scalers to.
+        """
+        nattrs = [graph.ndata["nattrs"].cpu() for graph in graphs]
+        nattrs = torch.cat(nattrs, dim=0)
+
+        self.scale_xyz.fit(nattrs[:, :3].numpy())
+        self.scale_attrs.fit(nattrs[:, 3:].numpy())
+
+        self.fitted = True
+
+    def transform(self, graph):
+        """Standardize the node attributes of a graph using the fitted scalers.
+
+        Args:
+            graph (DGLGraph): The graph to transform.
+
+        Returns:
+            DGLGraph: The transformed graph.
+
+        Raises:
+            RuntimeError: If the scalers have not been fitted before calling this method.
+        """
+        if not self.fitted:
+            raise RuntimeError("GraphScaler must be fitted before transforming data")
+
+        graph.ndata["nattrs"][:, :3] = torch.from_numpy(
+            self.scale_xyz.transform(graph.ndata["nattrs"][:, :3].numpy())
+        )
+        graph.ndata["nattrs"][:, 3:] = torch.from_numpy(
+            self.scale_attrs.transform(graph.ndata["nattrs"][:, 3:].numpy())
+        )
+
+        return graph
+
+
 class NeuronGraphDataset(DGLDataset):
     """A dataset consisting of DGLGraphs representing neuron morphologies.
 
     Args:
         graphs_path (Path): The path to the SWC file directory.
-        self_loop (bool, optional): Whether to add self-loops to each graph. Defaults to True.
-        data_name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
+        self_loop (bool): Whether to add self-loops to each graph. Defaults to True.
+        scaler (GraphScaler): The scaler object to use to standardize the node attributes.
+        dataset_name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
 
     Attributes:
         graphs_path (Path): The path to the SWC file directory.
@@ -206,26 +274,37 @@ class NeuronGraphDataset(DGLDataset):
     def __init__(
         self,
         graphs_path: Path,
+        self_loop: bool,
+        # scale_dict: dict[str, str] | None = None,
+        scaler: GraphScaler | None = None,
         dataset_name: str = "neuron_graph_dataset",
-        self_loop: bool = True,
     ):
         self.graphs_path = graphs_path
         self.export_dir = Path(self.graphs_path.parent / "dgl_datasets")
         self.graphs: list = []
         self.self_loop = self_loop
+        self.scaler = scaler
+
         super().__init__(name=dataset_name, raw_dir=self.export_dir)
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
         self.graphs = dgl_from_swc(list(self.graphs_path.glob("*.swc")))
 
-        if self.self_loop:
-            self.graphs = [
-                dgl.add_self_loop(
-                    dgl.remove_self_loop(graph), edge_feat_names=["edge_weight"], fill_data=1.0
+        if self.scaler is not None:
+            self.scaler.fit(self.graphs)
+
+        processed_graphs = []
+        for original_graph in self.graphs:
+            if self.self_loop:
+                graph = dgl.add_self_loop(
+                    dgl.remove_self_loop(original_graph),
+                    edge_feat_names=["edge_weight"],
+                    fill_data=1.0,
                 )
-                for graph in self.graphs
-            ]
+            processed_graphs.append(self.scaler.transform(graph) if self.scaler else graph)
+
+        self.graphs = processed_graphs
 
     def load(self) -> None:
         """Load the dataset from disk.
@@ -252,7 +331,7 @@ class NeuronGraphDataset(DGLDataset):
     @property
     def cached_graphs_path(self) -> Path:
         """The path to the cached graphs."""
-        return Path(self.graphs_path.parent / "dgl_datasets" / f"{super().name}.bin")
+        return Path(self.export_dir / f"{super().name}.bin")
 
     def __len__(self) -> int:
         """Return the number of graphs in the dataset."""
@@ -273,20 +352,41 @@ if __name__ == "__main__":
         input_dir: str = typer.Argument(  # noqa: B008
             ..., help="Path to the directory containing the .swc files."
         ),
-        dataset_name: str = typer.Option(..., help="Name of the dataset."),  # noqa: B008
-        self_loop: bool = typer.Option(  # noqa: B008
-            False,
+        self_loop: bool = typer.Argument(  # noqa: B008
+            True,
             help="Optional flag to add self-loops to each graph.",
         ),
+        scale: bool = typer.Option(  # noqa: B008
+            True,
+            help="Optional flag to apply scaling to the dataset.",
+        ),
+        scale_xyz: str = typer.Option(  # noqa: B008
+            "standard",
+            help="The type of scaler to use for the 'xyz' features.",
+        ),
+        scale_attrs: str = typer.Option(  # noqa: B008
+            "robust",
+            help="The type of scaler to use for the 'attr' features.",
+        ),
+        dataset_name: str = typer.Option(..., help="Name of the dataset."),  # noqa: B008
     ) -> None:
         """Create a processed dataset of graphs from the .swc files in the specified directory.
 
         Args:
             input_dir (str): Path to the directory containing the .swc files.
+            self_loop (bool): Optional flag to add self-loops to each graph. Defaults to True.
+            scale (bool): Optional flag to apply scaling to the dataset. Defaults to True.
+            scale_xyz (str): The type of scaler to use for the 'xyz' coordinates.
+            scale_attrs (str): The type of scaler to use for the 'nattrs' features.
             dataset_name (str): Name of the dataset.
-            self_loop (bool): Optional flag to add self-loops to each graph. Defaults to False.
         """
         graphs_dir = Path(input_dir)
-        NeuronGraphDataset(graphs_path=graphs_dir, dataset_name=dataset_name, self_loop=self_loop)
+        scaler = GraphScaler(scale_xyz=scale_xyz, scale_attrs=scale_attrs) if scale else None
+        NeuronGraphDataset(
+            graphs_path=graphs_dir,
+            self_loop=self_loop,
+            scaler=scaler,
+            dataset_name=dataset_name,
+        )
 
     app()
