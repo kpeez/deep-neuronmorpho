@@ -5,6 +5,7 @@ import dgl
 import networkx as nx
 import numpy as np
 import torch
+from dgl import DGLGraph
 from dgl.data import DGLDataset
 from dgl.data.utils import load_graphs, save_graphs
 from dgl.dataloading import GraphDataLoader
@@ -56,7 +57,7 @@ def compute_edge_weights(G: nx.Graph, epsilon: float = 1.0) -> nx.Graph:
     node_coeffs = {node: 1.0 / (ndata["nattrs"][5] + epsilon) for node, ndata in G.nodes(data=True)}
     for node in G.nodes():
         neighbors = list(G.neighbors(node))
-        local_coeffs = np.float32([node_coeffs[neighbor] for neighbor in neighbors])
+        local_coeffs = np.array([node_coeffs[neighbor] for neighbor in neighbors], dtype=np.float32)
         attention_coeffs = np.exp(local_coeffs) / np.sum(np.exp(local_coeffs))
 
         edge_weights = (
@@ -203,7 +204,7 @@ class GraphScaler:
         fitted (bool): Indicates whether the scalers have been fitted to a dataset.
     """
 
-    def __init__(self, scale_xyz: str = "standard", scale_attrs: str = "robust"):
+    def __init__(self, scale_xyz: str = "standard", scale_attrs: str = "robust") -> None:
         scaler_dict = {
             "standard": StandardScaler(),
             "robust": RobustScaler(),
@@ -213,21 +214,23 @@ class GraphScaler:
         self.scale_attrs = scaler_dict[scale_attrs]
         self.fitted = False
 
-    def fit(self, graphs):
+    def fit(self, graphs: list[DGLGraph]) -> None:
         """Fit the scalers to the node attributes of the graphs in the dataset.
 
         Args:
             graphs (list[DGLGraph]): The list of graphs to fit the scalers to.
         """
-        nattrs = [graph.ndata["nattrs"].cpu() for graph in graphs]
-        nattrs = torch.cat(nattrs, dim=0)
+        graph_nattrs = [graph.ndata["nattrs"].cpu() for graph in graphs]
+        nattrs = torch.cat(graph_nattrs, dim=0)
+        # nattrs = [graph.ndata["nattrs"].cpu() for graph in graphs]
+        # nattrs = torch.cat(nattrs, dim=0)
 
         self.scale_xyz.fit(nattrs[:, :3].numpy())
         self.scale_attrs.fit(nattrs[:, 3:].numpy())
 
         self.fitted = True
 
-    def transform(self, graph):
+    def transform(self, graph: DGLGraph) -> DGLGraph:
         """Standardize the node attributes of a graph using the fitted scalers.
 
         Args:
@@ -274,8 +277,7 @@ class NeuronGraphDataset(DGLDataset):
     def __init__(
         self,
         graphs_path: Path,
-        self_loop: bool,
-        # scale_dict: dict[str, str] | None = None,
+        self_loop: bool = True,
         scaler: GraphScaler | None = None,
         dataset_name: str = "neuron_graph_dataset",
     ):
@@ -352,7 +354,7 @@ if __name__ == "__main__":
         input_dir: str = typer.Argument(  # noqa: B008
             ..., help="Path to the directory containing the .swc files."
         ),
-        self_loop: bool = typer.Argument(  # noqa: B008
+        self_loop: bool = typer.Option(  # noqa: B008
             True,
             help="Optional flag to add self-loops to each graph.",
         ),
