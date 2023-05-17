@@ -1,4 +1,5 @@
 """Prepare neuron graphs for conversion to DGL datasets."""
+from logging import Logger
 from pathlib import Path
 
 import dgl
@@ -13,7 +14,7 @@ from scipy import stats
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
-from ..utils import ProgressBar
+from ..utils import ProgressBar, setup_logger
 from .process_swc import swc_to_neuron_tree
 
 
@@ -129,18 +130,18 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     return neuron_graph
 
 
-def dgl_from_swc(swc_files: list[Path]) -> list[dgl.DGLGraph]:
+def dgl_from_swc(swc_files: list[Path], logger: Logger) -> list[DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
     Args:
         swc_files (list[Path]): List of swc files.
-        resample_dist (int, optional): Resample distance in microns. Defaults to 10.
+        logger (Logger): Logger object.
 
     Returns:
-        list[dgl.DGLGraph]: List of DGL graphs.
+        list[DGLGraph]: List of DGL graphs.
     """
     neuron_graphs = []
-    for file in ProgressBar(swc_files, desc="Creating DGL graphs:"):
+    for file in ProgressBar(swc_files, desc="Creating DGLGraph:"):
         try:
             neuron_graph = create_neuron_graph(file)
             neuron_graphs.append(
@@ -150,8 +151,9 @@ def dgl_from_swc(swc_files: list[Path]) -> list[dgl.DGLGraph]:
                     edge_attrs=["edge_weight"],
                 )
             )
+            logger.info(f"Processed file: {file.name}")
         except Exception as e:
-            print(f"Error creating DGL graph for {file}: {e}")
+            print(f"Error creating DGLGraph for {file}: {e}")
 
     return neuron_graphs
 
@@ -222,9 +224,6 @@ class GraphScaler:
         """
         graph_nattrs = [graph.ndata["nattrs"].cpu() for graph in graphs]
         nattrs = torch.cat(graph_nattrs, dim=0)
-        # nattrs = [graph.ndata["nattrs"].cpu() for graph in graphs]
-        # nattrs = torch.cat(nattrs, dim=0)
-
         self.scale_xyz.fit(nattrs[:, :3].numpy())
         self.scale_attrs.fit(nattrs[:, 3:].numpy())
 
@@ -268,7 +267,7 @@ class NeuronGraphDataset(DGLDataset):
         graphs_path (Path): The path to the SWC file directory.
         export_dir (Path): The path to the directory where the processed dataset will be saved.
         self_loop (bool): Whether to add self-loops to each graph.
-        graphs (list[dgl.DGLGraph]): The list of DGLGraphs representing neuron morphologies.
+        graphs (list[DGLGraph]): The list of DGLGraphs representing neuron morphologies.
 
     See Also:
         Documentation for DGLDataset: https://docs.dgl.ai/en/latest/api/python/dgl.data.html#dgl.data.DGLDataset
@@ -286,18 +285,22 @@ class NeuronGraphDataset(DGLDataset):
         self.graphs: list = []
         self.self_loop = self_loop
         self.scaler = scaler
+        self.logger = setup_logger(self.export_dir, session=dataset_name)
 
         super().__init__(name=dataset_name, raw_dir=self.export_dir)
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
-        self.graphs = dgl_from_swc(list(self.graphs_path.glob("*.swc")))
+        self.logger.info(f"Creating {self.name} dataset from {self.graphs_path}")
+        swc_files = sorted(self.graphs_path.glob("*.swc"))
+        self.graphs = dgl_from_swc(swc_files=swc_files, logger=self.logger)
 
         if self.scaler is not None:
             self.scaler.fit(self.graphs)
 
         processed_graphs = []
-        for original_graph in self.graphs:
+        while self.graphs:
+            original_graph = self.graphs.pop(0)
             if self.self_loop:
                 graph = dgl.add_self_loop(
                     dgl.remove_self_loop(original_graph),
@@ -339,7 +342,7 @@ class NeuronGraphDataset(DGLDataset):
         """Return the number of graphs in the dataset."""
         return len(self.graphs)
 
-    def __getitem__(self, idx: int) -> dgl.DGLGraph:
+    def __getitem__(self, idx: int) -> DGLGraph:
         """Get the idx-th sample."""
         return self.graphs[idx]
 
