@@ -90,7 +90,7 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
             1. x: x coordinate of node.
             2. y: y coordinate of node.
             3. z: z coordinate of node.
-            4. r: node radius.
+            4. r: node radius. (not currently in use due to unreliable radius data)
             5. path_dist: path distance from soma.
             6. euclidean_dist: euclidean distance from soma.
             7.-12. angle attrs (n=6): min, mean, median, max, std, num of branch angles.
