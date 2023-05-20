@@ -151,8 +151,58 @@ class RotateGraphNodes(GraphAugmentation):
 
 
 class DropBranches(GraphAugmentation):
-    # TODO: Implement random branch dropping
-    pass
+    """Randomly drop a proportion of nodes along with their descendants in the graph.
+
+    This augmentation drops nodes based on their path distance from the root (soma), treating nodes
+    with larger distances as more likely to be dropped. The path distance of a node is assumed to be
+    stored in the graph.ndata["nattrs"] tensor, specified by the path_dist_idx parameter.
+
+    Args:
+        prop (float): Proportion of nodes to drop.
+        deg_power (float): Power to which to raise each node's path distance when computing P(drop).
+        path_dist_idx (int): Column index in the node features tensor for path distance from root.
+
+    Methods:
+        apply: Apply augmentation to the input DGLGraph by randomly dropping nodes (and children).
+
+    Example:
+        drop_branches_aug = DropBranches(prop=0.25, deg_power=1.0, path_dist_idx=3)
+        pruned_graph = drop_branches_aug.apply(graph)
+
+    """
+
+    def __init__(self, prop: float, deg_power: float = 1.0, path_dist_idx: int = 3) -> None:
+        self.prop = prop
+        self.deg_power = deg_power
+        self.path_dist_idx = path_dist_idx
+
+    def get_descendants(self, graph: DGLGraph, node: int, path_dist: list[float]) -> list[int]:
+        """Recursively find and return all descendants of a given node in the graph."""
+        descendants = []
+        for child in graph.successors(node):
+            if path_dist[child] > path_dist[node]:
+                descendants.append(child.item())
+                descendants.extend(self.get_descendants(graph, child, path_dist))
+        return descendants
+
+    def apply(self, graph: DGLGraph) -> DGLGraph:
+        """Apply the augmentation to the input graph."""
+        path_dist = graph.ndata["nattrs"][:, self.path_dist_idx]
+        # Compute selection probabilities
+        path_dist_p = (path_dist + torch.abs(torch.min(path_dist))) ** self.deg_power  # keep soma
+        select_probs = path_dist_p / torch.sum(path_dist_p)
+        # Select nodes to drop
+        drop_num = int(torch.ceil(graph.num_nodes() * torch.tensor(self.prop)).item())
+        drop_nodes_tensor = torch.multinomial(select_probs, drop_num, replacement=False)
+        # Add descendants of selected nodes
+        drop_nodes = set(drop_nodes_tensor.tolist())
+        for node in list(drop_nodes):
+            drop_nodes.update(self.get_descendants(graph, node, path_dist))
+        # Remove the dropped nodes
+        remaining_nodes = list(set(range(graph.number_of_nodes())) - drop_nodes)
+        subgraph = graph.subgraph(remaining_nodes)
+
+        return subgraph
 
 
 class GraphAugmenter:
@@ -163,7 +213,9 @@ class GraphAugmenter:
             - args taken: prop (proportion of points to perturb), std_noise (std of Gaussian noise)
         - Rotate node positions
             - args taken: None (random rotation angle and axis are generated)
-        - Drop branches (not yet implemented)
+        - Drop branches
+            - args taken: prop (proportion of nodes to drop), deg_power (power for path distance),
+            path_dist_idx (path distance index in node features)
 
     Args:
         config (dict[str, list[str] | dict[str, dict[str, float]]]): A dictionary containing the
@@ -190,15 +242,18 @@ class GraphAugmenter:
         augment_batch: Augments a batch of DGLGraphs using the specified augmentations.
 
     Example:
+    ```
         config = {
-            'order': ['perturb', 'rotate'],
-            'params': {
-                'perturb': {'prop': 0.5, 'std_noise': 2.0},
-                'rotate': {}
+                'order': ['perturb', 'rotate'],
+                'params': {
+                    'perturb': {'prop': 0.5, 'std_noise': 2.0},
+                    'rotate': {},
+                    'drop_branches': {'prop': 0.02, 'deg_power': 1.0, 'path_dist_idx': 3}
+                }
             }
-        }
-        augmenter = GraphAugmenter(config)
-        augmented_graphs = augmenter.augment_batch(g_batch)
+            augmenter = GraphAugmenter(config)
+            augmented_graphs = augmenter.augment_batch(g_batch)
+    ```
     """
 
     def __init__(self, config: dict[str, list[str] | dict[str, dict[str, float]]]):

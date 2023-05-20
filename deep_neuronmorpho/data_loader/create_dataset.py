@@ -55,6 +55,7 @@ def compute_edge_weights(G: nx.Graph, epsilon: float = 1.0) -> nx.Graph:
     """
     for u, v in G.edges:
         G.add_edge(v, u)
+
     node_coeffs = {node: 1.0 / (ndata["nattrs"][5] + epsilon) for node, ndata in G.nodes(data=True)}
     for node in G.nodes():
         neighbors = list(G.neighbors(node))
@@ -64,12 +65,8 @@ def compute_edge_weights(G: nx.Graph, epsilon: float = 1.0) -> nx.Graph:
         edge_weights = (
             (neighbor, coeff) for neighbor, coeff in zip(neighbors, attention_coeffs, strict=True)
         )
-
         for neighbor, weight in edge_weights:
-            if G.has_edge(node, neighbor):
-                G[node][neighbor]["edge_weight"] = weight
-            else:
-                G.add_edge(node, neighbor, edge_weight=weight)
+            G[node][neighbor]["edge_weight"] = weight
 
     return G
 
@@ -104,6 +101,8 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     branch_stats = compute_graph_attrs(branches)
     # update graph attributes
     neuron_graph = neuron_tree.get_graph()
+    # morphopy uses 1-indexing for nodes, dgl uses 0-indexing
+    neuron_graph = nx.relabel_nodes(neuron_graph, {i: i - 1 for i in neuron_graph.nodes()})
     soma_x, soma_y, soma_z = neuron_graph.nodes[1]["pos"]
     for node in neuron_graph.nodes():
         # expand position to x, y, z
@@ -114,13 +113,14 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
             y,
             z,
             # neuron_graph.nodes[node]["radius"], # uncomment to include radius
-            nx.dijkstra_path_length(neuron_graph, 1, node, weight="path_length"),
+            nx.dijkstra_path_length(neuron_graph, 0, node, weight="path_length"),
             euclidean((x, y, z), (soma_x, soma_y, soma_z)),
             *angle_stats,
             *branch_stats,
         ]
         neuron_graph.nodes[node].clear()
         neuron_graph.nodes[node].update({"nattrs": [np.float32(attr) for attr in node_attrs]})
+
     for _, _, edge_data in neuron_graph.edges(data=True):
         del edge_data["euclidean_dist"]
         del edge_data["path_length"]
@@ -187,6 +187,7 @@ def create_dataloaders(
         shuffle=False,
         drop_last=False,
     )
+
     return train_loader, val_loader
 
 
@@ -285,13 +286,14 @@ class NeuronGraphDataset(DGLDataset):
         self.graphs: list = []
         self.self_loop = self_loop
         self.scaler = scaler
-        self.logger = setup_logger(self.export_dir, session=dataset_name)
-
         super().__init__(name=dataset_name, raw_dir=self.export_dir)
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
+        self.logger = setup_logger(self.export_dir, session=self.name)
         self.logger.info(f"Creating {self.name} dataset from {self.graphs_path}")
+        self.logger.info(f"Dataset {self.name} has scaler: {self.scaler}")
+        self.logger.info(f"Dataset {self.name} has self-loop: {self.self_loop}")
         swc_files = sorted(self.graphs_path.glob("*.swc"))
         self.graphs = dgl_from_swc(swc_files=swc_files, logger=self.logger)
 
@@ -373,7 +375,10 @@ if __name__ == "__main__":
             "robust",
             help="The type of scaler to use for the 'attr' features.",
         ),
-        dataset_name: str = typer.Option(..., help="Name of the dataset."),  # noqa: B008
+        dataset_name: str = typer.Option(  # noqa: B008
+            ...,
+            help="Name of the dataset.",
+        ),
     ) -> None:
         """Create a processed dataset of graphs from the .swc files in the specified directory.
 
