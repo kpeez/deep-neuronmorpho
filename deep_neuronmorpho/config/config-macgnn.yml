@@ -33,15 +33,15 @@ training:
 
 # Augmentation info
 augmentation:
-  order: [perturb, rotate]
+  order: [perturb, rotate, drop_branches]
   params:
     perturb:
       prop: 0.5
       std_noise: 2.0
     rotate: {} # no args needed
-    # drop_branches:
-    #   prop: 0.02
-    #   deg_power: 2.0
+    drop_branches:
+      prop: 0.02
+      deg_power: 1.0
 
 # Logging configuration
 logging:
