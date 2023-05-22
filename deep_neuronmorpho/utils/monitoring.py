@@ -63,13 +63,12 @@ class ProgressBar:
 
 def setup_logger(log_dir: Path, session: str) -> logging.Logger:
     """Create a logger for logging training progress."""
-    # Create a logger
     logger = logging.getLogger(session)
     logger.setLevel(logging.INFO)
-    # log messages to the console
+    # log to console
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
-    # writing log messages to a file
+    # log to file
     formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     log_filename = f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-{session}.log"
     file_handler = logging.FileHandler(log_dir / log_filename)

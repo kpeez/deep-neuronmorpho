@@ -56,7 +56,7 @@ class Config:
         """Return the string representation of a Config object."""
         items = []
         for key, value in self.__dict__.items():
-            items.append(f"{key}: {repr(value)}")
+            items.append(f"{key}: {value!r}")
         return "\n".join(items)
 
 
@@ -107,7 +107,7 @@ class ModelConfig(Config):
                 value_repr = "\n".join(f"    {k}: {v}" for k, v in value.__dict__.items())
                 items.append(f"{key}:\n{value_repr}")
             else:
-                items.append(f"{key}: {repr(value)}")
+                items.append(f"{key}: {value!r}")
         return "\n".join(items)
 
 
