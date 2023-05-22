@@ -112,7 +112,7 @@ def compute_embedding_dim(
     return embedding_dim
 
 
-def load_attrs_streams(attrs_streams: dict[str, str]) -> dict[str, list[int]]:
+def load_attrs_streams(attrs_streams: dict[str, list[int]]) -> dict[str, list[int]]:
     """Load attribute streams from a dictionary containing the range of indices.
 
     Args:
@@ -125,7 +125,7 @@ def load_attrs_streams(attrs_streams: dict[str, str]) -> dict[str, list[int]]:
     """
     attrs_idxs = {}
     for name, stream in attrs_streams.items():
-        start, end = eval(stream)
+        start, end = stream
         attrs_idxs[name] = list(range(start, end + 1))
 
     return attrs_idxs
