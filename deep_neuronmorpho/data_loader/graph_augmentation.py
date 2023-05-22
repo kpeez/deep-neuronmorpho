@@ -9,6 +9,8 @@ import torch
 from dgl import DGLGraph
 from torch.distributions.uniform import Uniform
 
+from deep_neuronmorpho.utils import ModelConfig
+
 
 class GraphAugmentation(ABC):
     """An abstract base class for defining graph augmentation operations.
@@ -256,14 +258,14 @@ class GraphAugmenter:
     ```
     """
 
-    def __init__(self, config: dict[str, list[str] | dict[str, dict[str, float]]]):
+    def __init__(self, config: ModelConfig):
         self.config = config
         self.augmentations = self.parse_config()
 
     def parse_config(self) -> list[GraphAugmentation]:
         """Parse the augmentation config and return a list of GraphAugmentation objects."""
-        aug_order = self.config["order"]
-        aug_params = self.config["params"]
+        aug_order = self.config.order
+        aug_params = self.config.params.to_dict()
 
         augmentation_classes = {
             "perturb": PerturbNodePositions,
