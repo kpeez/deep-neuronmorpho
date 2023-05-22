@@ -1,9 +1,9 @@
-from .create_dataset import GraphScaler, NeuronGraphDataset, create_dataloaders
+from .create_dataset import GraphScaler, NeuronGraphDataset, create_dataloader
 from .graph_augmentation import GraphAugmenter
 
 __all__ = [
     "GraphAugmenter",
     "GraphScaler",
     "NeuronGraphDataset",
-    "create_dataloaders",
+    "create_dataloader",
 ]

@@ -158,37 +158,29 @@ def dgl_from_swc(swc_files: list[Path], logger: Logger) -> list[DGLGraph]:
     return neuron_graphs
 
 
-def create_dataloaders(
-    train_dataset: DGLDataset,
-    val_dataset: DGLDataset,
+def create_dataloader(
+    graph_dataset: DGLDataset,
     batch_size: int,
     shuffle: bool = True,
-) -> tuple[GraphDataLoader, GraphDataLoader]:
+) -> GraphDataLoader:
     """Create dataloaders for training and validation datasets.
 
     Args:
-        train_dataset (DGLDataset): Training dataset.
-        val_dataset (DGLDataset): Validation dataset.
+        graph_dataset (DGLDataset): Graph dataset.
         batch_size (int): Batch size.
         shuffle (bool): Whether to shuffle the training data. Defaults to True.
 
     Returns:
-        tuple[GraphDataLoader, GraphDataLoader]: _description_
+        GraphDataLoader: Dataloader of graph dataset.
     """
-    train_loader = GraphDataLoader(
-        train_dataset,
+    graph_loader = GraphDataLoader(
+        graph_dataset,
         batch_size=batch_size,
         shuffle=shuffle,
         drop_last=False,
     )
-    val_loader = GraphDataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        drop_last=False,
-    )
 
-    return train_loader, val_loader
+    return graph_loader
 
 
 class GraphScaler:
@@ -276,12 +268,12 @@ class NeuronGraphDataset(DGLDataset):
 
     def __init__(
         self,
-        graphs_path: Path,
+        graphs_path: str | Path,
+        dataset_name: str = "neuron_graph_dataset",
         self_loop: bool = True,
         scaler: GraphScaler | None = None,
-        dataset_name: str = "neuron_graph_dataset",
     ):
-        self.graphs_path = graphs_path
+        self.graphs_path = Path(graphs_path)
         self.export_dir = Path(self.graphs_path.parent / "dgl_datasets")
         self.graphs: list = []
         self.self_loop = self_loop
