@@ -9,36 +9,12 @@ import torch
 from dgl import DGLGraph
 from dgl.data import DGLDataset
 from dgl.data.utils import load_graphs, save_graphs
-from dgl.dataloading import GraphDataLoader
-from scipy import stats
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
 from ..utils import ProgressBar, setup_logger
+from .data_utils import compute_graph_attrs
 from .process_swc import swc_to_neuron_tree
-
-
-def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
-    """Compute summary statistics for a list of graph attributes.
-
-    Args:
-        graph_attrs (list[float]): Graph attribute data.
-
-    Returns:
-        dict[str, float]: Summary statistics of graph attributes. In the following order:
-         min, mean, median, max, std, num of observations
-
-    """
-    res = stats.describe(graph_attrs)
-    attr_stats = [
-        res.minmax[0],
-        res.mean,
-        np.median(graph_attrs),
-        res.minmax[1],
-        (res.variance**0.5),
-        res.nobs,
-    ]
-    return attr_stats
 
 
 def compute_edge_weights(G: nx.Graph, epsilon: float = 1.0) -> nx.Graph:
@@ -153,34 +129,11 @@ def dgl_from_swc(swc_files: list[Path], logger: Logger) -> list[DGLGraph]:
             )
             logger.info(f"Processed file: {file.name}")
         except Exception as e:
-            print(f"Error creating DGLGraph for {file}: {e}")
+            logger.error(f"Error creating DGLGraph for {file}: {e}")
+
+    logger.info(f"Created {len(neuron_graphs)} DGLGraphs.")
 
     return neuron_graphs
-
-
-def create_dataloader(
-    graph_dataset: DGLDataset,
-    batch_size: int,
-    shuffle: bool = True,
-) -> GraphDataLoader:
-    """Create dataloaders for training and validation datasets.
-
-    Args:
-        graph_dataset (DGLDataset): Graph dataset.
-        batch_size (int): Batch size.
-        shuffle (bool): Whether to shuffle the training data. Defaults to True.
-
-    Returns:
-        GraphDataLoader: Dataloader of graph dataset.
-    """
-    graph_loader = GraphDataLoader(
-        graph_dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        drop_last=False,
-    )
-
-    return graph_loader
 
 
 class GraphScaler:
