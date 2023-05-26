@@ -1,4 +1,10 @@
-# Model configuration
+datasets:
+  metadata: "../datasets/demo_gnn_data/metadata/neuromorpho_benchmark-metadata.csv"
+  root: "../datasets/demo_gnn_data/processed/dgl_datasets"
+  contra_train: "mouse_resampled_10um-train"
+  eval_train: "neuromorpho_benchmark_train"
+  eval_test: "neuromorpho_benchmark_test"
+
 model:
   name: "macgnn"
   num_gnn_layers: 5
@@ -7,9 +13,8 @@ model:
   output_dim: 320 # hidden_dim * num_gnn_layers
   dropout_prob: 0.5
   attrs_streams:
-    geometric: (0, 3)
-    topological: (4, 17)
-  # norm_attrs: False
+    geometric: [0, 2] # x, y, z
+    topological: [3, 16] # euc_dist, path_dist, angles/branches
   use_edge_weight: True # attention
   learn_eps: False # learnable eps in GINConv
   graph_pooling_type: "max" # "sum", "mean", "max"
@@ -17,19 +22,18 @@ model:
   gnn_layers_aggregation: "cat" # ["sum", "mean", "max", "wsum", "cat"]
   stream_aggregation: "wsum" # ["sum", "mean", "max", "wsum", "cat"]
 
-# Trainig configuration
+# Training configuration
 training:
   batch_size: 64
-  lr_init: 0.01
-  seed_list: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
   contra_loss_temp: 0.2
-  shuffle: True
+  eval_interval: 1
   max_epochs: 400
   patience: 60
+  lr_init: 0.01
+  optimizer: "adam"
   lr_scheduler: "step" # ["cosine", "step"]
   lr_decay_steps: 20
   lr_decay_rate: 0.6
-  # num_workers: 1
 
 # Augmentation info
 augmentation:
@@ -43,7 +47,7 @@ augmentation:
       prop: 0.02
       deg_power: 1.0
 
-# Logging configuration
-logging:
-  log_dir: "saved/logs"
-  chkpt_dir: "saved/models"
+# Output configuration
+output:
+  log_dir: "../datasets/demo_gnn_data/outputs/logs"
+  chkpt_dir: "../datasets/demo_gnn_data/outputs/models"

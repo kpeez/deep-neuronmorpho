@@ -1,5 +1,5 @@
 # datasets/docs
-data
+datasets
 dev-notebooks
 *.csv
 *.pt
