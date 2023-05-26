@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from ..data import GraphAugmenter
 from ..utils import ModelConfig, ProgressBar, setup_logger
-from . import NTXEntLoss, evaluate_embeddings, get_evaluation_targets
+from . import NTXEntLoss, evaluate_embeddings, get_eval_targets
 
 
 class ContrastiveTrainer:
@@ -202,7 +202,7 @@ class ContrastiveTrainer:
     @property
     def eval_targets(self) -> dict[str, NDArray]:
         """Get target labels for evaluation training and testing sets."""
-        targets = get_evaluation_targets(self.config)
+        targets = get_eval_targets(self.config)
 
         targets_deleteme = {dataset: labels[:5] for dataset, labels in targets.items()}
 
