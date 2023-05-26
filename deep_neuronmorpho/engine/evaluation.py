@@ -1,13 +1,28 @@
 """Evaluate contrastive learning embeddings on benchmark classification task."""
+from pathlib import Path
 
 from numpy.typing import NDArray
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
+from ..data import parse_logfile
+from ..utils import ModelConfig
+
+
+def get_evaluation_targets(conf: ModelConfig) -> dict[str, NDArray]:
+    """Get the target labels for the evaluation training and test sets."""
+    train_logfile = list(Path(f"{conf.datasets.root}").glob(f"*{conf.datasets.eval_train}*.log"))[0]
+    test_logfile = list(Path(f"{conf.datasets.root}").glob(f"*{conf.datasets.eval_test}*.log"))[0]
+
+    return {
+        "train": parse_logfile(logfile=train_logfile, metadata_file=conf.datasets.metadata),
+        "test": parse_logfile(logfile=test_logfile, metadata_file=conf.datasets.metadata),
+    }
+
 
 def evaluate_embeddings(
     embeddings: dict[str, NDArray],
-    targets: dict[str, str],
+    targets: dict[str, NDArray],
     random_state: int | None = None,
 ) -> float:
     """Evaluate the quality of the contrastive learning embeddings using XGBoost classifier.
