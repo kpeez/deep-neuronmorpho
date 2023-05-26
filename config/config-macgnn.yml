@@ -50,4 +50,4 @@ augmentation:
 # Output configuration
 output:
   log_dir: "../datasets/demo_gnn_data/outputs/logs"
-  chkpt_dir: "../datasets/demo_gnn_data/outputs/models"
+  ckpt_dir: "../datasets/demo_gnn_data/outputs/models"
