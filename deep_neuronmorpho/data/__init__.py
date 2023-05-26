@@ -1,5 +1,5 @@
 from .create_dataset import GraphScaler, NeuronGraphDataset
-from .data_utils import create_dataloader
+from .data_utils import create_dataloader, parse_logfile
 from .graph_augmentation import GraphAugmenter
 
 __all__ = [
@@ -7,4 +7,5 @@ __all__ = [
     "GraphScaler",
     "NeuronGraphDataset",
     "create_dataloader",
+    "parse_logfile",
 ]
