@@ -1,13 +1,14 @@
 """Create training, validation, and test splits of the dataset."""
-
 import random
 import shutil
 from pathlib import Path
 from typing import Tuple
 
 import numpy as np
+import pandas as pd
 from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
+from numpy.typing import NDArray
 from scipy import stats
 
 from ..utils import ProgressBar
@@ -59,6 +60,33 @@ def create_dataloader(
     )
 
     return graph_loader
+
+
+def parse_logfile(logfile: str | Path, metadata_file: str | Path) -> NDArray:
+    """Parse log file assocaited with dataset to get the file name and label for each sample.
+
+    When creating the NeuronGraphDataset, the file names are sorted in alphabetical order and
+    written to the log file. This function parses the log file to get the file names, and gets
+    the labels from the metadata.
+
+    Args:
+        logfile (str | Path): Path to the log file.
+        metadata_file (str | Path): Path to metadata file.
+
+
+    Returns:
+        pd.Series: A dataframe containing the file name and label for each processed sample.
+
+    """
+    metadata_file = (
+        metadata_file if Path(metadata_file).suffix == ".csv" else f"{metadata_file}.csv"
+    )
+    metadata = pd.read_csv(metadata_file)
+    log_data = pd.read_csv(logfile, skiprows=1, header=None, names=["timestamps", "log"])
+    log_data["file_name"] = log_data["log"].str.extract(r"mouse-(.*?)-resampled_10um")
+    log_data["label"] = log_data["file_name"].map(metadata.set_index("neuron_name")["dataset"])
+
+    return log_data["label"].to_numpy()
 
 
 if __name__ == "__main__":
