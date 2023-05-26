@@ -219,42 +219,8 @@ class GraphAugmenter:
             - args taken: prop (proportion of nodes to drop), deg_power (power for path distance),
             path_dist_idx (path distance index in node features)
 
-    Args:
-        config (dict[str, list[str] | dict[str, dict[str, float]]]): A dictionary containing the
-            augmentation order and parameters. The dictionary should have the following structure:
-            {
-                'order': [augmentation_type1, augmentation_type2, ...],
-                'params': {
-                    augmentation_type1: {param1: value1, param2: value2, ...},
-                    augmentation_type2: {param1: value1, param2: value2, ...},
-                    ...
-                }
-            }
-            Supported augmentation types are 'perturb', 'rotate', and 'drop_branches'.
-
-    Attributes:
-        config (dict[str, list[str] | dict[str, dict[str, float]]]): The provided configuration
-            dictionary.
-        augmentations (list[GraphAugmentation]): A list of GraphAugmentation objects created based
-            on the provided configuration.
-
     Methods:
-        parse_config: Parses the configuration dictionary and returns a list of GraphAugmentation
-            objects.
         augment_batch: Augments a batch of DGLGraphs using the specified augmentations.
-
-    Example:
-    ```
-        config = {
-                'order': ['perturb', 'rotate'],
-                'params': {
-                    'perturb': {'prop': 0.5, 'std_noise': 2.0},
-                    'rotate': {},
-                    'drop_branches': {'prop': 0.02, 'deg_power': 1.0, 'path_dist_idx': 3}
-                }
-            }
-            augmenter = GraphAugmenter(config)
-            augmented_graphs = augmenter.augment_batch(g_batch)
     ```
     """
 
@@ -300,8 +266,8 @@ class GraphAugmenter:
             for augmentation in self.augmentations:
                 aug_g = augmentation.apply(aug_g)
             augmented_graphs.append(aug_g)
-
         batch_augmented_graphs = dgl.batch(augmented_graphs)
+
         return batch_augmented_graphs
 
     def __repr__(self) -> str:
