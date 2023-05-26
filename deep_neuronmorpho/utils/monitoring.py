@@ -1,6 +1,7 @@
 """Utilities for monitoring the training process."""
 import logging
 from datetime import datetime as dt
+from logging import Logger
 from pathlib import Path
 from typing import Any, Collection
 
@@ -61,21 +62,46 @@ class ProgressBar:
             yield item
 
 
-def setup_logger(log_dir: Path, session: str) -> logging.Logger:
-    """Create a logger for logging training progress."""
-    logger = logging.getLogger(session)
-    logger.setLevel(logging.INFO)
-    # log to console
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    # log to file
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    log_filename = f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-{session}.log"
-    file_handler = logging.FileHandler(log_dir / log_filename)
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(formatter)
-    # Add the handlers to the logger
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
+class TrainLogger:
+    """Class for logging training progress."""
 
-    return logger
+    def __init__(self, log_dir: Path, session: str) -> None:
+        self.log_dir = log_dir
+        self.session = session
+        self.logger: Logger | None = None
+
+    def setup_logger(self) -> None:
+        """Create a logger for logging training progress."""
+        logger = logging.getLogger(self.session)
+        logger.setLevel(logging.INFO)
+        # log to console
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        # log to file
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        log_filename = f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-{self.session}.log"
+        file_handler = logging.FileHandler(self.log_dir / log_filename)
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        # Add the handlers to the logger
+        logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
+        self.logger = logger
+
+    def check_logger(self) -> None:
+        """Check if logger exists, if not, setup the logger."""
+        if self.logger is None:
+            self.setup_logger()
+
+    def message(self, message: str, level: str = "info") -> None:
+        """Log a message with the specified level."""
+        self.check_logger()
+        assert self.logger is not None
+        if level.lower() == "info":
+            self.logger.info(message)
+        elif level.lower() == "warning":
+            self.logger.warning(message)
+        elif level.lower() == "error":
+            self.logger.error(message)
+        else:
+            raise ValueError(f"Unknown logging level: {level}")
