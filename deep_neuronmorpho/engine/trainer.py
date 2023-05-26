@@ -1,7 +1,7 @@
 """Trainer class for training a model."""
 from itertools import zip_longest
-from logging import Logger
 from pathlib import Path
+from typing import Any
 
 import torch
 from dgl import DGLGraph
@@ -11,7 +11,7 @@ from torch import Tensor, nn, optim
 from torch.utils.tensorboard import SummaryWriter
 
 from ..data import GraphAugmenter
-from ..utils import ModelConfig, ProgressBar, setup_logger
+from ..utils import ModelConfig, ProgressBar, TrainLogger
 from . import NTXEntLoss, evaluate_embeddings, get_eval_targets
 
 
@@ -52,19 +52,29 @@ class ContrastiveTrainer:
         self.optimizer = self._get_optimizer()
         self.lr_scheduler = self._get_scheduler()
         self.device = device
-        self.logger: Logger | None = None
+        self.logger = TrainLogger(self.log_dir, session="train")
         self.best_train_loss = float("inf")
         self.best_eval_acc = 0.0
 
     def _get_optimizer(self) -> optim.Optimizer:
-        if self.config.training.optimizer == "adam":
-            return optim.Adam(self.model.parameters(), lr=self.config.training.lr_init)
-        elif self.config.training.optimizer == "sgd":
-            return optim.SGD(self.model.parameters(), lr=self.config.training.lr_init)
-        else:
-            raise ValueError(f"Invalid optimizer: {self.config.training.optimizer}")
+        optimizer_name = self.config.training.optimizer
+        learning_rate = self.config.training.lr_init
+        try:
+            if optimizer_name.lower() == "adam":
+                return torch.optim.Adam(self.model.parameters(), lr=learning_rate)
+            elif optimizer_name.lower() == "sgd":
+                return torch.optim.SGD(self.model.parameters(), lr=learning_rate)
+            elif optimizer_name.lower() == "rmsprop":
+                return torch.optim.RMSprop(self.model.parameters(), lr=learning_rate)
+            else:
+                raise ValueError
+        except ValueError:
+            self.logger.message(
+                f"Optimizer {optimizer_name} not supported. Defaulting to SGD.", level="warning"
+            )
+            return torch.optim.Adam(self.model.parameters(), lr=learning_rate)
 
-    def _get_scheduler(self) -> optim.lr_scheduler.StepLR:
+    def _get_scheduler(self) -> Any:
         if self.config.training.lr_scheduler == "step":
             return optim.lr_scheduler.StepLR(
                 self.optimizer,
@@ -149,16 +159,13 @@ class ContrastiveTrainer:
 
         """
         writer = SummaryWriter(self.log_dir)
-        if self.logger is None:
-            self.logger = setup_logger(self.log_dir, session="train")
-        self.logger.info(f"Training model for {epochs} epochs...")
-
+        self.logger.message(f"Training model for {epochs} epochs...")
         epochs = self.max_epochs if epochs is None else epochs
         bad_epochs = 0
         for epoch in ProgressBar(range(1, epochs + 1), desc="Training epochs:"):
             train_loss = self.train_step()
             writer.add_scalar("loss/train", train_loss, epoch, new_style=True)
-            self.logger.info(f"Epoch {epoch}/{epochs}: " f"Train Loss: {train_loss:.4f}")
+            self.logger.message(f"Epoch {epoch}/{epochs}: Train Loss: {train_loss:.4f}")
             self.lr_scheduler.step()
 
             if epoch % self.eval_interval == 0:
@@ -168,7 +175,9 @@ class ContrastiveTrainer:
                     self.best_eval_acc = eval_acc
 
                 writer.add_scalar("acc/eval_acc", eval_acc, epoch, new_style=True)
-                self.logger.info(f"Epoch {epoch}/{epochs}: Benchmark Test accuracy: {eval_acc:.4f}")
+                self.logger.message(
+                    f"Epoch {epoch}/{epochs}: Benchmark Test accuracy: {eval_acc:.4f}"
+                )
                 self.save_checkpoint(
                     epoch,
                     train_loss=train_loss,
@@ -182,8 +191,8 @@ class ContrastiveTrainer:
                 bad_epochs += 1
 
             if bad_epochs > self.config.training.patience:
-                self.logger.info(
-                    f"Stopping training after {epoch} epochs: Validation loss at plateau"
+                self.logger.message(
+                    f"Stopping training after {epoch} epochs: Training loss at plateau"
                 )
                 break
 
@@ -240,8 +249,7 @@ class ContrastiveTrainer:
             eval_acc (float): Classification accuracy on the evaluation test set.
         """
         chkpt_name = f"{self.config.model.name}_checkpoint_epoch_{epoch:03d}.pt"
-        assert self.logger is not None, "Logger not initialized"
-        self.logger.info(f"Saving checkpoint: {self.checkpoint_dir}/{chkpt_name} ")
+        self.logger.message(f"Saving checkpoint: {self.checkpoint_dir}/{chkpt_name} ")
         chkpt_file = self.checkpoint_dir / chkpt_name
         torch.save(
             {
@@ -259,16 +267,14 @@ class ContrastiveTrainer:
         """Load model checkpoint if it exists."""
         chkpt_file = self.checkpoint_dir / chkpt_name
         if chkpt_file.is_file():
-            if self.logger is None:
-                self.logger = setup_logger(self.log_dir, session="train")
-            self.logger.info(f"Loading {chkpt_name} from: {self.checkpoint_dir}")
+            self.logger.message(f"Loading {chkpt_name} from: {self.checkpoint_dir}")
             checkpoint = torch.load(chkpt_file, map_location=self.device)
             self.model.load_state_dict(checkpoint[self.config.model.name])
             self.optimizer.load_state_dict(checkpoint["optimizer"])
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
             self.best_train_loss = checkpoint["losses"]["contra_train"]
             self.best_eval_acc = checkpoint["eval_acc"]
-            self.logger.info(
+            self.logger.message(
                 f"Loaded model at epoch={checkpoint['epoch']} with "
                 f"validation accuracy: {checkpoint['eval_acc']:.4f}"
             )
