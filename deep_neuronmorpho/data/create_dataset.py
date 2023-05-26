@@ -70,20 +70,16 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
             13.-18. branch attrs (n=6): min, mean, median, max, std, num of branch lengths.
     """
     neuron_tree = swc_to_neuron_tree(swc_file)
-    # get branch angles and branch lengths
     angles = list(neuron_tree.get_branch_angles().values())
     branches = list(neuron_tree.get_segment_length().values())
     angle_stats = compute_graph_attrs(angles)
     branch_stats = compute_graph_attrs(branches)
-    # update graph attributes
     neuron_graph = neuron_tree.get_graph()
     # morphopy uses 1-indexing for nodes, dgl uses 0-indexing
     neuron_graph = nx.relabel_nodes(neuron_graph, {i: i - 1 for i in neuron_graph.nodes()})
     soma_x, soma_y, soma_z = neuron_graph.nodes[1]["pos"]
     for node in neuron_graph.nodes():
-        # expand position to x, y, z
         x, y, z = neuron_graph.nodes[node]["pos"]
-
         node_attrs = [
             x,
             y,
