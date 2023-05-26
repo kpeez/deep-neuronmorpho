@@ -1,18 +1,24 @@
 """Trainer class for training a model."""
 from itertools import zip_longest
-from logging import Logger
 from pathlib import Path
 
 import torch
 from dgl import DGLGraph
 from dgl.dataloading import GraphDataLoader
 from numpy.typing import NDArray
-from torch import Tensor, nn, optim
+from torch import Tensor, nn
 from torch.utils.tensorboard import SummaryWriter
 
 from ..data import GraphAugmenter
-from ..utils import ModelConfig, ProgressBar, setup_logger
-from . import NTXEntLoss, evaluate_embeddings, get_eval_targets
+from ..utils import ModelConfig, ProgressBar, TrainLogger
+from . import (
+    Checkpoint,
+    NTXEntLoss,
+    evaluate_embeddings,
+    get_eval_targets,
+    get_optimizer,
+    get_scheduler,
+)
 
 
 class ContrastiveTrainer:
@@ -26,15 +32,10 @@ class ContrastiveTrainer:
         device (torch.device): The device (CPU or GPU) to use for training.
 
     Methods:
-        train_step() -> float:
-            Train the model on the training set for one epoch and return the loss.
-        eval_step() -> float:
-            Evaluate the model on the validation set for one epoch and return the loss.
         fit():
             Train the model for a given number of epochs.
         load_checkpoint():
             Load the best model checkpoint from disk.
-
     """
 
     def __init__(
@@ -42,37 +43,37 @@ class ContrastiveTrainer:
         model: nn.Module,
         config: ModelConfig,
         dataloaders: dict[str, GraphDataLoader],
-        device: torch.device,
+        device: torch.device | str,
     ):
         self.config = config
         self.model = model
         self.dataloaders = dataloaders
+        self.model_name = self.config.model.name
         self.loss_fn = NTXEntLoss()
         self.augmenter = GraphAugmenter(self.config.augmentation)
-        self.optimizer = self._get_optimizer()
-        self.lr_scheduler = self._get_scheduler()
+        self.optimizer = get_optimizer(
+            model=self.model,
+            optimizer_name=self.config.training.optimizer,
+            lr=self.config.training.lr_init,
+        )
+        self.lr_scheduler = get_scheduler(
+            scheduler=self.config.training.lr_scheduler,
+            optimizer=self.optimizer,
+            decay_steps=self.config.training.lr_decay_steps,
+            decay_rate=self.config.training.lr_decay_rate,
+        )
         self.device = device
-        self.logger: Logger | None = None
+        self.logger = TrainLogger(self.log_dir, session="train")
+        self.checkpoint = Checkpoint(
+            self.model,
+            self.optimizer,
+            self.lr_scheduler,
+            self.ckpt_dir,
+            self.device,
+            self.logger,
+        )
         self.best_train_loss = float("inf")
         self.best_eval_acc = 0.0
-
-    def _get_optimizer(self) -> optim.Optimizer:
-        if self.config.training.optimizer == "adam":
-            return optim.Adam(self.model.parameters(), lr=self.config.training.lr_init)
-        elif self.config.training.optimizer == "sgd":
-            return optim.SGD(self.model.parameters(), lr=self.config.training.lr_init)
-        else:
-            raise ValueError(f"Invalid optimizer: {self.config.training.optimizer}")
-
-    def _get_scheduler(self) -> optim.lr_scheduler.StepLR:
-        if self.config.training.lr_scheduler == "step":
-            return optim.lr_scheduler.StepLR(
-                self.optimizer,
-                step_size=self.config.training.lr_decay_steps,
-                gamma=self.config.training.lr_decay_rate,
-            )
-        else:
-            raise ValueError(f"Scheduler '{self.config.training.lr_scheduler}' not recognized")
 
     def _calculate_loss(self, batch: DGLGraph) -> float:
         """Calculate the loss for a batch.
@@ -89,31 +90,19 @@ class ContrastiveTrainer:
         loss = self.loss_fn(ypred, ypred_aug)
         return loss
 
-    def _process_batch(self, dataloader: GraphDataLoader, train_mode: bool = True) -> float:
-        """Process a batch from dataloader.
-
-        Args:
-            dataloader (GraphDataLoader): DataLoader for the training/validation set.
-            train_mode (bool, optional): Use train mode or eval mode. Defaults to True.
-
-        Returns:
-            float: The average loss over the batch.
-        """
-        total_loss = 0.0
-        for raw_batch in ProgressBar(dataloader, desc="Processing batch:"):
-            batch = raw_batch.to(self.device)
-            loss = self._calculate_loss(batch)
-            if train_mode:
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-            total_loss += loss.item()
-        return total_loss / len(dataloader)
-
     def train_step(self) -> float:
         """Train the model on the training set."""
         self.model.train()
-        train_loss = self._process_batch(self.dataloaders["contra_train"], train_mode=True)
+        total_loss = 0.0
+        for raw_batch in ProgressBar(self.dataloaders["contra_train"], desc="Processing batch:"):
+            batch = raw_batch.to(self.device)
+            loss = self._calculate_loss(batch)
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+        total_loss += loss.item()
+        train_loss = total_loss / len(self.dataloaders["contra_train"])
+
         return train_loss
 
     def eval_step(self) -> float:
@@ -136,29 +125,30 @@ class ContrastiveTrainer:
 
         return eval_acc
 
-    def fit(self, epochs: int | None = None) -> None:
+    def fit(self, epochs: int | None = None, ckpt_dir: str | Path | None = None) -> None:
         """Train the model for a given number of epochs.
 
         Iterate over the training and validation dataloaders for the given number of epochs,
         and save the model checkpoint if the validation loss improves.
 
         Args:
-            epochs (int, optional): Number of epochs to train for. If 0, train until
-                the validation loss stops improving or until the max number of epochs is reached.
-                Defaults to 0 (max epochs in model config).
-
+            epochs (int, optional): Number of epochs to train for. By default, we train until max
+            epochs (defined in model config). Defaults to None.
+            ckpt_dir (str | Path, optional): Path to a model checkpoint directory to load from.
+            If a checkpoint is provided, we resume training from that checkpoint. Defaults to None.
         """
-        writer = SummaryWriter(self.log_dir)
-        if self.logger is None:
-            self.logger = setup_logger(self.log_dir, session="train")
-        self.logger.info(f"Training model for {epochs} epochs...")
+        if ckpt_dir is not None:
+            self.logger.message(f"Resuming training from checkpoint: {ckpt_dir}")
+            self.checkpoint.load(ckpt_dir, self.model_name)
 
+        writer = SummaryWriter(self.log_dir)
+        self.logger.message(f"Training model for {epochs} epochs...")
         epochs = self.max_epochs if epochs is None else epochs
         bad_epochs = 0
         for epoch in ProgressBar(range(1, epochs + 1), desc="Training epochs:"):
             train_loss = self.train_step()
             writer.add_scalar("loss/train", train_loss, epoch, new_style=True)
-            self.logger.info(f"Epoch {epoch}/{epochs}: " f"Train Loss: {train_loss:.4f}")
+            self.logger.message(f"Epoch {epoch}/{epochs}: Train Loss: {train_loss:.4f}")
             self.lr_scheduler.step()
 
             if epoch % self.eval_interval == 0:
@@ -168,11 +158,14 @@ class ContrastiveTrainer:
                     self.best_eval_acc = eval_acc
 
                 writer.add_scalar("acc/eval_acc", eval_acc, epoch, new_style=True)
-                self.logger.info(f"Epoch {epoch}/{epochs}: Benchmark Test accuracy: {eval_acc:.4f}")
-                self.save_checkpoint(
-                    epoch,
+                self.logger.message(
+                    f"Epoch {epoch}/{epochs}: Benchmark Test accuracy: {eval_acc:.4f}"
+                )
+                self.checkpoint.save(
+                    epoch=epoch,
                     train_loss=train_loss,
                     eval_acc=eval_acc,
+                    model_name=self.model_name,
                 )
 
             if train_loss < self.best_train_loss:
@@ -182,8 +175,8 @@ class ContrastiveTrainer:
                 bad_epochs += 1
 
             if bad_epochs > self.config.training.patience:
-                self.logger.info(
-                    f"Stopping training after {epoch} epochs: Validation loss at plateau"
+                self.logger.message(
+                    f"Stopping training after {epoch} epochs: Training loss at plateau"
                 )
                 break
 
@@ -209,13 +202,13 @@ class ContrastiveTrainer:
         return targets_deleteme
 
     @property
-    def checkpoint_dir(self) -> Path:
+    def ckpt_dir(self) -> Path:
         """Returns the directory where checkpoints are saved."""
-        chkpt_dir = Path(self.config.output.chkpt_dir)
-        if chkpt_dir.exists() is False:
-            chkpt_dir.mkdir(parents=True, exist_ok=True)
+        ckpt_dir = Path(self.config.output.ckpt_dir)
+        if ckpt_dir.exists() is False:
+            ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-        return chkpt_dir
+        return ckpt_dir
 
     @property
     def log_dir(self) -> Path:
@@ -226,51 +219,6 @@ class ContrastiveTrainer:
 
         return log_dir
 
-    def save_checkpoint(
-        self,
-        epoch: int,
-        train_loss: float,
-        eval_acc: float,
-    ) -> None:
-        """Save model checkpoint.
-
-        Args:
-            epoch (int): Epoch number
-            train_loss (float): Contrastive loss on the training set
-            eval_acc (float): Classification accuracy on the evaluation test set.
-        """
-        chkpt_name = f"{self.config.model.name}_checkpoint_epoch_{epoch:03d}.pt"
-        assert self.logger is not None, "Logger not initialized"
-        self.logger.info(f"Saving checkpoint: {self.checkpoint_dir}/{chkpt_name} ")
-        chkpt_file = self.checkpoint_dir / chkpt_name
-        torch.save(
-            {
-                self.config.model.name: self.model.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-                "lr_scheduler": self.lr_scheduler.state_dict(),
-                "epoch": epoch,
-                "losses": {"contra_train": train_loss},
-                "eval_acc": eval_acc,
-            },
-            chkpt_file,
-        )
-
-    def load_checkpoint(self, chkpt_name: str) -> None:
-        """Load model checkpoint if it exists."""
-        chkpt_file = self.checkpoint_dir / chkpt_name
-        if chkpt_file.is_file():
-            if self.logger is None:
-                self.logger = setup_logger(self.log_dir, session="train")
-            self.logger.info(f"Loading {chkpt_name} from: {self.checkpoint_dir}")
-            checkpoint = torch.load(chkpt_file, map_location=self.device)
-            self.model.load_state_dict(checkpoint[self.config.model.name])
-            self.optimizer.load_state_dict(checkpoint["optimizer"])
-            self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
-            self.best_train_loss = checkpoint["losses"]["contra_train"]
-            self.best_eval_acc = checkpoint["eval_acc"]
-            self.logger.info(
-                f"Loaded model at epoch={checkpoint['epoch']} with "
-                f"validation accuracy: {checkpoint['eval_acc']:.4f}"
-            )
-        else:
-            raise FileNotFoundError(f"Checkpoint file {chkpt_file} not found")
+    def load_checkpoint(self, ckpt_name: str) -> None:
+        """Load model checkpoint."""
+        self.checkpoint.load(ckpt_name, self.model_name)

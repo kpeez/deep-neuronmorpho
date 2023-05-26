@@ -1,5 +1,4 @@
 """Prepare neuron graphs for conversion to DGL datasets."""
-from logging import Logger
 from pathlib import Path
 
 import dgl
@@ -12,7 +11,7 @@ from dgl.data.utils import load_graphs, save_graphs
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
-from ..utils import ProgressBar, setup_logger
+from ..utils import ProgressBar, TrainLogger
 from .data_utils import compute_graph_attrs
 from .process_swc import swc_to_neuron_tree
 
@@ -102,7 +101,7 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     return neuron_graph
 
 
-def dgl_from_swc(swc_files: list[Path], logger: Logger) -> list[DGLGraph]:
+def dgl_from_swc(swc_files: list[Path], logger: TrainLogger) -> list[DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
     Args:
@@ -123,11 +122,11 @@ def dgl_from_swc(swc_files: list[Path], logger: Logger) -> list[DGLGraph]:
                     edge_attrs=["edge_weight"],
                 )
             )
-            logger.info(f"Processed file: {file.name}")
+            logger.message(f"Processed file: {file.name}")
         except Exception as e:
-            logger.error(f"Error creating DGLGraph for {file}: {e}")
+            logger.message(f"Error creating DGLGraph for {file}: {e}", level="error")
 
-    logger.info(f"Created {len(neuron_graphs)} DGLGraphs.")
+    logger.message(f"Created {len(neuron_graphs)} DGLGraphs.")
 
     return neuron_graphs
 
@@ -227,14 +226,15 @@ class NeuronGraphDataset(DGLDataset):
         self.graphs: list = []
         self.self_loop = self_loop
         self.scaler = scaler
+        self.logger: TrainLogger | None = None
         super().__init__(name=dataset_name, raw_dir=self.export_dir)
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
-        self.logger = setup_logger(self.export_dir, session=self.name)
-        self.logger.info(f"Creating {self.name} dataset from {self.graphs_path}")
-        self.logger.info(f"Dataset {self.name} has scaler: {self.scaler}")
-        self.logger.info(f"Dataset {self.name} has self-loop: {self.self_loop}")
+        self.logger = TrainLogger(self.export_dir, session=self.name)
+        self.logger.message(f"Creating {self.name} dataset from {self.graphs_path}")
+        self.logger.message(f"Dataset {self.name} has scaler: {self.scaler}")
+        self.logger.message(f"Dataset {self.name} has self-loop: {self.self_loop}")
         swc_files = sorted(self.graphs_path.glob("*.swc"))
         self.graphs = dgl_from_swc(swc_files=swc_files, logger=self.logger)
 
