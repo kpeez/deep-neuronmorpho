@@ -1,8 +1,6 @@
 # deep-neuronmorpho
 
-[![Release](https://img.shields.io/github/v/release/kpeez/deep-neuronmorpho)](https://img.shields.io/github/v/release/kpeez/deep-neuronmorpho)
-[![Build status](https://img.shields.io/github/workflow/status/kpeez/deep-neuronmorpho/merge-to-main)](https://img.shields.io/github/workflow/status/kpeez/deep-neuronmorpho/merge-to-main)
-[![Commit activity](https://img.shields.io/github/commit-activity/m/kpeez/deep-neuronmorpho)](https://img.shields.io/github/commit-activity/m/kpeez/deep-neuronmorpho)
-[![License](https://img.shields.io/github/license/kpeez/deep-neuronmorpho)](https://img.shields.io/github/license/kpeez/deep-neuronmorpho)
+[![Code style with black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/kpeez/deep-neuronmorpho/blob/main/LICENSE)
 
 Deep learning based approaches for neuron morphology embeddings.
