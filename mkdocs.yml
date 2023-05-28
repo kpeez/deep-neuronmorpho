@@ -1,20 +1,24 @@
 site_name: deep-neuronmorpho
 repo_url: https://github.com/kpeez/deep-neuronmorpho
 site_url: https://kpeez.github.io/deep-neuronmorpho
-site_description: Deep learning based approaches t for neuron morphology embeddings.
+site_description: Deep learning based approaches for neuron morphology embeddings.
 site_author: Kyle Puhger
 
 nav:
   - Home: index.md
-  - Modules: modules.md
+  - Tutorials:
+      - Model configuration: tutorials/model_config.md
+      - Training: tutorials/training.md
+  - Modules: modules/modules.md
+
 plugins:
   - search
   - mkdocstrings:
       handlers:
         python:
-            setup_commands:
-                - import sys
-                - sys.path.append('../')
+          setup_commands:
+            - import sys
+            - sys.path.append('../')
 copyright: Maintained by Kyle Puhger.
 theme:
   name: material
