@@ -23,10 +23,12 @@ class NTXEntLoss(nn.Module):
         - [Chen et al. 2020 SimCLR paper](https://arxiv.org/abs/2002.05709).
 
     Example:
-        >>> ntx_loss = NTXEntLoss(temperature=0.5)
-        >>> embeddings = torch.randn(32, 128)
-        >>> augmented_embeddings = torch.randn(32, 128)
-        >>> loss = ntx_loss(embeddings, augmented_embeddings)
+        ```
+        ntx_loss = NTXEntLoss(temperature=0.5)
+        embeddings = torch.randn(32, 128)
+        augmented_embeddings = torch.randn(32, 128)
+        loss = ntx_loss(embeddings, augmented_embeddings)
+        ```
     """
 
     def __init__(self, temperature: float = 1.0) -> None:
