@@ -11,14 +11,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 from ..data import GraphAugmenter
 from ..utils import ModelConfig, ProgressBar, TrainLogger
-from . import (
-    Checkpoint,
-    NTXEntLoss,
-    evaluate_embeddings,
-    get_eval_targets,
-    get_optimizer,
-    get_scheduler,
-)
+from .evaluation import evaluate_embeddings, get_eval_targets
+from .ntxent_loss import NTXEntLoss
+from .trainer_utils import Checkpoint, get_optimizer, get_scheduler
 
 
 class ContrastiveTrainer:

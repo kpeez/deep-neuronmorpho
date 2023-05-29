@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
-from ..data import parse_logfile
+from ..data.data_utils import parse_logfile
 from ..utils import ModelConfig
 
 
