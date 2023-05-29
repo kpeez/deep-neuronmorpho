@@ -13,7 +13,7 @@ import torch
 from dgl import DGLGraph
 from torch import Tensor, nn
 
-from ..utils import ModelConfig, validate_model_config
+from ..utils.parse_config import ModelConfig, validate_model_config
 from .model_utils import (
     aggregate_tensor,
     compute_embedding_dim,
