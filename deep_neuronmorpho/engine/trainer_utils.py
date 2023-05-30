@@ -4,9 +4,12 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from dgl.dataloading import GraphDataLoader
 from torch import nn, optim
 
-from ..utils import TrainLogger
+from ..data import NeuronGraphDataset
+from ..data.data_utils import create_dataloader
+from ..utils import ModelConfig, TrainLogger
 
 
 def get_optimizer(
@@ -62,6 +65,32 @@ def get_scheduler(
         return optim.lr_scheduler.StepLR(optimizer, step_size=decay_steps, gamma=decay_rate)
     else:
         raise ValueError(f"Scheduler '{scheduler}' not recognized")
+
+
+def setup_dataloaders(conf: ModelConfig, datasets: list[str]) -> dict[str, GraphDataLoader]:
+    """Create dataloaders for contrastive training and evaluation datasets.
+
+    Args:
+        conf (ModelConfig): Model configuration.
+        datasets (list[str]): List of dataset names from model configuration.
+
+    Returns:
+        dict[str, GraphDataLoader]: Dictionary of dataloaders for each dataset.
+    """
+    data_dir = conf.datasets.root
+    graph_datasets = {
+        dataset: NeuronGraphDataset(data_dir, getattr(conf.datasets, dataset))
+        for dataset in datasets
+    }
+
+    dataloaders = {
+        dataset: create_dataloader(graph_dataset, batch_size=1024, shuffle=False)
+        if "eval" in dataset
+        else create_dataloader(graph_dataset, conf.training.batch_size, shuffle=True)
+        for dataset, graph_dataset in graph_datasets.items()
+    }
+
+    return dataloaders
 
 
 class Checkpoint:

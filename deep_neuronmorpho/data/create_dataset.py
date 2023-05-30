@@ -101,7 +101,7 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     return neuron_graph
 
 
-def dgl_from_swc(swc_files: list[Path], logger: TrainLogger) -> list[DGLGraph]:
+def dgl_from_swc(swc_files: list[Path], logger: TrainLogger | None) -> list[DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
     Args:
@@ -111,6 +111,9 @@ def dgl_from_swc(swc_files: list[Path], logger: TrainLogger) -> list[DGLGraph]:
     Returns:
         list[DGLGraph]: List of DGL graphs.
     """
+    if logger is None:
+        logger = TrainLogger(Path.cwd(), "dgl_from_swc", to_file=False)
+
     neuron_graphs = []
     for file in ProgressBar(swc_files, desc="Creating DGLGraph:"):
         try:

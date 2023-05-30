@@ -9,7 +9,7 @@ import torch
 from dgl import DGLGraph
 from torch.distributions.uniform import Uniform
 
-from deep_neuronmorpho.utils import ModelConfig
+from ..utils import ModelConfig
 
 
 class GraphAugmentation(ABC):
