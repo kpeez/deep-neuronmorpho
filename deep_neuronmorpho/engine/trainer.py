@@ -120,7 +120,7 @@ class ContrastiveTrainer:
 
         return eval_acc
 
-    def fit(self, epochs: int | None = None, ckpt_dir: str | Path | None = None) -> None:
+    def fit(self, epochs: int | None = None, ckpt_file: str | Path | None = None) -> None:
         """Train the model for a given number of epochs.
 
         Iterate over the training and validation dataloaders for the given number of epochs,
@@ -129,12 +129,12 @@ class ContrastiveTrainer:
         Args:
             epochs (int, optional): Number of epochs to train for. By default, we train until max
             epochs (defined in model config). Defaults to None.
-            ckpt_dir (str | Path, optional): Path to a model checkpoint directory to load from.
+            ckpt_file (str, optional): Name of a model checkpoint file to load from `ckpts_dir`.
             If a checkpoint is provided, we resume training from that checkpoint. Defaults to None.
         """
-        if ckpt_dir is not None:
-            self.logger.message(f"Resuming training from checkpoint: {ckpt_dir}")
-            self.checkpoint.load(ckpt_dir, self.model_name)
+        if ckpt_file is not None:
+            self.logger.message(f"Resuming training from checkpoint: {ckpt_file}")
+            self.checkpoint.load(ckpt_file, self.model_name)
 
         writer = SummaryWriter(self.log_dir)
         self.logger.message(f"Training model for {epochs} epochs...")
