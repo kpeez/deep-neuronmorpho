@@ -1,6 +1,6 @@
 datasets:
-  metadata: "../datasets/demo_gnn_data/metadata/neuromorpho_benchmark-metadata.csv"
-  root: "../datasets/demo_gnn_data/processed/dgl_datasets"
+  metadata: "../datasets/gnn_data/metadata/neuromorpho_benchmark-metadata.csv"
+  root: "../datasets/gnn_data/processed/dgl_datasets"
   contra_train: "mouse_resampled_10um-train"
   eval_train: "neuromorpho_benchmark_train"
   eval_test: "neuromorpho_benchmark_test"
@@ -49,5 +49,5 @@ augmentation:
 
 # Output configuration
 output:
-  log_dir: "../datasets/demo_gnn_data/outputs/logs"
-  ckpt_dir: "../datasets/demo_gnn_data/outputs/models"
+  log_dir: "../datasets/gnn_data/outputs/logs"
+  ckpt_dir: "../datasets/gnn_data/outputs/models"
