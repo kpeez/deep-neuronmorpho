@@ -39,7 +39,7 @@ def train_model(
         device=device,
     )
     # start training
-    trainer.fit(epochs=4, ckpt_file=checkpoint)
+    trainer.fit(ckpt_file=checkpoint)
 
 
 if __name__ == "__main__":

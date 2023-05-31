@@ -192,9 +192,7 @@ class ContrastiveTrainer:
         """Get target labels for evaluation training and testing sets."""
         targets = get_eval_targets(self.config)
 
-        targets_deleteme = {dataset: labels[:5] for dataset, labels in targets.items()}
-
-        return targets_deleteme
+        return targets
 
     @property
     def ckpt_dir(self) -> Path:
