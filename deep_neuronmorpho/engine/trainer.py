@@ -137,7 +137,7 @@ class ContrastiveTrainer:
             self.checkpoint.load(ckpt_file, self.model_name)
 
         writer = SummaryWriter(self.log_dir)
-        self.logger.message(f"Training model for {epochs} epochs...")
+        self.logger.message(f"Training model on '{self.device}' for {epochs} epochs...")
         epochs = self.max_epochs if epochs is None else epochs
         bad_epochs = 0
         for epoch in ProgressBar(range(1, epochs + 1), desc="Training epochs:"):
