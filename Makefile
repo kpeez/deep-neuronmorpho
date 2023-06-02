@@ -17,7 +17,8 @@ check: ## Run code quality tools.
 .PHONY: install_cuda
 install_cuda: ## install CUDA-dependent pacakges
 	@echo "📦 Installing CUDA-dependent packages"
-	@poetry install
+	@poetry export -f requirements.txt --without-hashes --output requirements.txt
+	@poetry run pip install -r requirements.txt              
 	@poetry run pip uninstall dgl, torch
 	@poetry run pip install torch==2.0.0 -f https://download.pytorch.org/whl/cu117
 	@poetry run pip install dgl -f https://data.dgl.ai/wheels/cu117/repo.html
