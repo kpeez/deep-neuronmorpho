@@ -41,7 +41,7 @@ class ContrastiveTrainer:
         device: torch.device | str,
     ):
         self.config = config
-        self.model = model
+        self.model = model.to(device)
         self.dataloaders = dataloaders
         self.model_name = self.config.model.name
         self.loss_fn = NTXEntLoss()
@@ -79,7 +79,7 @@ class ContrastiveTrainer:
         Returns:
             float: The loss for the batch.
         """
-        augmented_batch = self.augmenter.augment_batch(batch)
+        augmented_batch = self.augmenter.augment_batch(batch).to(self.device)
         ypred = self.model(batch)
         ypred_aug = self.model(augmented_batch)
         loss = self.loss_fn(ypred, ypred_aug)
@@ -137,8 +137,8 @@ class ContrastiveTrainer:
             self.checkpoint.load(ckpt_file, self.model_name)
 
         writer = SummaryWriter(self.log_dir)
-        self.logger.message(f"Training model on '{self.device}' for {epochs} epochs...")
         epochs = self.max_epochs if epochs is None else epochs
+        self.logger.message(f"Training model on '{self.device}' for {epochs} epochs...")
         bad_epochs = 0
         for epoch in ProgressBar(range(1, epochs + 1), desc="Training epochs:"):
             train_loss = self.train_step()
