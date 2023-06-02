@@ -14,6 +14,14 @@ check: ## Run code quality tools.
 	@echo "🔬 Static type checking: Running mypy"
 	@poetry run mypy
 
+.PHONY: install_cuda
+install_cuda: ## install CUDA-dependent pacakges
+	@echo "📦 Installing CUDA-dependent packages"
+	@poetry install
+	@poetry run pip uninstall dgl, torch
+	@poetry run pip install torch==2.0.0 -f https://download.pytorch.org/whl/cu117
+	@poetry run pip install dgl -f https://data.dgl.ai/wheels/cu117/repo.html
+
 .PHONY: test
 test: ## Test the code with pytest
 	@echo "✅ Testing code: Running pytest"
