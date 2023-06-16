@@ -24,9 +24,9 @@ model:
 
 # Training configuration
 training:
-  batch_size: 64
+  batch_size: 256
   contra_loss_temp: 0.2
-  eval_interval: 20
+  eval_interval: 5
   max_epochs: 400
   patience: 60
   lr_init: 0.01
