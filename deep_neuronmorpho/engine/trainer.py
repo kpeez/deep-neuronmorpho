@@ -40,22 +40,22 @@ class ContrastiveTrainer:
         dataloaders: dict[str, GraphDataLoader],
         device: torch.device | str,
     ):
-        self.config = config
+        self.cfg = config
         self.model = model.to(device)
         self.dataloaders = dataloaders
-        self.model_name = self.config.model.name
+        self.model_name = self.cfg.model.name
         self.loss_fn = NTXEntLoss()
-        self.augmenter = GraphAugmenter(self.config.augmentation)
+        self.augmenter = GraphAugmenter(self.cfg.augmentation)
         self.optimizer = get_optimizer(
             model=self.model,
-            optimizer_name=self.config.training.optimizer,
-            lr=self.config.training.lr_init,
+            optimizer_name=self.cfg.training.optimizer,
+            lr=self.cfg.training.lr_init,
         )
         self.lr_scheduler = get_scheduler(
-            scheduler=self.config.training.lr_scheduler,
+            scheduler=self.cfg.training.lr_scheduler,
             optimizer=self.optimizer,
-            decay_steps=self.config.training.lr_decay_steps,
-            decay_rate=self.config.training.lr_decay_rate,
+            decay_steps=self.cfg.training.lr_decay_steps,
+            decay_rate=self.cfg.training.lr_decay_rate,
         )
         self.device = device
         self.logger = TrainLogger(self.log_dir, session="train")
@@ -91,11 +91,13 @@ class ContrastiveTrainer:
         total_loss = 0.0
         for raw_batch in ProgressBar(self.dataloaders["contra_train"], desc="Processing batch:"):
             batch = raw_batch.to(self.device)
+            self.logger.message("Calculating loss...")
             loss = self._calculate_loss(batch)
+            self.logger.message("Backpropagating...")
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-        total_loss += loss.item()
+            total_loss += loss.item()
         train_loss = total_loss / len(self.dataloaders["contra_train"])
 
         return train_loss
@@ -169,7 +171,7 @@ class ContrastiveTrainer:
             else:
                 bad_epochs += 1
 
-            if bad_epochs > self.config.training.patience:
+            if bad_epochs > self.cfg.training.patience:
                 self.logger.message(
                     f"Stopping training after {epoch} epochs: Training loss at plateau"
                 )
@@ -180,24 +182,24 @@ class ContrastiveTrainer:
     @property
     def eval_interval(self) -> int:
         """Returns the number of epochs between model evaluations."""
-        return self.config.training.eval_interval
+        return self.cfg.training.eval_interval
 
     @property
     def max_epochs(self) -> int:
         """Returns the maximum number of epochs to train for."""
-        return self.config.training.max_epochs
+        return self.cfg.training.max_epochs
 
     @property
     def eval_targets(self) -> dict[str, NDArray]:
         """Get target labels for evaluation training and testing sets."""
-        targets = get_eval_targets(self.config)
+        targets = get_eval_targets(self.cfg)
 
         return targets
 
     @property
     def ckpt_dir(self) -> Path:
         """Returns the directory where checkpoints are saved."""
-        ckpt_dir = Path(self.config.output.ckpt_dir)
+        ckpt_dir = Path(self.cfg.output.ckpt_dir)
         if ckpt_dir.exists() is False:
             ckpt_dir.mkdir(parents=True, exist_ok=True)
 
@@ -206,7 +208,7 @@ class ContrastiveTrainer:
     @property
     def log_dir(self) -> Path:
         """Returns the directory where logs are saved."""
-        log_dir = Path(self.config.output.log_dir)
+        log_dir = Path(self.cfg.output.log_dir)
         if log_dir.exists() is False:
             log_dir.mkdir(parents=True, exist_ok=True)
 
