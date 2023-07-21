@@ -84,9 +84,9 @@ def setup_dataloaders(conf: ModelConfig, datasets: list[str]) -> dict[str, Graph
     }
 
     dataloaders = {
-        dataset: create_dataloader(graph_dataset, batch_size=1024, shuffle=False)
+        dataset: create_dataloader(graph_dataset, batch_size=1024, shuffle=False, num_workers=4)
         if "eval" in dataset
-        else create_dataloader(graph_dataset, conf.training.batch_size, shuffle=True)
+        else create_dataloader(graph_dataset, conf.training.batch_size, shuffle=True, num_workers=4)
         for dataset, graph_dataset in graph_datasets.items()
     }
 

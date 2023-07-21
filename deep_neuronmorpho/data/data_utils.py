@@ -2,7 +2,7 @@
 import random
 import shutil
 from pathlib import Path
-from typing import Tuple
+from typing import Any, Tuple
 
 import numpy as np
 import pandas as pd
@@ -42,6 +42,7 @@ def create_dataloader(
     batch_size: int,
     shuffle: bool = True,
     drop_last: bool = False,
+    **kwargs: Any,
 ) -> GraphDataLoader:
     """Create dataloaders for training and validation datasets.
 
@@ -50,6 +51,8 @@ def create_dataloader(
         batch_size (int): Batch size.
         shuffle (bool): Whether to shuffle the training data. Defaults to True.
         drop_last (bool): Whether to drop the last batch if it is smaller than the batch size.
+        kwargs: Additional keyword arguments to pass to the parent torch.utils.data.DataLoader
+        arguments such as num_workers, pin_memory, etc.
 
     Returns:
         GraphDataLoader: Dataloader of graph dataset.
@@ -59,6 +62,7 @@ def create_dataloader(
         batch_size=batch_size,
         shuffle=shuffle,
         drop_last=drop_last,
+        **kwargs,
     )
 
     return graph_loader
@@ -75,10 +79,8 @@ def parse_logfile(logfile: str | Path, metadata_file: str | Path) -> NDArray:
         logfile (str | Path): Path to the log file.
         metadata_file (str | Path): Path to metadata file.
 
-
     Returns:
         pd.Series: A dataframe containing the file name and label for each processed sample.
-
     """
     metadata_file = (
         metadata_file if Path(metadata_file).suffix == ".csv" else f"{metadata_file}.csv"
