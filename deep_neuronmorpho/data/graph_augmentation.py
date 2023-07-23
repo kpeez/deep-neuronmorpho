@@ -1,7 +1,6 @@
 """Graph augmentations of neuron structures for contrastive learning."""
 import inspect
 from abc import ABC, abstractmethod
-from copy import deepcopy
 
 import dgl
 import numpy as np
@@ -20,8 +19,7 @@ class GraphAugmentation(ABC):
     on a given DGLGraph.
 
     Methods:
-        apply: Applies the augmentation to the input graph. This method must be implemented
-            by the subclasses.
+        apply: Applies the augmentation to the input graph.
 
     Usage:
     ```
@@ -39,7 +37,7 @@ class GraphAugmentation(ABC):
     """
 
     @abstractmethod
-    def apply(self, graph: DGLGraph) -> DGLGraph:
+    def apply(self, G: DGLGraph) -> DGLGraph:
         """Apply the augmentation to the input graph."""
         pass
 
@@ -78,9 +76,9 @@ class PerturbNodePositions(GraphAugmentation):
         self.prop = prop
         self.std_noise = std_noise
 
-    def apply(self, graph: DGLGraph) -> DGLGraph:
+    def apply(self, G: DGLGraph) -> DGLGraph:
         """Apply the augmentation to the input graph."""
-        node_features = graph.ndata["nattrs"]
+        node_features = G.ndata["nattrs"]
         num_nodes = node_features.shape[0]
         nodes_to_perturb = np.random.choice(
             num_nodes,
@@ -93,9 +91,9 @@ class PerturbNodePositions(GraphAugmentation):
             size=(len(nodes_to_perturb), 3),
             device=node_features.device,
         )
-        graph.ndata["nattrs"] = node_features
+        G.ndata["nattrs"] = node_features
 
-        return graph
+        return G
 
 
 class RotateGraphNodes(GraphAugmentation):
@@ -116,9 +114,9 @@ class RotateGraphNodes(GraphAugmentation):
     def __init__(self) -> None:
         pass
 
-    def apply(self, graph: DGLGraph) -> DGLGraph:
+    def apply(self, G: DGLGraph) -> DGLGraph:
         """Apply the augmentation to the input graph."""
-        node_features = graph.ndata["nattrs"]
+        node_features = G.ndata["nattrs"]
         device = node_features.device
         # Make sure we get a rotation axis
         rotate_axis = torch.tensor([0, 0, 0], device=device)
@@ -147,9 +145,9 @@ class RotateGraphNodes(GraphAugmentation):
             + (1 - cos_theta) * outer  # projection onto plane perpendicular to rotate_axis
         )
         node_features[:, :3] = torch.matmul(node_features[:, :3], rotate_mat)
-        graph.ndata["nattrs"] = node_features
+        G.ndata["nattrs"] = node_features
 
-        return graph
+        return G
 
 
 class DropBranches(GraphAugmentation):
@@ -178,33 +176,25 @@ class DropBranches(GraphAugmentation):
         self.deg_power = deg_power
         self.path_dist_idx = path_dist_idx
 
-    def get_descendants(self, graph: DGLGraph, node: int, path_dist: list[float]) -> list[int]:
-        """Recursively find and return all descendants of a given node in the graph."""
-        descendants = []
-        for child in graph.successors(node):
-            if path_dist[child] > path_dist[node]:
-                descendants.append(child.item())
-                descendants.extend(self.get_descendants(graph, child, path_dist))
-        return descendants
-
-    def apply(self, graph: DGLGraph) -> DGLGraph:
+    def apply(self, G: DGLGraph) -> DGLGraph:
         """Apply the augmentation to the input graph."""
-        path_dist = graph.ndata["nattrs"][:, self.path_dist_idx]
+        path_dist = G.ndata["nattrs"][:, self.path_dist_idx]
         # Compute selection probabilities
         path_dist_p = (path_dist + torch.abs(torch.min(path_dist))) ** self.deg_power  # keep soma
         select_probs = path_dist_p / torch.sum(path_dist_p)
         # Select nodes to drop
-        drop_num = int(torch.ceil(graph.num_nodes() * torch.tensor(self.prop)).item())
+        drop_num = int(torch.ceil(G.num_nodes() * torch.tensor(self.prop)).item())
         drop_nodes_tensor = torch.multinomial(select_probs, drop_num, replacement=False)
         # Add descendants of selected nodes
+        all_nodes = set(G.nodes().tolist())
         drop_nodes = set(drop_nodes_tensor.tolist())
-        for node in list(drop_nodes):
-            drop_nodes.update(self.get_descendants(graph, node, path_dist))
-        # Remove the dropped nodes
-        remaining_nodes = list(set(range(graph.number_of_nodes())) - drop_nodes)
-        subgraph = graph.subgraph(remaining_nodes)
+        keep_nodes = list(all_nodes - drop_nodes)
+        G_sub_temp = G.subgraph(keep_nodes)
+        # get subgraph without isolated components
+        subgraph_nodes = list(dgl.traversal.bfs_nodes_generator(G_sub_temp, 0))
+        G_sub = G_sub_temp.subgraph(torch.cat(subgraph_nodes))
 
-        return subgraph
+        return G_sub
 
 
 class GraphAugmenter:
@@ -221,7 +211,6 @@ class GraphAugmenter:
 
     Methods:
         augment_batch: Augments a batch of DGLGraphs using the specified augmentations.
-    ```
     """
 
     def __init__(self, config: ModelConfig):
@@ -262,15 +251,14 @@ class GraphAugmenter:
         original_graphs = dgl.unbatch(g_batch)
         augmented_graphs = []
         for g in original_graphs:
-            aug_g = deepcopy(g)
             for augmentation in self.augmentations:
-                aug_g = augmentation.apply(aug_g)
+                aug_g = augmentation.apply(g)
             augmented_graphs.append(aug_g)
         batch_augmented_graphs = dgl.batch(augmented_graphs)
 
         return batch_augmented_graphs
 
     def __repr__(self) -> str:
-        """Return a string representation of the augmentation."""
+        """String representation of the augmentation."""
         augmentations_repr = ", ".join(repr(augmentation) for augmentation in self.augmentations)
         return f"{self.__class__.__name__}({augmentations_repr})"
