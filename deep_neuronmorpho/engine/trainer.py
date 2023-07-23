@@ -79,10 +79,11 @@ class ContrastiveTrainer:
         Returns:
             float: The loss for the batch.
         """
-        augmented_batch = self.augmenter.augment_batch(batch).to(self.device)
         ypred = self.model(batch)
+        augmented_batch = self.augmenter.augment_batch(batch).to(self.device)
         ypred_aug = self.model(augmented_batch)
         loss = self.loss_fn(ypred, ypred_aug)
+
         return loss
 
     def train_step(self) -> float:
