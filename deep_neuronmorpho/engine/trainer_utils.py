@@ -67,12 +67,16 @@ def get_scheduler(
         raise ValueError(f"Scheduler '{scheduler}' not recognized")
 
 
-def setup_dataloaders(conf: ModelConfig, datasets: list[str]) -> dict[str, GraphDataLoader]:
+def setup_dataloaders(
+    conf: ModelConfig, datasets: list[str], **kwargs: Any
+) -> dict[str, GraphDataLoader]:
     """Create dataloaders for contrastive training and evaluation datasets.
 
     Args:
         conf (ModelConfig): Model configuration.
         datasets (list[str]): List of dataset names from model configuration.
+        kwargs: Additional keyword arguments to pass to the parent torch.utils.data.DataLoader
+        arguments such as num_workers, pin_memory, etc.
 
     Returns:
         dict[str, GraphDataLoader]: Dictionary of dataloaders for each dataset.
@@ -84,9 +88,9 @@ def setup_dataloaders(conf: ModelConfig, datasets: list[str]) -> dict[str, Graph
     }
 
     dataloaders = {
-        dataset: create_dataloader(graph_dataset, batch_size=1024, shuffle=False, num_workers=1)
+        dataset: create_dataloader(graph_dataset, batch_size=1024, shuffle=False, **kwargs)
         if "eval" in dataset
-        else create_dataloader(graph_dataset, conf.training.batch_size, shuffle=True, num_workers=1)
+        else create_dataloader(graph_dataset, conf.training.batch_size, shuffle=True, **kwargs)
         for dataset, graph_dataset in graph_datasets.items()
     }
 
