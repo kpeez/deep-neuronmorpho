@@ -92,9 +92,7 @@ class ContrastiveTrainer:
         total_loss = 0.0
         for raw_batch in ProgressBar(self.dataloaders["contra_train"], desc="Processing batch:"):
             batch = raw_batch.to(self.device)
-            self.logger.message("Calculating loss...")
             loss = self._calculate_loss(batch)
-            self.logger.message("Backpropagating...")
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
