@@ -11,18 +11,9 @@ from deep_neuronmorpho.utils import ModelConfig
 app = typer.Typer()
 
 
-@app.command()
 def train_model(
-    config_file: str = typer.Argument(  # noqa: B008,
-        ...,
-        help="The configuration file.",
-    ),
-    checkpoint: str = typer.Option(  # noqa: B008,
-        None,
-        "--checkpoint",
-        "-c",
-        help="The checkpoint file to load from.",
-    ),
+    config_file: str,
+    checkpoint: str | None = None,
 ) -> None:
     """Train a model using a configuration file."""
     conf = ModelConfig(config_file)
@@ -40,6 +31,23 @@ def train_model(
     )
     # start training
     trainer.fit(ckpt_file=checkpoint)
+
+
+@app.command()
+def cli_train_model(
+    config_file: str = typer.Argument(  # noqa: B008,
+        ...,
+        help="The configuration file.",
+    ),
+    checkpoint: str = typer.Option(  # noqa: B008,
+        None,
+        "--checkpoint",
+        "-c",
+        help="The checkpoint file to load from.",
+    ),
+) -> None:
+    """CLI for training a model using a configuration file."""
+    train_model(config_file, checkpoint)
 
 
 if __name__ == "__main__":
