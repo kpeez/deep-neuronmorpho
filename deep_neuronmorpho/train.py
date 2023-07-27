@@ -18,7 +18,7 @@ def train_model(
 ) -> None:
     """Train a model using a configuration file."""
     conf = ModelConfig(config_file)
-    device = f"cuda{gpu}" if torch.cuda.is_available() and gpu is not None else "cpu"
+    device = f"cuda:{gpu}" if torch.cuda.is_available() and gpu is not None else "cpu"
     dataloaders = setup_dataloaders(conf, datasets=["contra_train", "eval_train", "eval_test"])
 
     # create model and trainer
