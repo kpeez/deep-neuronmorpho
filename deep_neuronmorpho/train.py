@@ -14,10 +14,11 @@ app = typer.Typer()
 def train_model(
     config_file: str,
     checkpoint: str | None = None,
+    gpu: int | None = None,
 ) -> None:
     """Train a model using a configuration file."""
     conf = ModelConfig(config_file)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = f"cuda{gpu}" if torch.cuda.is_available() and gpu is not None else "cpu"
     dataloaders = setup_dataloaders(conf, datasets=["contra_train", "eval_train", "eval_test"])
 
     # create model and trainer
@@ -45,9 +46,15 @@ def cli_train_model(
         "-c",
         help="The checkpoint file to load from.",
     ),
+    gpu: int = typer.Option(  # noqa: B008,
+        None,
+        "--gpu",
+        "-g",
+        help="The ID of the GPU to use.",
+    ),
 ) -> None:
     """CLI for training a model using a configuration file."""
-    train_model(config_file, checkpoint)
+    train_model(config_file, checkpoint, gpu)
 
 
 if __name__ == "__main__":
