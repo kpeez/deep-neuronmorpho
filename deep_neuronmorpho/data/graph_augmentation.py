@@ -65,7 +65,8 @@ class PerturbNodePositions(GraphAugmentation):
         std_noise (float): Standard deviation of Gaussian noise.
 
     Methods:
-        apply: Apply the perturbation to the input DGLGraph's node features.
+        apply(G: DGLGraph) -> DGLGraph: Applies the perturbation operation to a DGLGraph object.
+            The node features are expected to be stored in the G.ndata["nattrs"] attribute.
 
     Example:
         perturb_aug = PerturbNodePositions(prop=0.5, std_noise=2.0)
@@ -104,7 +105,8 @@ class RotateGraphNodes(GraphAugmentation):
     to create a rotation matrix that rotates the input tensor along the given axis.
 
     Methods:
-        apply: Apply the rotation to the input DGLGraph's node features.
+        apply(G: DGLGraph) -> DGLGraph: Applies the rotation operation to a DGLGraph object.
+            The node features are expected to be stored in the G.ndata["nattrs"] attribute.
 
     Example:
         rotate_aug = RotateGraphNodes()
@@ -163,7 +165,7 @@ class DropBranches(GraphAugmentation):
         path_dist_idx (int): Column index in the node features tensor for path distance from root.
 
     Methods:
-        apply: Apply augmentation to the input DGLGraph by randomly dropping nodes (and children).
+        apply(G: DGLGraph) -> DGLGraph: Applies the branch dropping operation to a DGLGraph object.
 
     Example:
         drop_branches_aug = DropBranches(prop=0.25, deg_power=1.0, path_dist_idx=3)
@@ -191,8 +193,9 @@ class DropBranches(GraphAugmentation):
         keep_nodes = list(all_nodes - drop_nodes)
         G_sub_temp = G.subgraph(keep_nodes)
         # get subgraph without isolated components
-        subgraph_nodes = list(dgl.traversal.bfs_nodes_generator(G_sub_temp, 0))
-        G_sub = G_sub_temp.subgraph(torch.cat(subgraph_nodes))
+        keep_nodes = list(dgl.traversal.bfs_nodes_generator(G_sub_temp, 0))
+        subgraph_nodes = torch.cat(keep_nodes).to(G_sub_temp.device)
+        G_sub = G_sub_temp.subgraph(subgraph_nodes)
 
         return G_sub
 
