@@ -80,7 +80,7 @@ class ContrastiveTrainer:
             float: The loss for the batch.
         """
         ypred = self.model(batch)
-        augmented_batch = self.augmenter.augment_batch(batch).to(self.device)
+        augmented_batch = self.augmenter.augment_batch(batch)
         ypred_aug = self.model(augmented_batch)
         loss = self.loss_fn(ypred, ypred_aug)
 
