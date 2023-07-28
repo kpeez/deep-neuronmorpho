@@ -22,7 +22,7 @@ def train_model(
     dataloaders = setup_dataloaders(
         conf,
         datasets=["contra_train", "eval_train", "eval_test"],
-        pin_meomry=True,
+        pin_memory=True,
     )
 
     # create model and trainer
