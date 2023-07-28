@@ -19,7 +19,11 @@ def train_model(
     """Train a model using a configuration file."""
     conf = ModelConfig(config_file)
     device = f"cuda:{gpu}" if torch.cuda.is_available() and gpu is not None else "cpu"
-    dataloaders = setup_dataloaders(conf, datasets=["contra_train", "eval_train", "eval_test"])
+    dataloaders = setup_dataloaders(
+        conf,
+        datasets=["contra_train", "eval_train", "eval_test"],
+        pin_meomry=True,
+    )
 
     # create model and trainer
     # TODO: add support for other models (parse model name from config file)
