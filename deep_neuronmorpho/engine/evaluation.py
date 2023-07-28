@@ -11,8 +11,12 @@ from ..utils import ModelConfig
 
 def get_eval_targets(conf: ModelConfig) -> dict[str, NDArray]:
     """Get the target labels for the evaluation training and test sets."""
-    train_logfile = list(Path(f"{conf.datasets.root}").glob(f"*{conf.datasets.eval_train}*.log"))[0]
-    test_logfile = list(Path(f"{conf.datasets.root}").glob(f"*{conf.datasets.eval_test}*.log"))[0]
+    train_logfile = next(
+        iter(Path(f"{conf.datasets.root}").glob(f"*{conf.datasets.eval_train}*.log"))
+    )
+    test_logfile = next(
+        iter(Path(f"{conf.datasets.root}").glob(f"*{conf.datasets.eval_test}*.log"))
+    )
 
     return {
         "train": parse_logfile(logfile=train_logfile, metadata_file=conf.datasets.metadata),
