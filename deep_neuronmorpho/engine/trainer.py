@@ -110,9 +110,10 @@ class ContrastiveTrainer:
                 self.dataloaders["eval_train"], self.dataloaders["eval_test"]
             ):
                 train_batch = raw_train_batch.to(self.device)
-                test_batch = raw_test_batch.to(self.device)
                 tensor_embeddings["train"].append(self.model(train_batch))
-                tensor_embeddings["test"].append(self.model(test_batch))
+                if raw_test_batch is not None:
+                    test_batch = raw_test_batch.to(self.device)
+                    tensor_embeddings["test"].append(self.model(test_batch))
         embeddings = {
             dataset: torch.cat(embed, dim=0).detach().cpu().numpy()
             for dataset, embed in tensor_embeddings.items()
