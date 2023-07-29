@@ -115,6 +115,7 @@ class Checkpoint:
         self.ckpt_dir = ckpt_dir
         self.device = device
         self.logger = logger
+        self.epoch = None
 
     def save(self, epoch: int, train_loss: float, eval_acc: float, model_name: str) -> None:
         """Save model checkpoint.
@@ -126,19 +127,18 @@ class Checkpoint:
             model_name (str): Name of the model
         """
         chkpt_name = f"{model_name}_checkpoint_epoch_{epoch:03d}.pt"
-        self.logger.message(f"Saving checkpoint: {self.ckpt_dir}/{chkpt_name} ")
         chkpt_file = Path(self.ckpt_dir) / chkpt_name
-        torch.save(
-            {
-                model_name: self.model.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-                "lr_scheduler": self.lr_scheduler.state_dict(),
-                "epoch": epoch,
-                "losses": {"contra_train": train_loss},
-                "eval_acc": eval_acc,
-            },
-            chkpt_file,
-        )
+        self.logger.message(f"Saving checkpoint: {self.ckpt_dir}/{chkpt_name} ")
+        checkpoint = {
+            model_name: self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "lr_scheduler": self.lr_scheduler.state_dict(),
+            "epoch": epoch,
+            "losses": {"contra_train": train_loss},
+            "eval_acc": eval_acc,
+        }
+
+        torch.save(checkpoint, chkpt_file)
 
     def load(self, chkpt_name: str | Path, model_name: str) -> None:
         """Load model checkpoint if it exists."""
@@ -149,6 +149,7 @@ class Checkpoint:
             self.model.load_state_dict(checkpoint[model_name])
             self.optimizer.load_state_dict(checkpoint["optimizer"])
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+            self.epoch = checkpoint["epoch"]
             self.logger.message(
                 f"Loaded model at epoch={checkpoint['epoch']} with "
                 f"validation accuracy: {checkpoint['eval_acc']:.4f}"

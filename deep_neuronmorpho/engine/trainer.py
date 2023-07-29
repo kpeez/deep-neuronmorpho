@@ -5,7 +5,6 @@ from pathlib import Path
 import torch
 from dgl import DGLGraph
 from dgl.dataloading import GraphDataLoader
-from numpy.typing import NDArray
 from torch import Tensor, nn
 from torch.utils.tensorboard import SummaryWriter
 
@@ -58,7 +57,14 @@ class ContrastiveTrainer:
             decay_rate=self.cfg.training.lr_decay_rate,
         )
         self.device = device
+
+        self.ckpt_dir = Path(self.cfg.output.ckpt_dir)
+        self.log_dir = Path(self.cfg.output.log_dir)
+        for output_dir in [self.ckpt_dir, self.log_dir]:
+            if output_dir.exists() is False:
+                output_dir.mkdir(parents=True, exist_ok=True)
         self.logger = TrainLogger(self.log_dir, session="train")
+
         self.checkpoint = Checkpoint(
             self.model,
             self.optimizer,
@@ -67,7 +73,11 @@ class ContrastiveTrainer:
             self.device,
             self.logger,
         )
+
+        self.max_epochs = self.cfg.training.max_epochs
         self.best_train_loss = float("inf")
+        self.eval_targets = get_eval_targets(self.cfg)
+        self.eval_interval = self.cfg.training.eval_interval
         self.best_eval_acc = 0.0
 
     def _calculate_loss(self, batch: DGLGraph) -> float:
@@ -135,14 +145,19 @@ class ContrastiveTrainer:
             If a checkpoint is provided, we resume training from that checkpoint. Defaults to None.
         """
         if ckpt_file is not None:
-            self.logger.message(f"Resuming training from checkpoint: {ckpt_file}")
             self.checkpoint.load(ckpt_file, self.model_name)
+            self.logger.message(f"Resuming training from checkpoint: {ckpt_file}")
+            start_epoch = self.checkpoint.epoch if self.checkpoint.epoch is not None else 0
+        else:
+            start_epoch = 0
 
         writer = SummaryWriter(self.log_dir)
-        epochs = self.max_epochs if epochs is None else epochs
-        self.logger.message(f"Training model on '{self.device}' for {epochs} epochs...")
+        num_epochs = self.max_epochs if epochs is None else epochs
+        self.logger.message(
+            f"Training model on '{self.device}' for {num_epochs - start_epoch} epochs..."
+        )
         bad_epochs = 0
-        for epoch in ProgressBar(range(1, epochs + 1), desc="Training epochs:"):
+        for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):
             train_loss = self.train_step()
             writer.add_scalar("loss/train", train_loss, epoch, new_style=True)
             self.logger.message(f"Epoch {epoch}/{epochs}: Train Loss: {train_loss:.4f}")
@@ -178,41 +193,6 @@ class ContrastiveTrainer:
                 break
 
         writer.close()
-
-    @property
-    def eval_interval(self) -> int:
-        """Returns the number of epochs between model evaluations."""
-        return self.cfg.training.eval_interval
-
-    @property
-    def max_epochs(self) -> int:
-        """Returns the maximum number of epochs to train for."""
-        return self.cfg.training.max_epochs
-
-    @property
-    def eval_targets(self) -> dict[str, NDArray]:
-        """Get target labels for evaluation training and testing sets."""
-        targets = get_eval_targets(self.cfg)
-
-        return targets
-
-    @property
-    def ckpt_dir(self) -> Path:
-        """Returns the directory where checkpoints are saved."""
-        ckpt_dir = Path(self.cfg.output.ckpt_dir)
-        if ckpt_dir.exists() is False:
-            ckpt_dir.mkdir(parents=True, exist_ok=True)
-
-        return ckpt_dir
-
-    @property
-    def log_dir(self) -> Path:
-        """Returns the directory where logs are saved."""
-        log_dir = Path(self.cfg.output.log_dir)
-        if log_dir.exists() is False:
-            log_dir.mkdir(parents=True, exist_ok=True)
-
-        return log_dir
 
     def load_checkpoint(self, ckpt_name: str) -> None:
         """Load model checkpoint."""
