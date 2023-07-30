@@ -160,7 +160,7 @@ class ContrastiveTrainer:
         for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):
             train_loss = self.train_step()
             writer.add_scalar("loss/train", train_loss, epoch, new_style=True)
-            self.logger.message(f"Epoch {epoch}/{epochs}: Train Loss: {train_loss:.4f}")
+            self.logger.message(f"Epoch {epoch}/{num_epochs}: Train Loss: {train_loss:.4f}")
             self.lr_scheduler.step()
 
             if epoch % self.eval_interval == 0:
