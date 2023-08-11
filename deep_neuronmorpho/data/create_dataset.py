@@ -234,7 +234,7 @@ class NeuronGraphDataset(DGLDataset):
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
-        self.logger = TrainLogger(self.export_dir, session=self.name)
+        self.logger = TrainLogger(self.export_dir, expt_name=self.name)
         self.logger.message(f"Creating {self.name} dataset from {self.graphs_path}")
         self.logger.message(f"Dataset {self.name} has scaler: {self.scaler}")
         self.logger.message(f"Dataset {self.name} has self-loop: {self.self_loop}")

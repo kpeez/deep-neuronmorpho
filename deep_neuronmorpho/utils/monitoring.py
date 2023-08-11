@@ -65,15 +65,15 @@ class ProgressBar:
 class TrainLogger:
     """Class for logging training progress."""
 
-    def __init__(self, log_dir: Path, session: str, to_file: bool = True) -> None:
+    def __init__(self, log_dir: Path, expt_name: str, to_file: bool = True) -> None:
         self.log_dir = log_dir
-        self.session = session
+        self.expt_name = expt_name
         self.to_file = to_file
         self.logger: Logger | None = None
 
     def setup_logger(self) -> None:
         """Create a logger for logging training progress."""
-        logger = logging.getLogger(self.session)
+        logger = logging.getLogger(self.expt_name)
         logger.setLevel(logging.INFO)
         # log to console
         console_handler = logging.StreamHandler()
@@ -82,7 +82,7 @@ class TrainLogger:
         # log to file if specified
         if self.to_file:
             formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-            log_filename = f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-{self.session}.log"
+            log_filename = f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-{self.expt_name}.log"
             file_handler = logging.FileHandler(self.log_dir / log_filename)
             file_handler.setLevel(logging.INFO)
             file_handler.setFormatter(formatter)
