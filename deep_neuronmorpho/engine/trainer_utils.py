@@ -81,7 +81,7 @@ def setup_dataloaders(
     Returns:
         dict[str, GraphDataLoader]: Dictionary of dataloaders for each dataset.
     """
-    data_dir = conf.datasets.root
+    data_dir = conf.dirs.graph_data
     graph_datasets = {
         dataset: NeuronGraphDataset(data_dir, getattr(conf.datasets, dataset))
         for dataset in datasets
@@ -103,6 +103,7 @@ class Checkpoint:
     def __init__(
         self,
         model: nn.Module,
+        expt_name: str,
         optimizer: optim.Optimizer,
         lr_scheduler: Any,
         ckpt_dir: str | Path,
@@ -110,6 +111,7 @@ class Checkpoint:
         logger: TrainLogger,
     ):
         self.model = model
+        self.expt_name = expt_name
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.ckpt_dir = ckpt_dir
@@ -117,20 +119,19 @@ class Checkpoint:
         self.logger = logger
         self.epoch = None
 
-    def save(self, epoch: int, train_loss: float, eval_acc: float, model_name: str) -> None:
+    def save(self, epoch: int, train_loss: float, eval_acc: float) -> None:
         """Save model checkpoint.
 
         Args:
             epoch (int): Epoch number
             train_loss (float): Contrastive loss on the training set
             eval_acc (float): Classification accuracy on the evaluation test set.
-            model_name (str): Name of the model
         """
-        chkpt_name = f"{model_name}_checkpoint_epoch_{epoch:03d}.pt"
+        chkpt_name = f"{self.expt_name}_checkpoint-epoch_{epoch:03d}.pt"
         chkpt_file = Path(self.ckpt_dir) / chkpt_name
         self.logger.message(f"Saving checkpoint: {self.ckpt_dir}/{chkpt_name} ")
         checkpoint = {
-            model_name: self.model.state_dict(),
+            "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "epoch": epoch,
@@ -140,13 +141,16 @@ class Checkpoint:
 
         torch.save(checkpoint, chkpt_file)
 
-    def load(self, chkpt_name: str | Path, model_name: str) -> None:
-        """Load model checkpoint if it exists."""
-        chkpt_file = Path(self.ckpt_dir) / chkpt_name
-        if chkpt_file.is_file():
-            self.logger.message(f"Loading {chkpt_name} from: {self.ckpt_dir}")
-            checkpoint = torch.load(chkpt_file, map_location=self.device)
-            self.model.load_state_dict(checkpoint[model_name])
+    def load(self, ckpt_file: str | Path) -> None:
+        """Load model checkpoint if it exists.
+
+        Args:
+            ckpt_file (str): Name of the checkpoint file to load.
+        """
+        if ckpt_file.is_file():
+            self.logger.message(f"Loading {ckpt_file}...")
+            checkpoint = torch.load(ckpt_file, map_location=self.device)
+            self.model.load_state_dict(checkpoint["model"])
             self.optimizer.load_state_dict(checkpoint["optimizer"])
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
             self.epoch = checkpoint["epoch"]
@@ -155,4 +159,4 @@ class Checkpoint:
                 f"validation accuracy: {checkpoint['eval_acc']:.4f}"
             )
         else:
-            raise FileNotFoundError(f"Checkpoint file {chkpt_file} not found")
+            raise FileNotFoundError(f"Checkpoint file {ckpt_file} not found")

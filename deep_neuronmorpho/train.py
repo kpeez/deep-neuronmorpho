@@ -3,8 +3,7 @@
 import torch
 import typer
 
-from deep_neuronmorpho.engine import ContrastiveTrainer
-from deep_neuronmorpho.engine.trainer_utils import setup_dataloaders
+from deep_neuronmorpho.engine import ContrastiveTrainer, setup_dataloaders
 from deep_neuronmorpho.models import MACGNN
 from deep_neuronmorpho.utils import ModelConfig
 

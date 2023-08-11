@@ -1,4 +1,5 @@
 """Trainer class for training a model."""
+from datetime import datetime
 from itertools import zip_longest
 from pathlib import Path
 
@@ -57,21 +58,23 @@ class ContrastiveTrainer:
             decay_rate=self.cfg.training.lr_decay_rate,
         )
         self.device = device
+        timestamp = datetime.now().strftime("%Y_%m_%d_%Hh_%Mm")
+        expt_name = f"{self.model_name}-{timestamp}"
+        expt_dir = Path(self.cfg.dirs.expt_results) / expt_name
+        for result in ["ckpts", "logs"]:
+            result_dir = Path(expt_dir / result)
+            if result_dir.exists() is False:
+                result_dir.mkdir(parents=True, exist_ok=True)
 
-        self.ckpt_dir = Path(self.cfg.output.ckpt_dir)
-        self.log_dir = Path(self.cfg.output.log_dir)
-        for output_dir in [self.ckpt_dir, self.log_dir]:
-            if output_dir.exists() is False:
-                output_dir.mkdir(parents=True, exist_ok=True)
-        self.logger = TrainLogger(self.log_dir, session="train")
-
+        self.logger = TrainLogger(expt_dir / "logs", expt_name=expt_name)
         self.checkpoint = Checkpoint(
-            self.model,
-            self.optimizer,
-            self.lr_scheduler,
-            self.ckpt_dir,
-            self.device,
-            self.logger,
+            model=self.model,
+            expt_name=expt_name,
+            optimizer=self.optimizer,
+            lr_scheduler=self.lr_scheduler,
+            ckpt_dir=expt_dir / "ckpts",
+            device=self.device,
+            logger=self.logger,
         )
 
         self.max_epochs = self.cfg.training.max_epochs
@@ -145,16 +148,16 @@ class ContrastiveTrainer:
             If a checkpoint is provided, we resume training from that checkpoint. Defaults to None.
         """
         if ckpt_file is not None:
-            self.checkpoint.load(ckpt_file, self.model_name)
+            self.checkpoint.load(ckpt_file)
             self.logger.message(f"Resuming training from checkpoint: {ckpt_file}")
             start_epoch = self.checkpoint.epoch if self.checkpoint.epoch is not None else 0
         else:
             start_epoch = 0
 
-        writer = SummaryWriter(self.log_dir)
+        writer = SummaryWriter(log_dir=self.logger.log_dir)
         num_epochs = self.max_epochs if epochs is None else epochs
         self.logger.message(
-            f"Training model on '{self.device}' for {num_epochs - start_epoch} epochs..."
+            f"Training {self.model_name} on '{self.device}' for {num_epochs - start_epoch} epochs."
         )
         bad_epochs = 0
         for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):
@@ -174,10 +177,10 @@ class ContrastiveTrainer:
                     f"Epoch {epoch}/{epochs}: Benchmark Test accuracy: {eval_acc:.4f}"
                 )
                 self.checkpoint.save(
+                    # model_name=self.model_name,
                     epoch=epoch,
                     train_loss=train_loss,
                     eval_acc=eval_acc,
-                    model_name=self.model_name,
                 )
 
             if train_loss < self.best_train_loss:
@@ -196,4 +199,4 @@ class ContrastiveTrainer:
 
     def load_checkpoint(self, ckpt_name: str) -> None:
         """Load model checkpoint."""
-        self.checkpoint.load(ckpt_name, self.model_name)
+        self.checkpoint.load(ckpt_name)
