@@ -1,12 +1,17 @@
+# model config
+dirs:
+  graph_data: "../../datasets/demo_gnn_data/processed/dgl_datasets"
+  metadata: "../../datasets/demo_gnn_data/metadata"
+  expt_results: "../../datasets/demo_gnn_data/expt_results/"
+
 datasets:
-  metadata: "../datasets/gnn_data/metadata/neuromorpho_benchmark-metadata.csv"
-  root: "../datasets/gnn_data/processed/dgl_datasets"
-  contra_train: "mouse_resampled_10um-train"
-  eval_train: "neuromorpho_benchmark_train"
+  metadata: "neuromorpho_benchmark-metadata.csv"
+  contra_train: "neuromorpho_benchmark_test"
+  eval_train: "neuromorpho_benchmark_test"
   eval_test: "neuromorpho_benchmark_test"
 
 model:
-  name: "macgnn"
+  name: "macgnn_demo"
   num_gnn_layers: 5
   num_mlp_layers: 2
   hidden_dim: 64
@@ -26,8 +31,8 @@ model:
 training:
   batch_size: 256
   contra_loss_temp: 0.2
-  eval_interval: 5
-  max_epochs: 400
+  eval_interval: 3
+  max_epochs: 9
   patience: 60
   lr_init: 0.01
   optimizer: "adam"
@@ -46,8 +51,3 @@ augmentation:
     drop_branches:
       prop: 0.02
       deg_power: 1.0
-
-# Output configuration
-output:
-  log_dir: "../datasets/gnn_data/outputs/logs"
-  ckpt_dir: "../datasets/gnn_data/outputs/models"
