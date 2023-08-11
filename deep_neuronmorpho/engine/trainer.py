@@ -1,4 +1,5 @@
 """Trainer class for training a model."""
+import shutil
 from datetime import datetime
 from itertools import zip_longest
 from pathlib import Path
@@ -40,6 +41,7 @@ class ContrastiveTrainer:
         dataloaders: dict[str, GraphDataLoader],
         device: torch.device | str,
     ):
+        self.device = device
         self.cfg = config
         self.model = model.to(device)
         self.dataloaders = dataloaders
@@ -57,7 +59,7 @@ class ContrastiveTrainer:
             decay_steps=self.cfg.training.lr_decay_steps,
             decay_rate=self.cfg.training.lr_decay_rate,
         )
-        self.device = device
+
         timestamp = datetime.now().strftime("%Y_%m_%d_%Hh_%Mm")
         expt_name = f"{self.model_name}-{timestamp}"
         expt_dir = Path(self.cfg.dirs.expt_results) / expt_name
@@ -65,6 +67,7 @@ class ContrastiveTrainer:
             result_dir = Path(expt_dir / result)
             if result_dir.exists() is False:
                 result_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(self.cfg.config_file, expt_dir / f"{Path(self.cfg.config_file).stem}.yml")
 
         self.logger = TrainLogger(expt_dir / "logs", expt_name=expt_name)
         self.checkpoint = Checkpoint(
