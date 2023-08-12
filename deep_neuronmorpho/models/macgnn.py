@@ -45,7 +45,7 @@ class MACGNN(nn.Module):
         self.dropout_prob = self.args.dropout_prob
         self.attrs_streams = load_attrs_streams(self.args.attrs_streams.to_dict())
         self.num_streams = len(self.attrs_streams)
-        self.streams_weights = None
+        self.streams_weight = None
         self.gnn_streams = nn.ModuleDict()
 
         # Initialize the GNN layers
