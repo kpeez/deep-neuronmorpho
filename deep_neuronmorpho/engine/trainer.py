@@ -177,7 +177,7 @@ class ContrastiveTrainer:
 
                 writer.add_scalar("acc/eval_acc", eval_acc, epoch, new_style=True)
                 self.logger.message(
-                    f"Epoch {epoch}/{epochs}: Benchmark Test accuracy: {eval_acc:.4f}"
+                    f"Epoch {epoch}/{num_epochs}: Benchmark Test accuracy: {eval_acc:.4f}"
                 )
                 self.checkpoint.save(
                     # model_name=self.model_name,
