@@ -22,7 +22,7 @@ class MLP(nn.Module):
         input_dim (int): Input dimension.
         hidden_dim (int): Hidden layer dimension.
         output_dim (int): Output dimension.
-        num_layers (int): Number of layers. There are num_layers - 2 hidden layers.
+        num_layers (int): Number of layers. There are num_layers - 1 hidden layers.
 
     Attributes:
         mlp (nn.Sequential): The sequential container of the MLP layers.
