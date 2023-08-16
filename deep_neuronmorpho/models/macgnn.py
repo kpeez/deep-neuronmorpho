@@ -41,11 +41,11 @@ class MACGNN(nn.Module):
         self.graph_pooling_type = self.args.graph_pooling_type
         self.neighbor_aggregation = self.args.neighbor_aggregation
         self.gnn_layers_aggregation = self.args.gnn_layers_aggregation
-        self.stream_aggregation = self.args.stream_aggregation
         self.dropout_prob = self.args.dropout_prob
         self.attrs_streams = load_attrs_streams(self.args.attrs_streams.to_dict())
         self.num_streams = len(self.attrs_streams)
         self.streams_weight = None
+        self.stream_aggregation = self.args.stream_aggregation if self.num_streams > 1 else "none"
         self.gnn_streams = nn.ModuleDict()
 
         # Initialize the GNN layers
@@ -119,11 +119,15 @@ class MACGNN(nn.Module):
             for stream_name in self.gnn_streams
         ]
         # Aggregate across streams
-        h_concat_streams = torch.stack(h_streams_list, dim=-1)
-        stream_aggregate_graph_rep = aggregate_tensor(
-            h_concat_streams,
-            self.stream_aggregation,
-            weights=self.streams_weight,  # only used if stream_aggregation == "wsum"
-        )
+        if self.stream_aggregation == "none":
+            stream_aggregate_graph_rep = h_streams_list[0]
+
+        else:
+            h_concat_streams = torch.stack(h_streams_list, dim=-1)
+            stream_aggregate_graph_rep = aggregate_tensor(
+                h_concat_streams,
+                self.stream_aggregation,
+                weights=self.streams_weight,  # only used if stream_aggregation == "wsum"
+            )
 
         return self.graph_embedding(stream_aggregate_graph_rep)
