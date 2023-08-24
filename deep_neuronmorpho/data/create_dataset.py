@@ -264,11 +264,12 @@ class NeuronGraphDataset(DGLDataset):
         """
         self.graphs = load_graphs(str(self.cached_graphs_path))[0]
 
-    def save(self) -> None:
+    def save(self, filename: str | None = None) -> None:
         """Save the dataset to disk."""
         if not self.export_dir.exists():
             self.export_dir.mkdir(exist_ok=True)
-        save_graphs(f"{self.export_dir}/{super().name}.bin", self.graphs)
+        export_filename = filename if filename else f"{super().name}"
+        save_graphs(f"{self.export_dir}/{export_filename}.bin", self.graphs)
 
     def has_cache(self) -> bool:
         """Determine whether there exists a cached dataset.
