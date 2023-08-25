@@ -87,7 +87,7 @@ def parse_logfile(logfile: str | Path, metadata_file: str | Path) -> NDArray:
     )
     metadata = pd.read_csv(metadata_file)
     log_data = pd.read_csv(logfile, skiprows=1, header=None, names=["timestamps", "log"])
-    log_data["file_name"] = log_data["log"].str.extract(r"mouse-(.*?)-resampled_10um")
+    log_data["file_name"] = log_data["log"].str.extract(r"mouse-(.*?)-resampled_\d{2}um")
     log_data["label"] = log_data["file_name"].map(metadata.set_index("neuron_name")["dataset"])
 
     return log_data["label"].to_numpy()
