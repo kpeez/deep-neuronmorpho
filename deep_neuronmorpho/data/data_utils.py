@@ -6,6 +6,8 @@ from typing import Any, Tuple
 
 import numpy as np
 import pandas as pd
+import torch
+from dgl import DGLGraph
 from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
 from numpy.typing import NDArray
@@ -35,6 +37,21 @@ def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
         res.nobs,
     ]
     return attr_stats
+
+
+def graph_is_broken(graph: DGLGraph) -> bool:
+    """Determines if a graph is broken by checking if any node attributes are NaN.
+
+    Args:
+        graph (DGLGraph): The graph to check.
+
+    Returns:
+        bool: True if the graph is broken, False otherwise.
+    """
+    g_ndata = graph.ndata["nattrs"]
+    nan_indices = torch.nonzero(torch.isnan(g_ndata))
+
+    return len(nan_indices[:, 1].unique()) > 0
 
 
 def create_dataloader(
@@ -90,7 +107,7 @@ def parse_logfile(logfile: str | Path, metadata_file: str | Path) -> NDArray:
     log_data["file_name"] = log_data["log"].str.extract(r"mouse-(.*?)-resampled_\d{2}um")
     log_data["label"] = log_data["file_name"].map(metadata.set_index("neuron_name")["dataset"])
 
-    return log_data["label"].to_numpy()
+    return log_data
 
 
 if __name__ == "__main__":

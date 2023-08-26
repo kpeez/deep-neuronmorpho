@@ -12,7 +12,7 @@ from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
 from ..utils import ProgressBar, TrainLogger
-from .data_utils import compute_graph_attrs
+from .data_utils import compute_graph_attrs, graph_is_broken
 from .process_swc import swc_to_neuron_tree
 
 
@@ -101,6 +101,22 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     return neuron_graph
 
 
+def create_dgl_graph(neuron_graph: nx.DiGraph) -> DGLGraph | None:
+    """Create a DGLGraph object from a NetworkX DiGraph object.
+
+    Args:
+        neuron_graph (nx.DiGraph): The NetworkX DiGraph object.
+
+    Returns:
+        DGLGraph | None: The resulting DGLGraph object, or None if the graph is broken.
+    """
+    dgl_graph = dgl.from_networkx(neuron_graph, node_attrs=["nattrs"], edge_attrs=["edge_weight"])
+    if graph_is_broken(dgl_graph):
+        return None
+    else:
+        return dgl_graph
+
+
 def dgl_from_swc(swc_files: list[Path], logger: TrainLogger | None) -> list[DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
@@ -118,14 +134,15 @@ def dgl_from_swc(swc_files: list[Path], logger: TrainLogger | None) -> list[DGLG
     for file in ProgressBar(swc_files, desc="Creating DGLGraph:"):
         try:
             neuron_graph = create_neuron_graph(file)
-            neuron_graphs.append(
-                dgl.from_networkx(
-                    neuron_graph,
-                    node_attrs=["nattrs"],
-                    edge_attrs=["edge_weight"],
+            dgl_graph = create_dgl_graph(neuron_graph)
+            if dgl_graph is None:
+                logger.message(
+                    f"Graph is broken: {file.name} contains NaN node attributes", level="error"
                 )
-            )
-            logger.message(f"Processed file: {file.name}")
+            else:
+                neuron_graphs.append(dgl_graph)
+                logger.message(f"Processed file: {file.name}")
+
         except Exception as e:
             logger.message(f"Error creating DGLGraph for {file}: {e}", level="error")
 
