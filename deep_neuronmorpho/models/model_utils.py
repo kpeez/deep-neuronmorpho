@@ -13,7 +13,7 @@ def aggregate_tensor(
     dim: int = -1,
     weights: Tensor | None = None,
 ) -> Tensor:
-    """Aggregates tensor data according to the specified aggregation method.
+    """Aggregates tensor data along a given dimension according to the specified aggregation method.
 
     Args:
         tensor_data (Tensor): The tensor data to be aggregated.
