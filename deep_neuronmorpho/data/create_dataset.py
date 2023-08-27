@@ -223,10 +223,12 @@ class NeuronGraphDataset(DGLDataset):
         self_loop (bool): Whether to add self-loops to each graph. Defaults to True.
         scaler (GraphScaler): The scaler object to use to standardize the node attributes.
         dataset_name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
+        dataset_path (Path, optional): The path where the processed dataset will be saved.
+        Defaults to the parent directory of the graphs_path.
 
     Attributes:
         graphs_path (Path): The path to the SWC file directory.
-        export_dir (Path): The path to the directory where the processed dataset will be saved.
+        dataset_path (Path): The path to the directory where the processed dataset will be saved.
         self_loop (bool): Whether to add self-loops to each graph.
         graphs (list[DGLGraph]): The list of DGLGraphs representing neuron morphologies.
 
@@ -237,21 +239,24 @@ class NeuronGraphDataset(DGLDataset):
     def __init__(
         self,
         graphs_path: str | Path,
-        dataset_name: str = "neuron_graph_dataset",
         self_loop: bool = True,
         scaler: GraphScaler | None = None,
+        dataset_name: str = "neuron_graph_dataset",
+        dataset_path: str | Path | None = None,
     ):
         self.graphs_path = Path(graphs_path)
-        self.export_dir = Path(self.graphs_path.parent / "dgl_datasets")
+        self.dataset_path = (
+            Path(dataset_path) if dataset_path else Path(self.graphs_path.parent / "dgl_datasets")
+        )
         self.graphs: list = []
         self.self_loop = self_loop
         self.scaler = scaler
         self.logger: TrainLogger | None = None
-        super().__init__(name=dataset_name, raw_dir=self.export_dir)
+        super().__init__(name=dataset_name, raw_dir=self.dataset_path)
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
-        self.logger = TrainLogger(self.export_dir, expt_name=self.name)
+        self.logger = TrainLogger(self.dataset_path, expt_name=self.name)
         self.logger.message(f"Creating {self.name} dataset from {self.graphs_path}")
         self.logger.message(f"Dataset {self.name} has scaler: {self.scaler}")
         self.logger.message(f"Dataset {self.name} has self-loop: {self.self_loop}")
@@ -283,10 +288,10 @@ class NeuronGraphDataset(DGLDataset):
 
     def save(self, filename: str | None = None) -> None:
         """Save the dataset to disk."""
-        if not self.export_dir.exists():
-            self.export_dir.mkdir(exist_ok=True)
+        if not self.dataset_path.exists():
+            self.dataset_path.mkdir(exist_ok=True)
         export_filename = filename if filename else f"{super().name}"
-        save_graphs(f"{self.export_dir}/{export_filename}.bin", self.graphs)
+        save_graphs(f"{self.dataset_path}/{export_filename}.bin", self.graphs)
 
     def has_cache(self) -> bool:
         """Determine whether there exists a cached dataset.
@@ -300,7 +305,7 @@ class NeuronGraphDataset(DGLDataset):
     @property
     def cached_graphs_path(self) -> Path:
         """The path to the cached graphs."""
-        return Path(self.export_dir / f"{super().name}.bin")
+        return Path(self.graphs_path / f"{super().name}.bin")
 
     def __len__(self) -> int:
         """Return the number of graphs in the dataset."""
