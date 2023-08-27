@@ -2,15 +2,12 @@
 import random
 import shutil
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
 import torch
 from dgl import DGLGraph
-from dgl.data import DGLDataset
-from dgl.dataloading import GraphDataLoader
-from numpy.typing import NDArray
 from scipy import stats
 
 from ..utils import ProgressBar
@@ -54,38 +51,7 @@ def graph_is_broken(graph: DGLGraph) -> bool:
     return len(nan_indices[:, 1].unique()) > 0
 
 
-def create_dataloader(
-    graph_dataset: DGLDataset,
-    batch_size: int,
-    shuffle: bool = True,
-    drop_last: bool = False,
-    **kwargs: Any,
-) -> GraphDataLoader:
-    """Create dataloaders for training and validation datasets.
-
-    Args:
-        graph_dataset (DGLDataset): Graph dataset.
-        batch_size (int): Batch size.
-        shuffle (bool): Whether to shuffle the training data. Defaults to True.
-        drop_last (bool): Whether to drop the last batch if it is smaller than the batch size.
-        kwargs: Additional keyword arguments to pass to the parent torch.utils.data.DataLoader
-        arguments such as num_workers, pin_memory, etc.
-
-    Returns:
-        GraphDataLoader: Dataloader of graph dataset.
-    """
-    graph_loader = GraphDataLoader(
-        graph_dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        drop_last=drop_last,
-        **kwargs,
-    )
-
-    return graph_loader
-
-
-def parse_logfile(logfile: str | Path, metadata_file: str | Path) -> NDArray:
+def parse_logfile(logfile: str | Path, metadata_file: str | Path) -> pd.DataFrame:
     """Parse log file assocaited with dataset to get the file name and label for each sample.
 
     When creating the NeuronGraphDataset, the file names are sorted in alphabetical order and
