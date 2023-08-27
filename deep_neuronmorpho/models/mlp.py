@@ -1,18 +1,7 @@
-"""Modules used to create various models."""
-
-
+"""Simple feed-forward MLP implementation."""
 import dgl
 from dgl.nn.pytorch import GINConv
 from torch import Tensor, nn
-
-
-def linear_block(input_dim: int, output_dim: int) -> nn.Sequential:
-    """Linear block."""
-    return nn.Sequential(
-        nn.Linear(input_dim, output_dim),
-        nn.BatchNorm1d(output_dim),
-        nn.ReLU(),
-    )
 
 
 class MLP(nn.Module):
@@ -45,10 +34,15 @@ class MLP(nn.Module):
 
         layers = []
         for _layer in range(num_layers - 1):
-            layers.append(linear_block(input_dim, hidden_dim))
+            layers.extend(
+                [
+                    nn.Linear(input_dim, hidden_dim),
+                    nn.BatchNorm1d(hidden_dim),
+                    nn.ReLU(),
+                ]
+            )
             input_dim = hidden_dim
-        layers.append(linear_block(hidden_dim, output_dim))
-
+        layers.extend([nn.Linear(hidden_dim, output_dim)])
         self.mlp = nn.Sequential(*layers)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -56,8 +50,8 @@ class MLP(nn.Module):
         return self.mlp(x)
 
 
-class GINBlock(nn.Module):
-    """GINBlock represents a single GIN layer in the GNN.
+class GINLayer(nn.Module):
+    """GINLayer represents a single GIN layer in the GNN.
 
     It applies the GINConv operation, followed by batch normalization, activation, and dropout.
 
@@ -102,25 +96,25 @@ class GINBlock(nn.Module):
 
     def forward(
         self,
-        x: Tensor,
         graph: dgl.DGLGraph,
+        nfeats: Tensor,
         edge_weight: Tensor | None = None,
     ) -> Tensor:
-        """Forward pass of the GINBlock.
+        """Forward pass of the GINLayer.
 
         Args:
-            x (Tensor): The input node features.
             graph (dgl.DGLGraph): The input graph.
+            nfeats (Tensor): The input node features.
             edge_weight (Tensor, optional): The edge weights. Defaults to None.
 
         Returns:
-            Tensor: The output node features after applying the GINBlock.
+            Tensor: The output node features after applying the GINLayer.
         """
-        x = self.gin_conv(graph, x, edge_weight)
-        x = self.bn(x)
-        x = self.activation(x)
-        x = self.dropout(x)
-        return x
+        h_out = self.gin_conv(graph, nfeats, edge_weight)
+        h_out = self.bn(h_out)
+        h_out = self.activation(h_out)
+        h_out = self.dropout(h_out)
+        return h_out
 
 
 def create_gin_layers(
@@ -132,25 +126,25 @@ def create_gin_layers(
     dropout_prob: float,
     learn_eps: bool,
 ) -> nn.ModuleList:
-    """Create a list of GNN layers (GINBlocks) for a given configuration.
+    """Create a list of GINLayer.
 
     Args:
         num_gnn_layers (int): The number of GNN layers to create.
-        input_dim (int): The input dimension of the first GINBlock layer.
-        hidden_dim (int): The hidden dimension for all GINBlock layers.
-        num_mlp_layers (int): The number of MLP layers within each GINBlock.
-        aggregation_type (str): The type of aggregation for each GINBlock.
-        dropout_prob (float): The dropout probability for each GINBlock.
-        learn_eps (bool): Whether to learn the epsilon parameter in each GINBlock.
+        input_dim (int): The input dimension of the first GINLayer layer.
+        hidden_dim (int): The hidden dimension for all GINLayer layers.
+        num_mlp_layers (int): The number of MLP layers within each GINLayer.
+        aggregation_type (str): The type of aggregation for each GINLayer.
+        dropout_prob (float): The dropout probability for each GINLayer.
+        learn_eps (bool): Whether to learn the epsilon parameter in each GINLayer.
 
     Returns:
-        nn.ModuleList: A list of GNN layers (GINBlocks) with the given configuration.
+        nn.ModuleList: A list of GNN layers (GINLayers) with the given configuration.
     """
     gnn_layers = nn.ModuleList()
     for layer in range(num_gnn_layers):
         input_dim = input_dim if layer == 0 else hidden_dim
         gnn_layers.append(
-            GINBlock(
+            GINLayer(
                 input_dim=input_dim,
                 hidden_dim=hidden_dim,
                 num_mlp_layers=num_mlp_layers,
