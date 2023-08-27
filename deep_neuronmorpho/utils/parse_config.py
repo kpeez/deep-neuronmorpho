@@ -129,7 +129,7 @@ def validate_model_config(config: dict[str, Any]) -> None:
         "num_gnn_layers",
         "graph_pooling_type",
         "neighbor_aggregation",
-        "gnn_layers_aggregation",
+        "gnn_layer_aggregation",
         "stream_aggregation",
         "dropout_prob",
         "attrs_streams",
