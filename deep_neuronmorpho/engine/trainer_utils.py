@@ -4,11 +4,11 @@ from pathlib import Path
 from typing import Any
 
 import torch
+from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
 from torch import nn, optim
 
 from ..data import NeuronGraphDataset
-from ..data.data_utils import create_dataloader
 from ..utils import ModelConfig, TrainLogger
 
 
@@ -67,6 +67,37 @@ def get_scheduler(
         raise ValueError(f"Scheduler '{scheduler}' not recognized")
 
 
+def create_dataloader(
+    graph_dataset: DGLDataset,
+    batch_size: int,
+    shuffle: bool = True,
+    drop_last: bool = False,
+    **kwargs: Any,
+) -> GraphDataLoader:
+    """Create dataloaders for training and validation datasets.
+
+    Args:
+        graph_dataset (DGLDataset): Graph dataset.
+        batch_size (int): Batch size.
+        shuffle (bool): Whether to shuffle the training data. Defaults to True.
+        drop_last (bool): Whether to drop the last batch if it is smaller than the batch size.
+        kwargs: Additional keyword arguments to pass to the parent torch.utils.data.DataLoader
+        arguments such as num_workers, pin_memory, etc.
+
+    Returns:
+        GraphDataLoader: Dataloader of graph dataset.
+    """
+    graph_loader = GraphDataLoader(
+        graph_dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        drop_last=drop_last,
+        **kwargs,
+    )
+
+    return graph_loader
+
+
 def setup_dataloaders(
     conf: ModelConfig, datasets: list[str], **kwargs: Any
 ) -> dict[str, GraphDataLoader]:
@@ -83,7 +114,9 @@ def setup_dataloaders(
     """
     data_dir = conf.dirs.graph_data
     graph_datasets = {
-        dataset: NeuronGraphDataset(data_dir, getattr(conf.datasets, dataset))
+        dataset: NeuronGraphDataset(
+            graphs_path=data_dir, dataset_name=getattr(conf.datasets, dataset)
+        )
         for dataset in datasets
     }
 
@@ -147,7 +180,7 @@ class Checkpoint:
         Args:
             ckpt_file (str): Name of the checkpoint file to load.
         """
-        if ckpt_file.is_file():
+        if Path(ckpt_file).is_file():
             self.logger.message(f"Loading {ckpt_file}...")
             checkpoint = torch.load(ckpt_file, map_location=self.device)
             self.model.load_state_dict(checkpoint["model"])

@@ -14,13 +14,12 @@ from dgl import DGLGraph
 from torch import Tensor, nn
 
 from ..utils.parse_config import ModelConfig, validate_model_config
+from . import GIN
 from .model_utils import (
     aggregate_tensor,
     compute_embedding_dim,
-    create_pooling_layer,
     load_attrs_streams,
 )
-from .modules import create_gin_layers, linear_block
 
 
 class MACGNN(nn.Module):
@@ -40,7 +39,7 @@ class MACGNN(nn.Module):
         self.num_gnn_layers = self.args.num_gnn_layers
         self.graph_pooling_type = self.args.graph_pooling_type
         self.neighbor_aggregation = self.args.neighbor_aggregation
-        self.gnn_layers_aggregation = self.args.gnn_layers_aggregation
+        self.gnn_layer_aggregation = self.args.gnn_layer_aggregation
         self.dropout_prob = self.args.dropout_prob
         self.attrs_streams = load_attrs_streams(self.args.attrs_streams.to_dict())
         self.num_streams = len(self.attrs_streams)
@@ -48,19 +47,21 @@ class MACGNN(nn.Module):
         self.stream_aggregation = self.args.stream_aggregation if self.num_streams > 1 else "none"
         self.gnn_streams = nn.ModuleDict()
 
-        # Initialize the GNN layers
+        # Initialize the GIN layers
         for stream_name, stream_dims in self.attrs_streams.items():
             input_dim = len(stream_dims)
-            self.gnn_streams[stream_name] = create_gin_layers(
-                num_gnn_layers=self.num_gnn_layers,
+            self.gnn_streams[stream_name] = GIN(
                 input_dim=input_dim,
                 hidden_dim=self.hidden_dim,
+                output_dim=self.hidden_dim,
+                num_layers=self.num_gnn_layers,
                 num_mlp_layers=self.num_mlp_layers,
-                aggregation_type=self.neighbor_aggregation,
+                neighbor_aggregation=self.neighbor_aggregation,
+                graph_pooling=self.graph_pooling_type,
+                layer_aggregation=self.gnn_layer_aggregation,
                 dropout_prob=self.dropout_prob,
                 learn_eps=self.learn_eps,
             )
-        self.graph_pool = create_pooling_layer(self.graph_pooling_type)
 
         # Initialize stream weights if using weighted sum for streams aggregation
         if self.stream_aggregation == "wsum" and self.num_streams > 1:
@@ -69,23 +70,29 @@ class MACGNN(nn.Module):
             )
             nn.init.xavier_uniform_(self.streams_weight)
 
-        # Add final_graph_rep as part of the model's architecture
         embedding_dim = compute_embedding_dim(
             hidden_dim=self.hidden_dim,
             num_gnn_layers=self.num_gnn_layers,
             num_streams=self.num_streams,
-            gnn_layers_aggregation=self.gnn_layers_aggregation,
+            gnn_layer_aggregation=self.gnn_layer_aggregation,
             stream_aggregation=self.stream_aggregation,
         )
-        self.graph_embedding = linear_block(input_dim=embedding_dim, output_dim=self.output_dim)
+
+        self.graph_embedding = nn.Sequential(
+            nn.BatchNorm1d(embedding_dim),
+            nn.ReLU(),
+            nn.Linear(embedding_dim, self.output_dim),
+            nn.BatchNorm1d(self.output_dim),
+        )
 
     def process_stream(
-        self, stream_name: str, h_full: Tensor, graphs: DGLGraph, edge_weight: Tensor | None
+        self,
+        stream_name: str,
+        graphs: DGLGraph,
+        h_full: Tensor,
+        edge_weight: Tensor | None,
     ) -> Tensor:
-        """Process an attribute stream.
-
-        Processes an attribute stream with its corresponding GNN layers,
-        and aggregate features from all layers in th stream to get graph-level representation.
+        """Process an attribute stream with it's GIN layers.
 
         Args:
             stream_name (str): Name of the attribute stream in self.attrs_streams dict.
@@ -93,29 +100,21 @@ class MACGNN(nn.Module):
             graphs (DGLGraph): Batch of graph objects from dgl.GraphDataLoader.
             edge_weight (Tensor | None): Edge weights of the graph. Defaults to None.
 
-
         Returns:
             Tensor: Graph-level representation of the attribute stream.
         """
-        gnn_layers = self.gnn_streams[stream_name]
+        gnn_stream = self.gnn_streams[stream_name]
         stream_indices = self.attrs_streams[stream_name]
         h = h_full[:, stream_indices]
-        h_layers_list = []
-        for i in range(self.num_gnn_layers):
-            h = gnn_layers[i](h, graphs, edge_weight)
-            h_layers_list.append(h)
 
-        h_graph_rep_stream = torch.stack(
-            [self.graph_pool(graphs, h) for h in h_layers_list], dim=-1
-        )
-        return aggregate_tensor(h_graph_rep_stream, self.gnn_layers_aggregation)
+        return gnn_stream(graphs, h, edge_weight)
 
     def forward(self, graphs: DGLGraph) -> Tensor:
         """Forward pass of the model."""
         h_full = graphs.ndata["nattrs"]
         edge_weight = graphs.edata["edge_weight"] if self.use_edge_weight else None
         h_streams_list = [
-            self.process_stream(stream_name, h_full, graphs, edge_weight)
+            self.process_stream(stream_name, graphs, h_full, edge_weight)
             for stream_name in self.gnn_streams
         ]
         # Aggregate across streams

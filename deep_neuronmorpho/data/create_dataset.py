@@ -12,7 +12,7 @@ from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
 from ..utils import ProgressBar, TrainLogger
-from .data_utils import compute_graph_attrs
+from .data_utils import compute_graph_attrs, graph_is_broken
 from .process_swc import swc_to_neuron_tree
 
 
@@ -101,6 +101,22 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     return neuron_graph
 
 
+def create_dgl_graph(neuron_graph: nx.DiGraph) -> DGLGraph | None:
+    """Create a DGLGraph object from a NetworkX DiGraph object.
+
+    Args:
+        neuron_graph (nx.DiGraph): The NetworkX DiGraph object.
+
+    Returns:
+        DGLGraph | None: The resulting DGLGraph object, or None if the graph is broken.
+    """
+    dgl_graph = dgl.from_networkx(neuron_graph, node_attrs=["nattrs"], edge_attrs=["edge_weight"])
+    if graph_is_broken(dgl_graph):
+        return None
+    else:
+        return dgl_graph
+
+
 def dgl_from_swc(swc_files: list[Path], logger: TrainLogger | None) -> list[DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
@@ -118,14 +134,15 @@ def dgl_from_swc(swc_files: list[Path], logger: TrainLogger | None) -> list[DGLG
     for file in ProgressBar(swc_files, desc="Creating DGLGraph:"):
         try:
             neuron_graph = create_neuron_graph(file)
-            neuron_graphs.append(
-                dgl.from_networkx(
-                    neuron_graph,
-                    node_attrs=["nattrs"],
-                    edge_attrs=["edge_weight"],
+            dgl_graph = create_dgl_graph(neuron_graph)
+            if dgl_graph is None:
+                logger.message(
+                    f"Graph is broken: {file.name} contains NaN node attributes", level="error"
                 )
-            )
-            logger.message(f"Processed file: {file.name}")
+            else:
+                neuron_graphs.append(dgl_graph)
+                logger.message(f"Processed file: {file.name}")
+
         except Exception as e:
             logger.message(f"Error creating DGLGraph for {file}: {e}", level="error")
 
@@ -206,10 +223,12 @@ class NeuronGraphDataset(DGLDataset):
         self_loop (bool): Whether to add self-loops to each graph. Defaults to True.
         scaler (GraphScaler): The scaler object to use to standardize the node attributes.
         dataset_name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
+        dataset_path (Path, optional): The path where the processed dataset will be saved.
+        Defaults to the parent directory of the graphs_path.
 
     Attributes:
         graphs_path (Path): The path to the SWC file directory.
-        export_dir (Path): The path to the directory where the processed dataset will be saved.
+        dataset_path (Path): The path to the directory where the processed dataset will be saved.
         self_loop (bool): Whether to add self-loops to each graph.
         graphs (list[DGLGraph]): The list of DGLGraphs representing neuron morphologies.
 
@@ -220,21 +239,24 @@ class NeuronGraphDataset(DGLDataset):
     def __init__(
         self,
         graphs_path: str | Path,
-        dataset_name: str = "neuron_graph_dataset",
         self_loop: bool = True,
         scaler: GraphScaler | None = None,
+        dataset_name: str = "neuron_graph_dataset",
+        dataset_path: str | Path | None = None,
     ):
         self.graphs_path = Path(graphs_path)
-        self.export_dir = Path(self.graphs_path.parent / "dgl_datasets")
+        self.dataset_path = (
+            Path(dataset_path) if dataset_path else Path(self.graphs_path.parent / "dgl_datasets")
+        )
         self.graphs: list = []
         self.self_loop = self_loop
         self.scaler = scaler
         self.logger: TrainLogger | None = None
-        super().__init__(name=dataset_name, raw_dir=self.export_dir)
+        super().__init__(name=dataset_name, raw_dir=self.dataset_path)
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
-        self.logger = TrainLogger(self.export_dir, expt_name=self.name)
+        self.logger = TrainLogger(self.dataset_path, expt_name=self.name)
         self.logger.message(f"Creating {self.name} dataset from {self.graphs_path}")
         self.logger.message(f"Dataset {self.name} has scaler: {self.scaler}")
         self.logger.message(f"Dataset {self.name} has self-loop: {self.self_loop}")
@@ -264,11 +286,12 @@ class NeuronGraphDataset(DGLDataset):
         """
         self.graphs = load_graphs(str(self.cached_graphs_path))[0]
 
-    def save(self) -> None:
+    def save(self, filename: str | None = None) -> None:
         """Save the dataset to disk."""
-        if not self.export_dir.exists():
-            self.export_dir.mkdir(exist_ok=True)
-        save_graphs(f"{self.export_dir}/{super().name}.bin", self.graphs)
+        if not self.dataset_path.exists():
+            self.dataset_path.mkdir(exist_ok=True)
+        export_filename = filename if filename else f"{super().name}"
+        save_graphs(f"{self.dataset_path}/{export_filename}.bin", self.graphs)
 
     def has_cache(self) -> bool:
         """Determine whether there exists a cached dataset.
@@ -282,14 +305,17 @@ class NeuronGraphDataset(DGLDataset):
     @property
     def cached_graphs_path(self) -> Path:
         """The path to the cached graphs."""
-        return Path(self.export_dir / f"{super().name}.bin")
+        return Path(self.graphs_path / f"{super().name}.bin")
 
     def __len__(self) -> int:
         """Return the number of graphs in the dataset."""
         return len(self.graphs)
 
-    def __getitem__(self, idx: int) -> DGLGraph:
+    def __getitem__(self, idx: int | slice | list[int]) -> DGLGraph:
         """Get the idx-th sample."""
+        if isinstance(idx, list):
+            return [self.graphs[i] for i in idx]
+
         return self.graphs[idx]
 
 

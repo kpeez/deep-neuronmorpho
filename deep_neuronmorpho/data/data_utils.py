@@ -2,13 +2,12 @@
 import random
 import shutil
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from dgl.data import DGLDataset
-from dgl.dataloading import GraphDataLoader
-from numpy.typing import NDArray
+import torch
+from dgl import DGLGraph
 from scipy import stats
 
 from ..utils import ProgressBar
@@ -37,38 +36,22 @@ def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
     return attr_stats
 
 
-def create_dataloader(
-    graph_dataset: DGLDataset,
-    batch_size: int,
-    shuffle: bool = True,
-    drop_last: bool = False,
-    **kwargs: Any,
-) -> GraphDataLoader:
-    """Create dataloaders for training and validation datasets.
+def graph_is_broken(graph: DGLGraph) -> bool:
+    """Determines if a graph is broken by checking if any node attributes are NaN.
 
     Args:
-        graph_dataset (DGLDataset): Graph dataset.
-        batch_size (int): Batch size.
-        shuffle (bool): Whether to shuffle the training data. Defaults to True.
-        drop_last (bool): Whether to drop the last batch if it is smaller than the batch size.
-        kwargs: Additional keyword arguments to pass to the parent torch.utils.data.DataLoader
-        arguments such as num_workers, pin_memory, etc.
+        graph (DGLGraph): The graph to check.
 
     Returns:
-        GraphDataLoader: Dataloader of graph dataset.
+        bool: True if the graph is broken, False otherwise.
     """
-    graph_loader = GraphDataLoader(
-        graph_dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        drop_last=drop_last,
-        **kwargs,
-    )
+    g_ndata = graph.ndata["nattrs"]
+    nan_indices = torch.nonzero(torch.isnan(g_ndata))
 
-    return graph_loader
+    return len(nan_indices[:, 1].unique()) > 0
 
 
-def parse_logfile(logfile: str | Path, metadata_file: str | Path) -> NDArray:
+def parse_logfile(logfile: str | Path, metadata_file: str | Path) -> pd.DataFrame:
     """Parse log file assocaited with dataset to get the file name and label for each sample.
 
     When creating the NeuronGraphDataset, the file names are sorted in alphabetical order and
@@ -87,10 +70,10 @@ def parse_logfile(logfile: str | Path, metadata_file: str | Path) -> NDArray:
     )
     metadata = pd.read_csv(metadata_file)
     log_data = pd.read_csv(logfile, skiprows=1, header=None, names=["timestamps", "log"])
-    log_data["file_name"] = log_data["log"].str.extract(r"mouse-(.*?)-resampled_10um")
+    log_data["file_name"] = log_data["log"].str.extract(r"mouse-(.*?)-resampled_\d{2}um")
     log_data["label"] = log_data["file_name"].map(metadata.set_index("neuron_name")["dataset"])
 
-    return log_data["label"].to_numpy()
+    return log_data
 
 
 if __name__ == "__main__":

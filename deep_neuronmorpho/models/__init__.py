@@ -1,4 +1,5 @@
+from .gin import GIN
 from .macgnn import MACGNN
-from .modules import MLP
+from .mlp import MLP
 
-__all__ = ["MACGNN", "MLP"]
+__all__ = ["MACGNN", "MLP", "GIN"]

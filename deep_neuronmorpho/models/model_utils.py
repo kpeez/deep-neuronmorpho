@@ -13,7 +13,7 @@ def aggregate_tensor(
     dim: int = -1,
     weights: Tensor | None = None,
 ) -> Tensor:
-    """Aggregates tensor data according to the specified aggregation method.
+    """Aggregates tensor data along a given dimension according to the specified aggregation method.
 
     Args:
         tensor_data (Tensor): The tensor data to be aggregated.
@@ -52,7 +52,11 @@ def aggregate_tensor(
         return torch.cat(tensor_data.unbind(dim=-1), dim=dim)
     else:
         aggregation_func = aggregation_method_dict.get(aggregation_method, lambda x: x)
-        return aggregation_func(tensor_data)
+
+        if aggregation_method == "max":
+            return aggregation_func(tensor_data)[0]
+        else:
+            return aggregation_func(tensor_data)
 
 
 def create_pooling_layer(pooling_type: str) -> nn.Module:
@@ -84,7 +88,7 @@ def compute_embedding_dim(
     hidden_dim: int,
     num_gnn_layers: int,
     num_streams: int,
-    gnn_layers_aggregation: str,
+    gnn_layer_aggregation: str,
     stream_aggregation: str,
 ) -> int:
     """Computes the embedding dimension based on the given parameters.
@@ -93,7 +97,7 @@ def compute_embedding_dim(
         hidden_dim (int): The dimensionality of the hidden layers in the GNN.
         num_gnn_layers (int): The number of GNN layers in the model.
         num_streams (int): The number of input streams.
-        gnn_layers_aggregation (str): The aggregation method used for the GNN layers.
+        gnn_layer_aggregation (str): The aggregation method used for the GNN layers.
         Possible values are ["sum", "mean", "max", "wsum", "cat"].
         stream_aggregation (str): The aggregation method used for the input streams.
         Possible values are ["sum", "mean", "max", "wsum", "cat"].
@@ -101,9 +105,9 @@ def compute_embedding_dim(
     Returns:
         int: The embedding dimension computed based on the given parameters.
     """
-    if gnn_layers_aggregation == "cat" and stream_aggregation == "cat":
+    if gnn_layer_aggregation == "cat" and stream_aggregation == "cat":
         embedding_dim = hidden_dim * num_gnn_layers * num_streams
-    elif gnn_layers_aggregation == "cat":
+    elif gnn_layer_aggregation == "cat":
         embedding_dim = hidden_dim * num_gnn_layers
     elif stream_aggregation == "cat":
         embedding_dim = hidden_dim * num_streams
