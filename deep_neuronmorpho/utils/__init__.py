@@ -1,5 +1,5 @@
+from .model_config import ModelConfig
 from .monitoring import EventLogger, ProgressBar
-from .parse_config import ModelConfig
 
 __all__ = [
     "ModelConfig",
