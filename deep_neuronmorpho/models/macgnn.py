@@ -80,7 +80,7 @@ class MACGNN(nn.Module):
 
         self.graph_embedding = nn.Sequential(
             nn.BatchNorm1d(embedding_dim),
-            nn.ReLU(),
+            nn.PReLU(),
             nn.Linear(embedding_dim, self.output_dim),
             nn.BatchNorm1d(self.output_dim),
         )

@@ -56,7 +56,7 @@ class GIN(nn.Module):
         # linear functions for projecting all layers output_dim
         self.linear_prediction = nn.ModuleList()
         self.dropout = nn.Dropout(dropout_prob)
-        self.activation = nn.ReLU()
+        self.activation = nn.PReLU()
         self.graph_pool = create_pooling_layer(graph_pooling)
 
         for layer in range(num_layers - 1):
