@@ -9,7 +9,7 @@ from dgl.dataloading import GraphDataLoader
 from torch import nn, optim
 
 from ..data import NeuronGraphDataset
-from ..utils import ModelConfig, TrainLogger
+from ..utils import EventLogger, ModelConfig
 
 
 def get_optimizer(
@@ -141,7 +141,7 @@ class Checkpoint:
         lr_scheduler: Any,
         ckpt_dir: str | Path,
         device: str | torch.device,
-        logger: TrainLogger,
+        logger: EventLogger,
     ):
         self.model = model
         self.expt_name = expt_name

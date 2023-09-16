@@ -62,8 +62,8 @@ class ProgressBar:
             yield item
 
 
-class TrainLogger:
-    """Class for logging training progress."""
+class EventLogger:
+    """Class for logging event progress."""
 
     def __init__(self, log_dir: Path, expt_name: str, to_file: bool = True) -> None:
         self.log_dir = log_dir

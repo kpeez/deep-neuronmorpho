@@ -11,7 +11,7 @@ from dgl.data.utils import load_graphs, save_graphs
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 
-from ..utils import ProgressBar, TrainLogger
+from ..utils import EventLogger, ProgressBar
 from .data_utils import compute_graph_attrs, graph_is_broken
 from .process_swc import swc_to_neuron_tree
 
@@ -117,7 +117,7 @@ def create_dgl_graph(neuron_graph: nx.DiGraph) -> DGLGraph | None:
         return dgl_graph
 
 
-def dgl_from_swc(swc_files: list[Path], logger: TrainLogger | None) -> list[DGLGraph]:
+def dgl_from_swc(swc_files: list[Path], logger: EventLogger | None) -> list[DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
     Args:
@@ -128,7 +128,7 @@ def dgl_from_swc(swc_files: list[Path], logger: TrainLogger | None) -> list[DGLG
         list[DGLGraph]: List of DGL graphs.
     """
     if logger is None:
-        logger = TrainLogger(Path.cwd(), "dgl_from_swc", to_file=False)
+        logger = EventLogger(Path.cwd(), "dgl_from_swc", to_file=False)
 
     neuron_graphs = []
     for file in ProgressBar(swc_files, desc="Creating DGLGraph:"):
@@ -251,12 +251,12 @@ class NeuronGraphDataset(DGLDataset):
         self.graphs: list = []
         self.self_loop = self_loop
         self.scaler = scaler
-        self.logger: TrainLogger | None = None
+        self.logger: EventLogger | None = None
         super().__init__(name=dataset_name, raw_dir=self.dataset_path)
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
-        self.logger = TrainLogger(self.dataset_path, expt_name=self.name)
+        self.logger = EventLogger(self.dataset_path, expt_name=self.name)
         self.logger.message(f"Creating {self.name} dataset from {self.graphs_path}")
         self.logger.message(f"Dataset {self.name} has scaler: {self.scaler}")
         self.logger.message(f"Dataset {self.name} has self-loop: {self.self_loop}")
@@ -326,26 +326,26 @@ if __name__ == "__main__":
 
     @app.command()
     def create_dataset(
-        input_dir: str = typer.Argument(  # noqa: B008
+        input_dir: str = typer.Argument(
             ..., help="Path to the directory containing the .swc files."
         ),
-        self_loop: bool = typer.Option(  # noqa: B008
+        self_loop: bool = typer.Option(
             True,
             help="Optional flag to add self-loops to each graph.",
         ),
-        scale: bool = typer.Option(  # noqa: B008
+        scale: bool = typer.Option(
             True,
             help="Optional flag to apply scaling to the dataset.",
         ),
-        scale_xyz: str = typer.Option(  # noqa: B008
+        scale_xyz: str = typer.Option(
             "standard",
             help="The type of scaler to use for the 'xyz' features.",
         ),
-        scale_attrs: str = typer.Option(  # noqa: B008
+        scale_attrs: str = typer.Option(
             "robust",
             help="The type of scaler to use for the 'attr' features.",
         ),
-        dataset_name: str = typer.Option(  # noqa: B008
+        dataset_name: str = typer.Option(
             ...,
             help="Name of the dataset.",
         ),

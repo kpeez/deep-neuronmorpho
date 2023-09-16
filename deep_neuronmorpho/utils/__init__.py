@@ -1,8 +1,8 @@
-from .monitoring import ProgressBar, TrainLogger
+from .monitoring import EventLogger, ProgressBar
 from .parse_config import ModelConfig
 
 __all__ = [
     "ModelConfig",
     "ProgressBar",
-    "TrainLogger",
+    "EventLogger",
 ]

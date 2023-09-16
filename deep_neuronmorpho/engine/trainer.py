@@ -11,7 +11,7 @@ from torch import Tensor, nn
 from torch.utils.tensorboard import SummaryWriter
 
 from ..data import GraphAugmenter
-from ..utils import ModelConfig, ProgressBar, TrainLogger
+from ..utils import EventLogger, ModelConfig, ProgressBar
 from .evaluation import evaluate_embeddings, get_eval_targets
 from .ntxent_loss import NTXEntLoss
 from .trainer_utils import Checkpoint, get_optimizer, get_scheduler
@@ -69,7 +69,7 @@ class ContrastiveTrainer:
                 result_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(self.cfg.config_file, expt_dir / f"{Path(self.cfg.config_file).stem}.yml")
 
-        self.logger = TrainLogger(expt_dir / "logs", expt_name=expt_name)
+        self.logger = EventLogger(expt_dir / "logs", expt_name=expt_name)
         self.checkpoint = Checkpoint(
             model=self.model,
             expt_name=expt_name,

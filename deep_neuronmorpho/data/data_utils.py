@@ -51,7 +51,7 @@ def graph_is_broken(graph: DGLGraph) -> bool:
     return len(nan_indices[:, 1].unique()) > 0
 
 
-def parse_logfile(logfile: str | Path, metadata_file: str | Path) -> pd.DataFrame:
+def parse_dataset_log(logfile: str | Path, metadata_file: str | Path) -> pd.DataFrame:
     """Parse log file assocaited with dataset to get the file name and label for each sample.
 
     When creating the NeuronGraphDataset, the file names are sorted in alphabetical order and
