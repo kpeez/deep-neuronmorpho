@@ -46,7 +46,7 @@ class ContrastiveTrainer:
         self.model = model.to(device)
         self.dataloaders = dataloaders
         self.model_name = self.cfg.model.name
-        self.loss_fn = NTXEntLoss()
+        self.loss_fn = NTXEntLoss(self.cfg.training.contra_loss_temp)
         self.augmenter = GraphAugmenter(self.cfg.augmentation)
         self.optimizer = get_optimizer(
             model=self.model,
