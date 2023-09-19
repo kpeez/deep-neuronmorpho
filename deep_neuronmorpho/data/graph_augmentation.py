@@ -8,7 +8,7 @@ import torch
 from dgl import DGLGraph
 from torch.distributions.uniform import Uniform
 
-from ..utils import ModelConfig
+from deep_neuronmorpho.utils.model_config import Augmentation
 
 
 class GraphAugmentation(ABC):
@@ -216,14 +216,14 @@ class GraphAugmenter:
         augment_batch: Augments a batch of DGLGraphs using the specified augmentations.
     """
 
-    def __init__(self, config: ModelConfig):
+    def __init__(self, config: Augmentation):
         self.config = config
         self.augmentations = self.parse_config()
 
     def parse_config(self) -> list[GraphAugmentation]:
         """Parse the augmentation config and return a list of GraphAugmentation objects."""
         aug_order = self.config.order
-        aug_params = self.config.params.to_dict()
+        aug_params = self.config.params.model_dump()
 
         augmentation_classes = {
             "perturb": PerturbNodePositions,
