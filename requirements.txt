@@ -8,7 +8,7 @@ cmake==3.27.5 ; platform_system == "Linux" and platform_machine == "x86_64" and 
 colorama==0.4.6 ; python_version >= "3.10" and python_version < "3.12" and platform_system == "Windows"
 contourpy==1.1.1 ; python_version >= "3.10" and python_version < "3.12"
 cycler==0.11.0 ; python_version >= "3.10" and python_version < "3.12"
-dgl==1.1.2.post1 ; python_version >= "3.10" and python_version < "3.12"
+dgl==1.1.2 ; python_version >= "3.10" and python_version < "3.12"
 filelock==3.12.4 ; python_version >= "3.10" and python_version < "3.12"
 fonttools==4.42.1 ; python_version >= "3.10" and python_version < "3.12"
 google-auth-oauthlib==1.0.0 ; python_version >= "3.10" and python_version < "3.12"
