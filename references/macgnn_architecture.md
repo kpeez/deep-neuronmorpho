@@ -8,7 +8,7 @@ The Morphology-aware contrastive GNN model (MACGNN) model from [Zhao et al. 2022
 
 ## Model Architecture
 
-MACGNN is based on a 5-layer GIN model (input + 4 GIN layers). This model updates each node's representations by using sum aggregation for a node and it's neighbors. It then uses a MLP to update the node's representation:
+MACGNN is based on a 5-layer GIN model (input + 4 GIN layers). This model updates each node's representations by using sum aggregation for a node and its neighbors. It then uses a MLP to update the node's representation:
 $$
 h_{v}^{(k)} = \text{MLP}^{k}\bigg( \big( 1 + \epsilon \big) \cdot h_{v}^{(k-1)} \sum\limits_{u \in N(v)} h^{(k-1)} \bigg)
 $$

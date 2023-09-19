@@ -101,7 +101,7 @@ class MACGNN(nn.Module):
         h_full: Tensor,
         edge_weight: Tensor | None,
     ) -> Tensor:
-        """Process an attribute stream with it's GIN layers.
+        """Process an attribute stream with its GIN layers.
 
         Args:
             stream_name (str): Name of the attribute stream in self.attrs_streams dict.
