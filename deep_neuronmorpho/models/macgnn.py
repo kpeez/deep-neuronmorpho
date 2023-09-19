@@ -13,7 +13,7 @@ import torch
 from dgl import DGLGraph
 from torch import Tensor, nn
 
-from ..utils.model_config import ModelConfig, validate_model_config
+from ..utils.model_config import Model
 from . import GIN
 from .model_utils import (
     aggregate_tensor,
@@ -25,27 +25,36 @@ from .model_utils import (
 class MACGNN(nn.Module):
     """MACGNN model from [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206)."""
 
-    def __init__(self, args: ModelConfig, device: torch.device | None = None) -> None:
+    def __init__(self, args: Model, device: torch.device | None = None) -> None:
         super().__init__()
 
         self.args = args
-        validate_model_config(self.args.to_dict())
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.use_edge_weight = self.args.use_edge_weight
-        self.learn_eps = self.args.learn_eps
+        self.learn_eps = self.args.learn_eps or False
         self.hidden_dim = self.args.hidden_dim
         self.output_dim = self.args.output_dim
-        self.num_mlp_layers = self.args.num_mlp_layers
+        self.num_mlp_layers = self.args.num_mlp_layers or 2
         self.num_gnn_layers = self.args.num_gnn_layers
         self.graph_pooling_type = self.args.graph_pooling_type
         self.neighbor_aggregation = self.args.neighbor_aggregation
         self.gnn_layer_aggregation = self.args.gnn_layer_aggregation
         self.dropout_prob = self.args.dropout_prob
-        self.attrs_streams = load_attrs_streams(self.args.attrs_streams.to_dict())
+        self.attrs_streams = load_attrs_streams(self.args.attrs_streams)
         self.num_streams = len(self.attrs_streams)
         self.streams_weight = None
-        self.stream_aggregation = self.args.stream_aggregation if self.num_streams > 1 else "none"
+        if self.num_streams == 1:
+            self.stream_aggregation = "none"
+        elif self.num_streams > 1:
+            if not self.args.stream_aggregation:
+                raise ValueError(
+                    "Use ['sum', 'mean', 'max', 'wsum', 'cat'] for aggregation if num_streams > 1."
+                )
+            self.stream_aggregation = self.args.stream_aggregation
+
         self.gnn_streams = nn.ModuleDict()
+
+        # if
 
         # Initialize the GIN layers
         for stream_name, stream_dims in self.attrs_streams.items():
