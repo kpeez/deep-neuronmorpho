@@ -9,7 +9,7 @@ from dgl.dataloading import GraphDataLoader
 from torch import nn, optim
 
 from ..data import NeuronGraphDataset
-from ..utils import EventLogger, ModelConfig
+from ..utils import Config, EventLogger
 
 
 def get_optimizer(
@@ -99,7 +99,7 @@ def create_dataloader(
 
 
 def setup_dataloaders(
-    conf: ModelConfig, datasets: list[str], **kwargs: Any
+    conf: Config, datasets: list[str], **kwargs: Any
 ) -> dict[str, GraphDataLoader]:
     """Create dataloaders for contrastive training and evaluation datasets.
 

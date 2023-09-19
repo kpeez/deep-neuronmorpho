@@ -5,7 +5,7 @@ import typer
 
 from deep_neuronmorpho.engine import ContrastiveTrainer, setup_dataloaders
 from deep_neuronmorpho.models import MACGNN
-from deep_neuronmorpho.utils import ModelConfig
+from deep_neuronmorpho.utils import Config
 
 app = typer.Typer()
 
@@ -16,7 +16,7 @@ def train_model(
     gpu: int | None = None,
 ) -> None:
     """Train a model using a configuration file."""
-    conf = ModelConfig(config_file)
+    conf = Config.from_yaml(config_file=config_file)
     device = f"cuda:{gpu}" if torch.cuda.is_available() and gpu is not None else "cpu"
     dataloaders = setup_dataloaders(
         conf,
@@ -39,22 +39,11 @@ def train_model(
 
 @app.command()
 def cli_train_model(
-    config_file: str = typer.Argument(  # noqa: B008,
-        ...,
-        help="The configuration file.",
+    config_file: str = typer.Argument(..., help="The configuration file."),
+    checkpoint: str = typer.Option(
+        None, "--checkpoint", "-c", help="The checkpoint file to load from."
     ),
-    checkpoint: str = typer.Option(  # noqa: B008,
-        None,
-        "--checkpoint",
-        "-c",
-        help="The checkpoint file to load from.",
-    ),
-    gpu: int = typer.Option(  # noqa: B008,
-        None,
-        "--gpu",
-        "-g",
-        help="The ID of the GPU to use.",
-    ),
+    gpu: int = typer.Option(None, "--gpu", "-g", help="The ID of the GPU to use."),
 ) -> None:
     """CLI for training a model using a configuration file."""
     train_model(config_file, checkpoint, gpu)
