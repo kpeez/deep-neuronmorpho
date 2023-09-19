@@ -116,7 +116,7 @@ def compute_embedding_dim(
     return embedding_dim
 
 
-def load_attrs_streams(attrs_streams: dict[str, list[int]]) -> dict[str, list[int]]:
+def load_attrs_streams(attrs_streams: dict[str, list[int]] | None) -> dict[str, list[int]]:
     """Load attribute streams from a dictionary containing the range of indices.
 
     Args:
@@ -128,6 +128,10 @@ def load_attrs_streams(attrs_streams: dict[str, list[int]]) -> dict[str, list[in
         and the values are lists of indices corresponding to the given index range.
     """
     attrs_idxs = {}
+
+    if attrs_streams is None:
+        raise ValueError("attrs_streams cannot be None.")
+
     for name, stream in attrs_streams.items():
         start, end = stream
         attrs_idxs[name] = list(range(start, end + 1))

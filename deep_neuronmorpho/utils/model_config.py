@@ -1,141 +1,104 @@
-"""Parse model config file."""
-from dataclasses import dataclass
+"""Model configuration."""
 from pathlib import Path
-from typing import Any
 
 import yaml
+from pydantic import BaseModel
 
 
-def load_config(config_file: str | Path) -> dict[str, Any]:
-    """Load model config file.
+class Dirs(BaseModel):
+    """Paths to directories for storing data, metadata, and experiment results."""
 
-    Args:
-        config_file (str | Path): Path to config file.
-
-    Returns:
-        dict[str, Any]: Model configuration.
-    """
-    with open(config_file, "r") as file:
-        config = yaml.safe_load(file)
-
-    return config
+    graph_data: str
+    metadata: str
+    expt_results: str
 
 
-@dataclass(frozen=True)
-class Config:
-    """A configuration class that recursively creates a nested dataclass from a dictionary.
+class Datasets(BaseModel):
+    """Paths to datasets for training, validation, and testing."""
 
-    Attributes:
-        conf_dict (dict[str, Any | dict[str, Any]]): A dictionary of configuration parameters.
-    """
-
-    def __init__(self, conf_dict: dict[str, Any | dict[str, Any]]) -> None:
-        for k, v in conf_dict.items():
-            if isinstance(v, dict):
-                object.__setattr__(self, k, Config(v))
-            elif isinstance(v, str) and "path" in v:
-                object.__setattr__(self, k, Path(v))
-            else:
-                object.__setattr__(self, k, v)
-
-    def to_dict(self) -> dict:
-        """Return the configuration dictionary representation of the object.
-
-        Returns:
-            dict[str, Any | dict[str, Any]]: A dict containing config parameters and their values.
-        """
-        result = {}
-        for key, value in self.__dict__.items():
-            if isinstance(value, Config):
-                result[key] = value.to_dict()
-            else:
-                result[key] = value
-        return result
-
-    def __repr__(self) -> str:
-        """Return the string representation of a Config object."""
-        items = []
-        for key, value in self.__dict__.items():
-            items.append(f"{key}: {value!r}")
-        return "\n".join(items)
+    contra_train: str
+    eval_train: str
+    eval_test: str
 
 
-@dataclass(frozen=True)
-class ModelConfig(Config):
-    """A configuration class for the model.
+class Model(BaseModel):
+    """Model architecture and hyperparameters."""
 
-    This class contains configuration parameters for the model, such as the root path,
-    data, model architecture, training, data augmentation, and logging settings.
+    name: str
+    num_gnn_layers: int
+    num_mlp_layers: int | None
+    hidden_dim: int
+    output_dim: int
+    dropout_prob: float
+    attrs_streams: dict[str, list[int]] | None
+    use_edge_weight: bool | None
+    learn_eps: bool | None
+    neighbor_aggregation: str
+    graph_pooling_type: str
+    gnn_layer_aggregation: str
+    stream_aggregation: str | None
 
-    To initialize a ModelConfig, provide the path to the config file.
 
-    Example:
-        cfg = ModelConfig('/path_to_config/myconfig.yml')
-    """
+class Training(BaseModel):
+    """Parameters for training the model."""
 
-    def __init__(self, config_file: str | Path) -> None:
-        object.__setattr__(self, "config_file", str(config_file))
-        config_dict = load_config(config_file)
-        super().__init__(config_dict)
+    batch_size: int
+    contra_loss_temp: float
+    eval_interval: int
+    max_epochs: int
+    patience: int
+    lr_init: float
+    optimizer: str
+    lr_scheduler: str
+    lr_decay_steps: int
+    lr_decay_rate: float
 
-    def __post_init__(self) -> None:
-        """Initialize nested `Config` objects for each configuration parameter.
 
-        This method is automatically called after the object is created,
-        and initializes nested `Config` objects for the following configuration parameters:
-        - `data`
-        - `model`
-        - `training`
-        - `augmentation`
-        - `logging`
+class AugmentationParams(BaseModel):
+    """Parameters for data augmentation."""
 
-        Raises:
-            TypeError: If any of the configuration parameters is not a dictionary.
-        """
+    perturb: dict[str, float | int] | None = None
+    rotate: dict[str, float | int] | None = {}
+    drop_branches: dict[str, float | int] | None = None
 
-        def __post_init__(self: ModelConfig) -> None:
-            """Initialize nested `Config` objects for each configuration parameter."""
-            for key, value in self.__annotations__.items():
-                if key != "root_path":
-                    object.__setattr__(self, key, Config(value))
+
+class Augmentation(BaseModel):
+    """Data augmentation methods and parameters."""
+
+    order: list[str]
+    params: AugmentationParams
+
+
+class Config(BaseModel):
+    """Main configuration class."""
+
+    config_file: str | Path
+    dirs: Dirs
+    datasets: Datasets
+    model: Model
+    training: Training
+    augmentation: Augmentation
+
+    @classmethod
+    def from_yaml(cls, config_file: str | Path) -> "Config":
+        """Load a configuration from a YAML file."""
+        with open(config_file, "r") as f:
+            config_dict = yaml.safe_load(f)
+        config_dict["config_file"] = config_file
+
+        return cls(**config_dict)
 
     def __repr__(self) -> str:
-        """Return the string representation of a ModelConfig object."""
+        """String representation of a Config object."""
         items = []
-        for key, value in self.__dict__.items():
-            if isinstance(value, Config):
-                value_repr = "\n".join(f"    {k}: {v}" for k, v in value.__dict__.items())
+        config_dict = self.model_dump()
+        for key, value in config_dict.items():
+            if isinstance(value, dict):
+                value_repr = "\n".join(f"    {k}: {v}" for k, v in value.items())
                 items.append(f"{key}:\n{value_repr}")
             else:
                 items.append(f"{key}: {value!r}")
-        return "\n".join(items)
 
+        config_items = "\n".join(items)
 
-def validate_model_config(config: dict[str, Any]) -> None:
-    """Validate the model section of the config file.
-
-    Args:
-        config (dict[str, Any]): Model configuration.
-
-    Raises:
-        ValueError: Error if any of the required parameters are missing.
-    """
-    required_params = [
-        "use_edge_weight",
-        "learn_eps",
-        "hidden_dim",
-        "output_dim",
-        "num_mlp_layers",
-        "num_gnn_layers",
-        "graph_pooling_type",
-        "neighbor_aggregation",
-        "gnn_layer_aggregation",
-        "stream_aggregation",
-        "dropout_prob",
-        "attrs_streams",
-    ]
-
-    missing_params = [param for param in required_params if param not in config]
-
-    if missing_params:
-        raise ValueError(f"Missing required parameters in ModelConfig: {missing_params}")
+        return f"Config({config_items})"

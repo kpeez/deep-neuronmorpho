@@ -11,7 +11,7 @@ from torch import Tensor, nn
 from torch.utils.tensorboard import SummaryWriter
 
 from ..data import GraphAugmenter
-from ..utils import EventLogger, ModelConfig, ProgressBar
+from ..utils import Config, EventLogger, ProgressBar
 from .evaluation import evaluate_embeddings, get_eval_targets
 from .ntxent_loss import NTXEntLoss
 from .trainer_utils import Checkpoint, get_optimizer, get_scheduler
@@ -37,7 +37,7 @@ class ContrastiveTrainer:
     def __init__(
         self,
         model: nn.Module,
-        config: ModelConfig,
+        config: Config,
         dataloaders: dict[str, GraphDataLoader],
         device: torch.device | str,
     ):
