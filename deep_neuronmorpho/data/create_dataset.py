@@ -140,6 +140,7 @@ def dgl_from_swc(swc_files: list[Path], logger: EventLogger | None) -> list[DGLG
                     f"Graph is broken: {file.name} contains NaN node attributes", level="error"
                 )
             else:
+                dgl_graph.id = file.stem
                 neuron_graphs.append(dgl_graph)
                 logger.message(f"Processed file: {file.name}")
 
