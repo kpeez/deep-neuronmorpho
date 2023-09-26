@@ -379,6 +379,10 @@ if __name__ == "__main__":
             ...,
             help="Name of the dataset.",
         ),
+        label_file: str = typer.Option(
+            ...,
+            help="Path to the file containing the metadata (graph labels).",
+        ),
     ) -> None:
         """Create a processed dataset of graphs from the .swc files in the specified directory.
 
@@ -389,6 +393,7 @@ if __name__ == "__main__":
             scale_xyz (str): The type of scaler to use for the 'xyz' coordinates.
             scale_attrs (str): The type of scaler to use for the 'nattrs' features.
             dataset_name (str): Name of the dataset.
+            label_file (str): Path to the file containing the metadata (graph labels).
         """
         graphs_dir = Path(input_dir)
         scaler = GraphScaler(scale_xyz=scale_xyz, scale_attrs=scale_attrs) if scale else None
@@ -397,6 +402,7 @@ if __name__ == "__main__":
             self_loop=self_loop,
             scaler=scaler,
             dataset_name=dataset_name,
+            label_file=label_file,
         )
 
     app()
