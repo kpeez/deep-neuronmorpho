@@ -1,9 +1,11 @@
 """Prepare neuron graphs for conversion to DGL datasets."""
+import re
 from pathlib import Path
 
 import dgl
 import networkx as nx
 import numpy as np
+import pandas as pd
 import torch
 from dgl import DGLGraph
 from dgl.data import DGLDataset
@@ -244,16 +246,41 @@ class NeuronGraphDataset(DGLDataset):
         scaler: GraphScaler | None = None,
         dataset_name: str = "neuron_graph_dataset",
         dataset_path: str | Path | None = None,
+        label_file: str | Path | None = None,
     ):
         self.graphs_path = Path(graphs_path)
         self.dataset_path = (
             Path(dataset_path) if dataset_path else Path(self.graphs_path.parent / "dgl_datasets")
         )
-        self.graphs: list = []
+        self.graphs: list[DGLGraph] = []
+        self.label_file = Path(label_file) if label_file else None
         self.self_loop = self_loop
         self.scaler = scaler
         self.logger: EventLogger | None = None
         super().__init__(name=dataset_name, raw_dir=self.dataset_path)
+
+    def add_graph_labels(self) -> None:
+        """Add graph labels to the dataset."""
+        if self.label_file is None:
+            raise ValueError("label_file must be provided to add graph labels")
+        self.logger.message(f"Adding labels from {self.label_file} to graphs.")
+        label_data = pd.read_csv(self.label_file)
+        unique_labels = label_data["dataset"].unique()
+        self.glabel_dict = dict(zip(range(len(unique_labels)), unique_labels, strict=True))
+        neuron_label_dict = dict(zip(label_data["neuron_name"], label_data["dataset"], strict=True))
+        glabel_dict_rev = {v: k for k, v in self.glabel_dict.items()}
+        # Extract neuron names from graph ids and assign labels
+        pattern = r"[^-]+-(.*?)(?:-resampled_[^\.]+)?$"
+        labels = []
+        for graph in self.graphs:
+            match = re.search(pattern, graph.id)
+            if match:
+                neuron_name = match.group(1)
+                labels.append(glabel_dict_rev.get(neuron_label_dict.get(neuron_name), -1))
+            else:
+                labels.append(-1)
+
+        self.labels = torch.tensor(labels, dtype=torch.int32)
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
@@ -263,7 +290,6 @@ class NeuronGraphDataset(DGLDataset):
         self.logger.message(f"Dataset {self.name} has self-loop: {self.self_loop}")
         swc_files = sorted(self.graphs_path.glob("*.swc"))
         self.graphs = dgl_from_swc(swc_files=swc_files, logger=self.logger)
-
         if self.scaler is not None:
             self.scaler.fit(self.graphs)
 
@@ -279,6 +305,9 @@ class NeuronGraphDataset(DGLDataset):
             processed_graphs.append(self.scaler.transform(graph) if self.scaler else graph)
 
         self.graphs = processed_graphs
+
+        if self.label_file:
+            self.add_graph_labels()
 
     def load(self) -> None:
         """Load the dataset from disk.
