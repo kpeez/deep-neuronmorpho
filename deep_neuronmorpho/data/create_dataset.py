@@ -350,12 +350,11 @@ class NeuronGraphDataset(DGLDataset):
         """Return the number of graphs in the dataset."""
         return len(self.graphs)
 
-    def __getitem__(self, idx: int | slice | list[int]) -> DGLGraph:
+    def __getitem__(self, idx: int | list[int]) -> DGLGraph:
         """Get the idx-th sample."""
-        if isinstance(idx, list):
-            return [self.graphs[i] for i in idx]
-
-        return self.graphs[idx]
+        graphs = [self.graphs[i] for i in idx] if isinstance(idx, list) else self.graphs[idx]
+        labels = None if self.labels is None else self.labels[idx]
+        return (graphs, labels) if labels is not None else graphs
 
 
 if __name__ == "__main__":
