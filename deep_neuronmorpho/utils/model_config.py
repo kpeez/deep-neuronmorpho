@@ -16,7 +16,7 @@ class Dirs(BaseModel):
 class Datasets(BaseModel):
     """Paths to datasets for training, validation, and testing."""
 
-    contra_train: str
+    contra_train: str | None = None
     eval_train: str
     eval_test: str
 
