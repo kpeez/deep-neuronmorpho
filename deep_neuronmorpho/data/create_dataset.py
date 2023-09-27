@@ -376,11 +376,11 @@ if __name__ == "__main__":
             help="The type of scaler to use for the 'attr' features.",
         ),
         dataset_name: str = typer.Option(
-            ...,
+            "neuron_graph_dataset",
             help="Name of the dataset.",
         ),
         label_file: str = typer.Option(
-            ...,
+            None,
             help="Path to the file containing the metadata (graph labels).",
         ),
     ) -> None:
