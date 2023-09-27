@@ -12,6 +12,7 @@ from dgl.data import DGLDataset
 from dgl.data.utils import load_graphs, save_graphs
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
+from torch import Tensor
 
 from ..utils import EventLogger, ProgressBar
 from .data_utils import compute_graph_attrs, graph_is_broken
@@ -119,7 +120,7 @@ def create_dgl_graph(neuron_graph: nx.DiGraph) -> DGLGraph | None:
         return dgl_graph
 
 
-def dgl_from_swc(swc_files: list[Path], logger: EventLogger | None) -> list[DGLGraph]:
+def dgl_from_swc(swc_files: list[Path], logger: EventLogger | None = None) -> list[DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
     Args:
@@ -129,8 +130,7 @@ def dgl_from_swc(swc_files: list[Path], logger: EventLogger | None) -> list[DGLG
     Returns:
         list[DGLGraph]: List of DGL graphs.
     """
-    if logger is None:
-        logger = EventLogger(Path.cwd(), "dgl_from_swc", to_file=False)
+    logger = EventLogger(Path.cwd(), "dgl_from_swc", to_file=False) if logger is None else logger
 
     neuron_graphs = []
     for file in ProgressBar(swc_files, desc="Creating DGLGraph:"):
@@ -253,6 +253,7 @@ class NeuronGraphDataset(DGLDataset):
             Path(dataset_path) if dataset_path else Path(self.graphs_path.parent / "dgl_datasets")
         )
         self.graphs: list[DGLGraph] = []
+        self.labels: Tensor | None = None
         self.label_file = Path(label_file) if label_file else None
         self.self_loop = self_loop
         self.scaler = scaler
@@ -296,13 +297,16 @@ class NeuronGraphDataset(DGLDataset):
         processed_graphs = []
         while self.graphs:
             original_graph = self.graphs.pop(0)
+            graph_id = original_graph.id
             if self.self_loop:
                 graph = dgl.add_self_loop(
                     dgl.remove_self_loop(original_graph),
                     edge_feat_names=["edge_weight"],
                     fill_data=1.0,
                 )
-            processed_graphs.append(self.scaler.transform(graph) if self.scaler else graph)
+            processed_graph = self.scaler.transform(graph) if self.scaler else graph
+            processed_graph.id = graph_id
+            processed_graphs.append(processed_graph)
 
         self.graphs = processed_graphs
 
@@ -315,13 +319,18 @@ class NeuronGraphDataset(DGLDataset):
         If the dataset has not been cached, it will be created and cached.
         """
         self.graphs = load_graphs(str(self.cached_graphs_path))[0]
+        self.labels = load_graphs(str(self.cached_graphs_path))[1].get("labels", None)
 
     def save(self, filename: str | None = None) -> None:
         """Save the dataset to disk."""
         if not self.dataset_path.exists():
             self.dataset_path.mkdir(exist_ok=True)
         export_filename = filename if filename else f"{super().name}"
-        save_graphs(f"{self.dataset_path}/{export_filename}.bin", self.graphs)
+        if self.labels is not None:
+            label_dict = {"labels": self.labels}
+            save_graphs(f"{self.dataset_path}/{export_filename}.bin", self.graphs, label_dict)
+        else:
+            save_graphs(f"{self.dataset_path}/{export_filename}.bin", self.graphs)
 
     def has_cache(self) -> bool:
         """Determine whether there exists a cached dataset.
@@ -335,7 +344,7 @@ class NeuronGraphDataset(DGLDataset):
     @property
     def cached_graphs_path(self) -> Path:
         """The path to the cached graphs."""
-        return Path(self.graphs_path / f"{super().name}.bin")
+        return Path(self.dataset_path / f"{super().name}.bin")
 
     def __len__(self) -> int:
         """Return the number of graphs in the dataset."""
