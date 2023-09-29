@@ -9,7 +9,7 @@ import pandas as pd
 import torch
 from dgl import DGLGraph
 from dgl.data import DGLDataset
-from dgl.data.utils import load_graphs, save_graphs
+from dgl.data.utils import load_graphs, load_info, save_graphs, save_info
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 from torch import Tensor
@@ -253,7 +253,9 @@ class NeuronGraphDataset(DGLDataset):
             Path(dataset_path) if dataset_path else Path(self.graphs_path.parent / "dgl_datasets")
         )
         self.graphs: list[DGLGraph] = []
+        self.graph_ids: list[str] = []
         self.labels: Tensor | None = None
+        self.glabel_dict: dict[int, str] | None = None
         self.label_file = Path(label_file) if label_file else None
         self.self_loop = self_loop
         self.scaler = scaler
@@ -309,28 +311,47 @@ class NeuronGraphDataset(DGLDataset):
             processed_graphs.append(processed_graph)
 
         self.graphs = processed_graphs
+        self.graph_ids = [graph.id for graph in self.graphs]
 
         if self.label_file:
             self.add_graph_labels()
-
-    def load(self) -> None:
-        """Load the dataset from disk.
-
-        If the dataset has not been cached, it will be created and cached.
-        """
-        self.graphs = load_graphs(str(self.cached_graphs_path))[0]
-        self.labels = load_graphs(str(self.cached_graphs_path))[1].get("labels", None)
 
     def save(self, filename: str | None = None) -> None:
         """Save the dataset to disk."""
         if not self.dataset_path.exists():
             self.dataset_path.mkdir(exist_ok=True)
         export_filename = filename if filename else f"{super().name}"
-        if self.labels is not None:
-            label_dict = {"labels": self.labels}
-            save_graphs(f"{self.dataset_path}/{export_filename}.bin", self.graphs, label_dict)
-        else:
-            save_graphs(f"{self.dataset_path}/{export_filename}.bin", self.graphs)
+        label_dict = {"labels": self.labels}
+        info_dict = {
+            "graph_ids": self.graph_ids,
+            "glabel_dict": self.glabel_dict,
+            "self_loop": self.self_loop,
+            "scaler": self.scaler,
+            "label_file": self.label_file,
+        }
+        save_info(f"{self.dataset_path}/{export_filename}.pkl", info_dict)
+        save_graphs(
+            f"{self.dataset_path}/{export_filename}.bin",
+            self.graphs,
+            label_dict if isinstance(self.labels, Tensor) else None,
+        )
+
+    def load(self) -> None:
+        """Load the dataset from disk.
+
+        If the dataset has not been cached, it will be created and cached.
+        """
+        graphs, label_dict = load_graphs(str(self.cached_graphs_path))
+        info_dict = load_info(str(self.info_path))
+        for idx, graph in enumerate(graphs):
+            graph.id = info_dict.get("graph_ids")[idx]
+        self.graphs = graphs
+        self.graph_ids = info_dict.get("graph_ids", None)
+        self.labels = label_dict.get("labels", None)
+        self.glabel_dict = info_dict.get("glabel_dict", None)
+        self.self_loop = info_dict.get("self_loop", None)
+        self.scaler = info_dict.get("scaler", None)
+        self.label_file = info_dict.get("label_file", None)
 
     def has_cache(self) -> bool:
         """Determine whether there exists a cached dataset.
@@ -339,7 +360,13 @@ class NeuronGraphDataset(DGLDataset):
             bool: True if there exists a cached dataset, False otherwise.
         """
         cached_file_path = self.cached_graphs_path
-        return cached_file_path.exists()
+        info_file_path = self.info_path
+        return cached_file_path.exists() and info_file_path.exists()
+
+    @property
+    def info_path(self) -> Path:
+        """The path to the info file."""
+        return Path(self.dataset_path / f"{super().name}.pkl")
 
     @property
     def cached_graphs_path(self) -> Path:
