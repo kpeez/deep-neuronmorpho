@@ -190,7 +190,6 @@ class GraphScaler:
         nattrs = torch.cat(graph_nattrs, dim=0)
         self.scale_xyz.fit(nattrs[:, :3].numpy())
         self.scale_attrs.fit(nattrs[:, 3:].numpy())
-
         self.fitted = True
 
     def transform(self, graph: DGLGraph) -> DGLGraph:
@@ -259,8 +258,10 @@ class NeuronGraphDataset(DGLDataset):
         self.label_file = Path(label_file) if label_file else None
         self.self_loop = self_loop
         self.scaler = scaler
+        self.rescaled = bool(scaler)
         self.logger: EventLogger | None = None
-        super().__init__(name=dataset_name, raw_dir=self.dataset_path)
+
+        super().__init__(name=dataset_name, raw_dir=self.dataset_path, verbose=False)
 
     def add_graph_labels(self) -> None:
         """Add graph labels to the dataset."""
@@ -326,15 +327,15 @@ class NeuronGraphDataset(DGLDataset):
             "graph_ids": self.graph_ids,
             "glabel_dict": self.glabel_dict,
             "self_loop": self.self_loop,
-            "scaler": self.scaler,
+            "rescaled": bool(self.scaler),
             "label_file": self.label_file,
         }
-        save_info(f"{self.dataset_path}/{export_filename}.pkl", info_dict)
         save_graphs(
             f"{self.dataset_path}/{export_filename}.bin",
             self.graphs,
             label_dict if isinstance(self.labels, Tensor) else None,
         )
+        save_info(f"{self.dataset_path}/{export_filename}.pkl", info_dict)
 
     def load(self) -> None:
         """Load the dataset from disk.
@@ -350,7 +351,7 @@ class NeuronGraphDataset(DGLDataset):
         self.labels = label_dict.get("labels", None)
         self.glabel_dict = info_dict.get("glabel_dict", None)
         self.self_loop = info_dict.get("self_loop", None)
-        self.scaler = info_dict.get("scaler", None)
+        self.rescaled = info_dict.get("rescaled", None)
         self.label_file = info_dict.get("label_file", None)
 
     def has_cache(self) -> bool:
