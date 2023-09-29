@@ -1,6 +1,6 @@
 # datasets/docs
 datasets
-dev-notebooks
+notebooks/*dev*
 *.csv
 *.pt
 *.pth
