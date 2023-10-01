@@ -193,3 +193,32 @@ class Checkpoint:
             )
         else:
             raise FileNotFoundError(f"Checkpoint file {ckpt_file} not found")
+
+    @staticmethod
+    def load_model(
+        epoch: int,
+        ckpt_dir: str | Path,
+        model: torch.nn.Module,
+        device: str | torch.device = "cpu",
+    ) -> torch.nn.Module:
+        """Load model state from checkpoint.
+
+        Args:
+            epoch (int): Epoch number. Must be in the checkpoint directory.
+            ckpt_dir (str | Path): Checkpoint directory containing the training checkpoints.
+            model (torch.nn.Module): Model to load the state into.
+            device (str | torch.device, optional): Device to load the model state onto.
+
+        Returns:
+            torch.nn.Module: Model with updated state.
+        """
+        ckpt_dir = Path(ckpt_dir)
+        try:
+            ckpt_file = next(iter(Path(ckpt_dir / "ckpts").glob(f"*epoch_{epoch:03}.pt")))
+        except IndexError as e:
+            raise FileNotFoundError(f"Checkpoint file for epoch {epoch} not found") from e
+
+        ckpt = torch.load(ckpt_file, map_location=torch.device(device))
+        model.load_state_dict(ckpt["model"])
+
+        return model
