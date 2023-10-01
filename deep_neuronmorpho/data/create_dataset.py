@@ -344,15 +344,16 @@ class NeuronGraphDataset(DGLDataset):
         """
         graphs, label_dict = load_graphs(str(self.cached_graphs_path))
         info_dict = load_info(str(self.info_path))
-        for idx, graph in enumerate(graphs):
-            graph.id = info_dict.get("graph_ids")[idx]
-        self.graphs = graphs
         self.graph_ids = info_dict.get("graph_ids", None)
         self.labels = label_dict.get("labels", None)
         self.glabel_dict = info_dict.get("glabel_dict", None)
         self.self_loop = info_dict.get("self_loop", None)
         self.rescaled = info_dict.get("rescaled", None)
         self.label_file = info_dict.get("label_file", None)
+        if self.graph_ids:
+            for idx, graph in enumerate(graphs):
+                graph.id = info_dict.get("graph_ids")[idx]
+        self.graphs = graphs
 
     def has_cache(self) -> bool:
         """Determine whether there exists a cached dataset.
