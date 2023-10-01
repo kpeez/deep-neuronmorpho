@@ -152,7 +152,7 @@ class ContrastiveTrainer:
         """Train the model for a given number of epochs.
 
         Iterate over the training and validation dataloaders for the given number of epochs,
-        and save the model checkpoint if the validation loss improves.
+        and save the model checkpoint after each evaluation step.
 
         Args:
             epochs (int, optional): Number of epochs to train for. By default, we train until max
@@ -190,7 +190,6 @@ class ContrastiveTrainer:
                     f"Epoch {epoch}/{num_epochs}: Benchmark Test accuracy: {eval_acc:.4f}"
                 )
                 self.checkpoint.save(
-                    # model_name=self.model_name,
                     epoch=epoch,
                     train_loss=train_loss,
                     eval_acc=eval_acc,
