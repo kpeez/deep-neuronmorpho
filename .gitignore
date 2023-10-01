@@ -1,6 +1,7 @@
 # datasets/docs
 datasets
 notebooks/*dev*
+notebooks/*info*
 *.csv
 *.pt
 *.pth
