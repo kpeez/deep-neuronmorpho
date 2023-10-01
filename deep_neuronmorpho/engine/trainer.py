@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from ..data import GraphAugmenter
 from ..utils import Config, EventLogger, ProgressBar
-from .evaluation import evaluate_embeddings, get_eval_targets
+from .evaluation import evaluate_embeddings
 from .ntxent_loss import NTXEntLoss
 from .trainer_utils import Checkpoint, get_optimizer, get_scheduler
 
@@ -82,7 +82,7 @@ class ContrastiveTrainer:
 
         self.max_epochs = self.cfg.training.max_epochs
         self.best_train_loss = float("inf")
-        self.eval_targets = get_eval_targets(self.cfg)
+        # self.eval_targets = get_eval_targets(self.cfg)
         self.eval_interval = self.cfg.training.eval_interval
         self.best_eval_acc = 0.0
 
@@ -119,22 +119,32 @@ class ContrastiveTrainer:
 
     def eval_step(self) -> float:
         """Evaluate the model on the validation set."""
-        tensor_embeddings: dict[str, list[Tensor]] = {"train": [], "test": []}
+        embeddings: dict[str, list[Tensor]] = {"train": [], "test": []}
+        labels: dict[str, list[Tensor]] = {"train": [], "test": []}
         self.model.eval()
         with torch.inference_mode():
             for raw_train_batch, raw_test_batch in zip_longest(
                 self.dataloaders["eval_train"], self.dataloaders["eval_test"]
             ):
-                train_batch = raw_train_batch.to(self.device)
-                tensor_embeddings["train"].append(self.model(train_batch))
+                train_batch, train_labels = raw_train_batch
+                train_batch = train_batch.to(self.device)
+                embeddings["train"].append(self.model(train_batch))
+                labels["train"].append(train_labels)
                 if raw_test_batch is not None:
-                    test_batch = raw_test_batch.to(self.device)
-                    tensor_embeddings["test"].append(self.model(test_batch))
+                    test_batch, test_labels = raw_test_batch
+                    test_batch = test_batch.to(self.device)
+                    embeddings["test"].append(self.model(test_batch))
+                    labels["test"].append(test_labels)
+
         embeddings = {
             dataset: torch.cat(embed, dim=0).detach().cpu().numpy()
-            for dataset, embed in tensor_embeddings.items()
+            for dataset, embed in embeddings.items()
         }
-        eval_acc = evaluate_embeddings(embeddings=embeddings, targets=self.eval_targets)
+        labels = {
+            dataset: torch.cat(label, dim=0).detach().cpu().numpy()
+            for dataset, label in labels.items()
+        }
+        eval_acc = evaluate_embeddings(embeddings=embeddings, targets=labels)
 
         return eval_acc
 
