@@ -119,8 +119,8 @@ class ContrastiveTrainer:
 
     def eval_step(self) -> float:
         """Evaluate the model on the validation set."""
-        embeddings: dict[str, list[Tensor]] = {"train": [], "test": []}
-        labels: dict[str, list[Tensor]] = {"train": [], "test": []}
+        tensor_embeddings: dict[str, list[Tensor]] = {"train": [], "test": []}
+        tensor_labels: dict[str, list[Tensor]] = {"train": [], "test": []}
         self.model.eval()
         with torch.inference_mode():
             for raw_train_batch, raw_test_batch in zip_longest(
@@ -128,21 +128,21 @@ class ContrastiveTrainer:
             ):
                 train_batch, train_labels = raw_train_batch
                 train_batch = train_batch.to(self.device)
-                embeddings["train"].append(self.model(train_batch))
-                labels["train"].append(train_labels)
+                tensor_embeddings["train"].append(self.model(train_batch))
+                tensor_labels["train"].append(train_labels)
                 if raw_test_batch is not None:
                     test_batch, test_labels = raw_test_batch
                     test_batch = test_batch.to(self.device)
-                    embeddings["test"].append(self.model(test_batch))
-                    labels["test"].append(test_labels)
+                    tensor_embeddings["test"].append(self.model(test_batch))
+                    tensor_labels["test"].append(test_labels)
 
         embeddings = {
             dataset: torch.cat(embed, dim=0).detach().cpu().numpy()
-            for dataset, embed in embeddings.items()
+            for dataset, embed in tensor_embeddings.items()
         }
         labels = {
             dataset: torch.cat(label, dim=0).detach().cpu().numpy()
-            for dataset, label in labels.items()
+            for dataset, label in tensor_labels.items()
         }
         eval_acc = evaluate_embeddings(embeddings=embeddings, targets=labels)
 
