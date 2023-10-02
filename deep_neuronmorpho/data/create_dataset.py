@@ -267,7 +267,6 @@ class NeuronGraphDataset(DGLDataset):
         """Add graph labels to the dataset."""
         if self.label_file is None:
             raise ValueError("label_file must be provided to add graph labels")
-        self.logger.message(f"Adding labels from {self.label_file} to graphs.")
         label_data = pd.read_csv(self.label_file)
         unique_labels = label_data["dataset"].unique()
         self.glabel_dict = dict(zip(range(len(unique_labels)), unique_labels, strict=True))
@@ -280,7 +279,8 @@ class NeuronGraphDataset(DGLDataset):
             match = re.search(pattern, graph.id)
             if match:
                 neuron_name = match.group(1)
-                labels.append(glabel_dict_rev.get(neuron_label_dict.get(neuron_name), -1))
+                neuron_label = neuron_label_dict.get(str(neuron_name))
+                labels.append(glabel_dict_rev.get(str(neuron_label), -1))
             else:
                 labels.append(-1)
 
@@ -315,6 +315,7 @@ class NeuronGraphDataset(DGLDataset):
         self.graph_ids = [graph.id for graph in self.graphs]
 
         if self.label_file:
+            self.logger.message(f"Adding labels from {self.label_file} to graphs.")
             self.add_graph_labels()
 
     def save(self, filename: str | None = None) -> None:
