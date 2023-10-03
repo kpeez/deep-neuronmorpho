@@ -1,22 +1,8 @@
 """Evaluate contrastive learning embeddings on benchmark classification task."""
-from pathlib import Path
 
-import pandas as pd
 from numpy.typing import NDArray
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
-
-from ..utils import Config
-
-
-def get_eval_targets(conf: Config) -> dict[str, NDArray]:
-    """Get the target labels for the evaluation training and test sets."""
-    eval_train_file = next(Path(f"{conf.dirs.metadata}").glob("*eval_train*.csv"))
-    eval_test_file = next(Path(f"{conf.dirs.metadata}").glob("*eval_test*.csv"))
-    return {
-        "train": pd.read_csv(eval_train_file)["label"].to_numpy(),
-        "test": pd.read_csv(eval_test_file)["label"].to_numpy(),
-    }
 
 
 def evaluate_embeddings(
