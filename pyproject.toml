@@ -24,6 +24,8 @@ tensorboard = "^2.12.2"
 typer = "^0.7.0"
 xgboost = "^1.7.5"
 pydantic = "^2.3.0"
+llvmlite = "^0.41.0"
+umap-learn = "^0.5.4"
 
 
 [tool.poetry.group.dev.dependencies]
