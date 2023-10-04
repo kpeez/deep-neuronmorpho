@@ -4,7 +4,7 @@
 
 The Morphology-aware contrastive GNN model (MACGNN) model from [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206) is a graph neural network that uses contrastive learning to learn graph-level embeddings in an unsupervised manner using the NT-Xent loss.
 
-> Note: We are not implementing the binary hashing, just the contrastive learning phase.****
+> Note: We are not implementing the binary hashing, just the contrastive learning phase.
 
 ## Model Architecture
 

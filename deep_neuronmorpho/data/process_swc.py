@@ -123,7 +123,7 @@ if __name__ == "__main__":
             ...,
             help="Path to folder containing swc files.",
         ),
-        resample_dist: int = Argument(  # noqa: B008
+        resample_dist: int = Argument(
             ...,
             help="Distance to resample neuron, in microns.",
         ),
