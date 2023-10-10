@@ -86,7 +86,7 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
             x,
             y,
             z,
-            # neuron_graph.nodes[node]["radius"], # uncomment to include radius
+            neuron_graph.nodes[node]["radius"],  # uncomment to include radius
             nx.dijkstra_path_length(neuron_graph, 0, node, weight="path_length"),
             euclidean((x, y, z), (soma_x, soma_y, soma_z)),
             *angle_stats,
