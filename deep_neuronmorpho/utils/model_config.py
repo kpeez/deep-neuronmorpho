@@ -6,10 +6,9 @@ from pydantic import BaseModel
 
 
 class Dirs(BaseModel):
-    """Paths to directories for storing data, metadata, and experiment results."""
+    """Paths to directories for storing data and experiment results."""
 
     graph_data: str
-    metadata: str
     expt_results: str
 
 
