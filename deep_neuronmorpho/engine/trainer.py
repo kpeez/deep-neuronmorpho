@@ -1,6 +1,6 @@
 """Trainer class for training a model."""
 import shutil
-from datetime import datetime
+from datetime import datetime as dt
 from itertools import zip_longest
 from pathlib import Path
 
@@ -59,9 +59,8 @@ class ContrastiveTrainer:
             decay_steps=self.cfg.training.lr_decay_steps,
             decay_rate=self.cfg.training.lr_decay_rate,
         )
-
-        timestamp = datetime.now().strftime("%Y_%m_%d_%Hh_%Mm")
-        expt_name = f"{self.model_name}-{timestamp}"
+        timestamp = dt.now().strftime("%Y_%m_%d_%Hh_%Mm")
+        expt_name = f"{timestamp}-{self.model_name}"
         expt_dir = Path(self.cfg.dirs.expt_results) / expt_name
         for result in ["ckpts", "logs"]:
             result_dir = Path(expt_dir / result)
