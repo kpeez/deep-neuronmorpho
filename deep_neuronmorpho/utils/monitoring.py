@@ -85,8 +85,14 @@ class EventLogger:
         logger.addHandler(console_handler)
         # log to file if specified
         if self.to_file:
+            # add timestamp if none in expt_name
+            fname_pattern = re.compile(r"\d{4}[-_]\d{2}[-_]\d{2}[-_]\d{2}h?[-_]\d{2}m?")
+            if fname_pattern.search(self.expt_name) is None:
+                timestamp = dt.now().strftime("%Y_%m_%d_%Hh_%Mm")
+                log_filename = f"{timestamp}-{self.expt_name}.log"
+            else:
+                log_filename = f"{self.expt_name}.log"
             formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-            log_filename = f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-{self.expt_name}.log"
             file_handler = logging.FileHandler(self.log_dir / log_filename)
             file_handler.setLevel(logging.INFO)
             file_handler.setFormatter(formatter)
