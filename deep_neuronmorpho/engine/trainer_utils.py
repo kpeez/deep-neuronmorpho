@@ -160,7 +160,7 @@ class Checkpoint:
             train_loss (float): Contrastive loss on the training set
             eval_acc (float): Classification accuracy on the evaluation test set.
         """
-        chkpt_name = f"{self.expt_name}_checkpoint-epoch_{epoch:03d}.pt"
+        chkpt_name = f"{self.expt_name}_checkpoint-epoch_{epoch:04d}.pt"
         chkpt_file = Path(self.ckpt_dir) / chkpt_name
         self.logger.message(f"Saving checkpoint: {self.ckpt_dir}/{chkpt_name} ")
         checkpoint = {
