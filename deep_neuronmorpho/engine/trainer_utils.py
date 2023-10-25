@@ -1,5 +1,5 @@
 """Utilities for working with and tracking the training process."""
-
+import random
 from pathlib import Path
 from typing import Any
 
@@ -160,9 +160,9 @@ class Checkpoint:
             train_loss (float): Contrastive loss on the training set
             eval_acc (float): Classification accuracy on the evaluation test set.
         """
-        chkpt_name = f"{self.expt_name}_checkpoint-epoch_{epoch:04d}.pt"
+        chkpt_name = f"{self.expt_name}-epoch_{epoch:04d}.pt"
         chkpt_file = Path(self.ckpt_dir) / chkpt_name
-        self.logger.message(f"Saving checkpoint: {self.ckpt_dir}/{chkpt_name} ")
+        self.logger.message(f"Saving checkpoint: {self.ckpt_dir}/{chkpt_name}")
         checkpoint = {
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
@@ -222,3 +222,77 @@ class Checkpoint:
         model.load_state_dict(ckpt["model"])
 
         return model
+
+
+def generate_experiment_name() -> str:
+    """Generate a random experiment name."""
+    colors = [
+        "red",
+        "scarlet",
+        "ruby",
+        "coral",
+        "pink",
+        "orange",
+        "peach",
+        "apricot",
+        "amber",
+        "gold",
+        "lemon",
+        "honey",
+        "green",
+        "jade",
+        "teal",
+        "mint",
+        "blue",
+        "azure",
+        "aqua",
+        "indigo",
+        "navy",
+        "violet",
+        "iris",
+        "beige",
+        "topaz",
+        "silver",
+        "slate",
+        "gray",
+        "onyx",
+        "pearl",
+    ]
+    animals = [
+        "albatross",
+        "crow",
+        "eagle",
+        "falcon",
+        "hawk",
+        "heron",
+        "owl",
+        "pelican",
+        "raven",
+        "sparrow",
+        "cheetah",
+        "jaguar",
+        "leopard",
+        "lion",
+        "panther",
+        "tiger",
+        "dolphin",
+        "manta",
+        "marlin",
+        "orca",
+        "seahorse",
+        "shark",
+        "trout",
+        "bonobo",
+        "gorilla",
+        "cobra",
+        "viper",
+        "badger",
+        "boar",
+        "elephant",
+        "hippo",
+        "lynx",
+        "pig",
+        "wolf",
+        "dragon",
+    ]
+    return f"{random.choice(colors)}_{random.choice(animals)}"
