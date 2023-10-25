@@ -130,13 +130,13 @@ class LogData:
         file (Path): The path to the log file.
         train_loss (pd.Series): Series of training loss values.
         eval_acc (pd.Series): Series of evaluation accuracy values.
-        model_name (str): The name of the model.
+        expt_name (str): The name of the model.
     """
 
     file: Path
     train_loss: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
     eval_acc: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
-    _model_name: str | None = field(init=False, default=None)
+    _expt_name: str | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         """Initialize object."""
@@ -150,7 +150,7 @@ class LogData:
         train_loss_last = self.train_loss.iat[-1] if not self.train_loss.empty else "N/A"
         eval_acc_last = self.eval_acc.iat[-1] if not self.eval_acc.empty else "N/A"
         return f"""{self.__class__.__name__}(file={self.file!r},
-        model_name={self.model_name!r},
+        expt_name={self.expt_name!r},
         last_train_loss={train_loss_last}, last_eval_acc={eval_acc_last})
         """
 
@@ -177,14 +177,14 @@ class LogData:
     _extract_eval_acc.pattern = r"Epoch (\d+)/(?:\d+): Benchmark Test accuracy: (\d+\.\d+)"
 
     @property
-    def model_name(self) -> str:
+    def expt_name(self) -> str:
         """Get model name from the log file name."""
-        if self._model_name is None:
-            pattern = r"(?<=-)[^\-]+(?=-\d{4}_\d{2}_\d{2}_\d{2}h_\d{2}m.log)"
+        if self._expt_name is None:
+            pattern = r"(?<=\d{4}_\d{2}_\d{2}_\d{2}h_\d{2}m-).+(?=.log)"
             match = re.search(pattern, self.file.name)
-            self._model_name = match.group() if match else "N/A"
+            self._expt_name = match.group() if match else "N/A"
 
-        return self._model_name
+        return self._expt_name
 
     @property
     def total_epochs(self) -> int:
@@ -205,6 +205,6 @@ class LogData:
         axs[1].set_xlabel("Epoch", fontsize=14)
         axs[1].tick_params(axis="both", labelsize=12)
 
-        fig.suptitle(f"Training results: {self.model_name}", fontsize=18)
+        fig.suptitle(f"Training results: {self.expt_name}", fontsize=18)
 
         plt.tight_layout()
