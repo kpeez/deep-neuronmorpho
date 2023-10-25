@@ -1,5 +1,7 @@
 """Utilities for working with and tracking the training process."""
 import random
+import shutil
+from datetime import datetime as dt
 from pathlib import Path
 from typing import Any
 
@@ -296,3 +298,30 @@ def generate_experiment_name() -> str:
         "dragon",
     ]
     return f"{random.choice(colors)}_{random.choice(animals)}"
+
+
+def setup_experiment_results(cfg: Config) -> tuple[str, str]:
+    """Set up the experiment name and results directory.
+
+    Args:
+        cfg (Config): Configuration object with `dirs.expt_results` and `model.name` attributes.
+
+    Returns:
+        tuple[str, str]: The experiment name and results directory.
+    """
+    expt_id = generate_experiment_name()
+    prev_expts = list(Path(cfg.dirs.expt_results).glob(f"*{expt_id}*"))
+    while prev_expts:
+        expt_id = generate_experiment_name()
+        prev_expts = list(Path(cfg.dirs.expt_results).glob(f"*{expt_id}*"))
+
+    expt_name = f"{cfg.model.name}-{expt_id}"
+    timestamp = dt.now().strftime("%Y_%m_%d_%Hh_%Mm")
+    expt_dir = Path(cfg.dirs.expt_results) / f"{timestamp}-{expt_name}"
+    for result in ["ckpts", "logs"]:
+        result_dir = Path(expt_dir / result)
+        if result_dir.exists() is False:
+            result_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(cfg.config_file, expt_dir / f"{expt_name}.yml")
+
+    return expt_name, expt_dir

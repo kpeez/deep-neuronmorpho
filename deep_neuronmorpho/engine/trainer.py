@@ -1,6 +1,4 @@
 """Trainer class for training a model."""
-import shutil
-from datetime import datetime as dt
 from itertools import zip_longest
 from pathlib import Path
 
@@ -14,7 +12,7 @@ from ..data import GraphAugmenter
 from ..utils import Config, EventLogger, ProgressBar
 from .evaluation import evaluate_embeddings
 from .ntxent_loss import NTXEntLoss
-from .trainer_utils import Checkpoint, get_optimizer, get_scheduler
+from .trainer_utils import Checkpoint, get_optimizer, get_scheduler, setup_experiment_results
 
 
 class ContrastiveTrainer:
@@ -59,29 +57,19 @@ class ContrastiveTrainer:
             decay_steps=self.cfg.training.lr_decay_steps,
             decay_rate=self.cfg.training.lr_decay_rate,
         )
-        timestamp = dt.now().strftime("%Y_%m_%d_%Hh_%Mm")
-        expt_name = f"{timestamp}-{self.model_name}"
-        expt_dir = Path(self.cfg.dirs.expt_results) / expt_name
-        for result in ["ckpts", "logs"]:
-            result_dir = Path(expt_dir / result)
-            if result_dir.exists() is False:
-                result_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy(self.cfg.config_file, expt_dir / f"{Path(self.cfg.config_file).stem}.yml")
-
-        self.logger = EventLogger(expt_dir / "logs", expt_name=expt_name)
+        self.expt_name, expt_dir = setup_experiment_results(self.cfg)
+        self.logger = EventLogger(expt_dir / "logs", expt_name=self.expt_name)
         self.checkpoint = Checkpoint(
             model=self.model,
-            expt_name=expt_name,
+            expt_name=self.expt_name,
             optimizer=self.optimizer,
             lr_scheduler=self.lr_scheduler,
             ckpt_dir=expt_dir / "ckpts",
             device=self.device,
             logger=self.logger,
         )
-
         self.max_epochs = self.cfg.training.max_epochs
         self.best_train_loss = float("inf")
-        # self.eval_targets = get_eval_targets(self.cfg)
         self.eval_interval = self.cfg.training.eval_interval
         self.best_eval_acc = 0.0
 
@@ -169,7 +157,7 @@ class ContrastiveTrainer:
         writer = SummaryWriter(log_dir=self.logger.log_dir)
         num_epochs = self.max_epochs if epochs is None else epochs
         self.logger.message(
-            f"Training {self.model_name} on '{self.device}' for {num_epochs - start_epoch} epochs."
+            f"Training {self.expt_name} on '{self.device}' for {num_epochs - start_epoch} epochs."
         )
         bad_epochs = 0
         for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):
