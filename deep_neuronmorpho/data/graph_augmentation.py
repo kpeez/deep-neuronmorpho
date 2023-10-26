@@ -180,7 +180,7 @@ class DropBranches(GraphAugmentation):
 
     def apply(self, G: DGLGraph) -> DGLGraph:
         """Apply the augmentation to the input graph."""
-        if self.prop == 0:
+        if self.prop == 0.0:
             return G
 
         path_dist = G.ndata["nattrs"][:, self.path_dist_idx]
