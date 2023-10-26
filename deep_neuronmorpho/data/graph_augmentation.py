@@ -180,6 +180,9 @@ class DropBranches(GraphAugmentation):
 
     def apply(self, G: DGLGraph) -> DGLGraph:
         """Apply the augmentation to the input graph."""
+        if self.prop == 0:
+            return G
+
         path_dist = G.ndata["nattrs"][:, self.path_dist_idx]
         # Compute selection probabilities
         path_dist_p = (path_dist + torch.abs(torch.min(path_dist))) ** self.deg_power  # keep soma
