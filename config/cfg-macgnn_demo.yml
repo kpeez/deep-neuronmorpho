@@ -49,3 +49,4 @@ augmentation:
     drop_branches:
       prop: 0.02
       deg_power: 1.0
+      path_dist_idx: 4
