@@ -69,8 +69,8 @@ class ProgressBar:
 class EventLogger:
     """Class for logging event progress."""
 
-    def __init__(self, log_dir: Path, expt_name: str, to_file: bool = True) -> None:
-        self.log_dir = log_dir
+    def __init__(self, log_dir: Path | str, expt_name: str, to_file: bool = True) -> None:
+        self.log_dir = Path(log_dir)
         self.expt_name = expt_name
         self.to_file = to_file
         self.logger: Logger | None = None

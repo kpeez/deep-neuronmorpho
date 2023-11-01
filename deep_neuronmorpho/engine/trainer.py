@@ -58,13 +58,13 @@ class ContrastiveTrainer:
             decay_rate=self.cfg.training.lr_decay_rate,
         )
         self.expt_name, expt_dir = setup_experiment_results(self.cfg)
-        self.logger = EventLogger(expt_dir / "logs", expt_name=self.expt_name)
+        self.logger = EventLogger(f"{expt_dir}/logs", expt_name=self.expt_name)
         self.checkpoint = Checkpoint(
             model=self.model,
             expt_name=self.expt_name,
             optimizer=self.optimizer,
             lr_scheduler=self.lr_scheduler,
-            ckpt_dir=expt_dir / "ckpts",
+            ckpt_dir=f"{expt_dir}/ckpts",
             device=self.device,
             logger=self.logger,
         )

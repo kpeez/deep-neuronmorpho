@@ -324,4 +324,4 @@ def setup_experiment_results(cfg: Config) -> tuple[str, str]:
             result_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(cfg.config_file, expt_dir / f"{expt_name}.yml")
 
-    return expt_name, expt_dir
+    return expt_name, str(expt_dir)
