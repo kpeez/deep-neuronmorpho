@@ -27,7 +27,6 @@ model:
 # Training configuration
 training:
   batch_size: 256
-  contra_loss_temp: 0.2
   eval_interval: 1
   max_epochs: 5
   patience: 60
@@ -36,16 +35,3 @@ training:
   lr_scheduler: "step" # ["cosine", "step"]
   lr_decay_steps: 20
   lr_decay_rate: 0.6
-
-# Augmentation info
-augmentation:
-  order: [perturb, rotate, drop_branches]
-  params:
-    perturb:
-      prop: 0.5
-      std_noise: 2.0
-    rotate: {} # no args needed
-    drop_branches:
-      prop: 0.02
-      deg_power: 1.0
-      path_dist_idx: 4
