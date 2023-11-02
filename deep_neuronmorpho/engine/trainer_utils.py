@@ -132,6 +132,22 @@ def setup_dataloaders(
     return dataloaders
 
 
+def setup_common_utilities(config_file: str, gpu: int | None = None) -> tuple[Config, str]:
+    """Set up common utilities for model training.
+
+    Args:
+        config_file (str): Path to the configuration file.
+        gpu (int | None, optional): Index of the GPU to use. Defaults to None.
+
+    Returns:
+        tuple[Config, str]: The configuration object and the device to use.
+    """
+    conf = Config.from_yaml(config_file=config_file)
+    device = f"cuda:{gpu}" if torch.cuda.is_available() and gpu is not None else "cpu"
+
+    return conf, device
+
+
 class Checkpoint:
     """Utility for saving and loading model checkpoints."""
 
@@ -153,14 +169,14 @@ class Checkpoint:
         self.device = device
         self.logger = logger
         self.epoch = None
+        self.info_dict = {}
 
-    def save(self, epoch: int, train_loss: float, eval_acc: float) -> None:
+    def save(self, epoch: int, info_dict: dict[str, Any]) -> None:
         """Save model checkpoint.
 
         Args:
             epoch (int): Epoch number
-            train_loss (float): Contrastive loss on the training set
-            eval_acc (float): Classification accuracy on the evaluation test set.
+            info_dict (dict): Dictionary of additional information to save in the checkpoint.
         """
         chkpt_name = f"{self.expt_name}-epoch_{epoch:04d}.pt"
         chkpt_file = Path(self.ckpt_dir) / chkpt_name
@@ -170,8 +186,7 @@ class Checkpoint:
             "optimizer": self.optimizer.state_dict(),
             "lr_scheduler": self.lr_scheduler.state_dict(),
             "epoch": epoch,
-            "losses": {"contra_train": train_loss},
-            "eval_acc": eval_acc,
+            "info_dict": {**info_dict},
         }
 
         torch.save(checkpoint, chkpt_file)
@@ -189,37 +204,27 @@ class Checkpoint:
             self.optimizer.load_state_dict(checkpoint["optimizer"])
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
             self.epoch = checkpoint["epoch"]
-            self.logger.message(
-                f"Loaded model at epoch={checkpoint['epoch']} with "
-                f"validation accuracy: {checkpoint['eval_acc']:.4f}"
-            )
+            self.info_dict = checkpoint["info_dict"]
+            self.logger.message(f"Loaded model at epoch={checkpoint['epoch']}")
         else:
             raise FileNotFoundError(f"Checkpoint file {ckpt_file} not found")
 
     @staticmethod
     def load_model(
-        epoch: int,
-        ckpt_dir: str | Path,
+        ckpt_file: str | Path,
         model: torch.nn.Module,
         device: str | torch.device = "cpu",
     ) -> torch.nn.Module:
         """Load model state from checkpoint.
 
         Args:
-            epoch (int): Epoch number. Must be in the checkpoint directory.
-            ckpt_dir (str | Path): Checkpoint directory containing the training checkpoints.
+            ckpt_file (str | Path): Checkpoint file to load.
             model (torch.nn.Module): Model to load the state into.
             device (str | torch.device, optional): Device to load the model state onto.
 
         Returns:
             torch.nn.Module: Model with updated state.
         """
-        ckpt_dir = Path(ckpt_dir)
-        try:
-            ckpt_file = next(iter(Path(ckpt_dir / "ckpts").glob(f"*epoch_{epoch:03}.pt")))
-        except IndexError as e:
-            raise FileNotFoundError(f"Checkpoint file for epoch {epoch} not found") from e
-
         ckpt = torch.load(ckpt_file, map_location=torch.device(device))
         model.load_state_dict(ckpt["model"])
 
