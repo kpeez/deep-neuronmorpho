@@ -1,10 +1,9 @@
 # model config
 dirs:
   graph_data: "../datasets/demo_gnn_data/processed/dgl_datasets"
-  expt_results: "../datasets/demo_gnn_data/expt_results/"
+  expt_results: "../datasets/demo_gnn_data/expt_results/supervised"
 
 datasets:
-  contra_train: "demo-neuromorpho_benchmark_radius-all"
   eval_train: "demo-neuromorpho_benchmark_radius-train"
   eval_test: "demo-neuromorpho_benchmark_radius-test"
 
@@ -13,7 +12,7 @@ model:
   num_gnn_layers: 5
   num_mlp_layers: 2
   hidden_dim: 64
-  output_dim: 64
+  output_dim: 7
   dropout_prob: 0.5
   attrs_streams:
     geometric: [0, 2] # x, y, z
