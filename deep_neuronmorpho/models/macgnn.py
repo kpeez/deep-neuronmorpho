@@ -53,9 +53,6 @@ class MACGNN(nn.Module):
             self.stream_aggregation = self.args.stream_aggregation
 
         self.gnn_streams = nn.ModuleDict()
-
-        # if
-
         # Initialize the GIN layers
         for stream_name, stream_dims in self.attrs_streams.items():
             input_dim = len(stream_dims)
@@ -91,7 +88,7 @@ class MACGNN(nn.Module):
             nn.BatchNorm1d(embedding_dim),
             nn.PReLU(),
             nn.Linear(embedding_dim, self.output_dim),
-            nn.BatchNorm1d(self.output_dim),
+            # nn.BatchNorm1d(self.output_dim),
         )
 
     def process_stream(

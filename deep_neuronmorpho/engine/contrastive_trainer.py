@@ -28,8 +28,8 @@ class ContrastiveTrainer:
     Methods:
         fit():
             Train the model for a given number of epochs.
-        load_checkpoint():
-            Load the best model checkpoint from disk.
+        load_checkpoint(checkpoint_name: str):
+            Load a checkpoint from file.
     """
 
     def __init__(
@@ -58,13 +58,13 @@ class ContrastiveTrainer:
             decay_rate=self.cfg.training.lr_decay_rate,
         )
         self.expt_name, expt_dir = setup_experiment_results(self.cfg)
-        self.logger = EventLogger(expt_dir / "logs", expt_name=self.expt_name)
+        self.logger = EventLogger(f"{expt_dir}/logs", expt_name=self.expt_name)
         self.checkpoint = Checkpoint(
             model=self.model,
             expt_name=self.expt_name,
             optimizer=self.optimizer,
             lr_scheduler=self.lr_scheduler,
-            ckpt_dir=expt_dir / "ckpts",
+            ckpt_dir=f"{expt_dir}/ckpts",
             device=self.device,
             logger=self.logger,
         )
@@ -178,8 +178,11 @@ class ContrastiveTrainer:
                 )
                 self.checkpoint.save(
                     epoch=epoch,
-                    train_loss=train_loss,
-                    eval_acc=eval_acc,
+                    info_dict={
+                        "train_loss": train_loss,
+                        "eval_acc": eval_acc,
+                        "best_eval_acc": self.best_eval_acc,
+                    },
                 )
 
             if train_loss < self.best_train_loss:

@@ -76,10 +76,23 @@ def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.Dat
         columns=[f"dim_{i}" for i in range(embeds.shape[1])],
     )
     pattern = r"[^-]+-(.*?)(?:-resampled_[^\.]+)?$"
-    df_embed.insert(
-        0, "neuron", [re.search(pattern, graph.id).group(1) for graph in dataset.graphs]
-    )
+    neuron_names = []
+    for graph in dataset.graphs:
+        match = re.search(pattern, graph.id)
+        if match:
+            neuron_names.append(match.group(1))
+        else:
+            neuron_names.append("N/A")
+
+    df_embed.insert(0, "neuron", neuron_names)
     df_embed.insert(1, "target", labels)
-    df_embed.insert(2, "labels", [dataset.glabel_dict[i.item()] for i in labels])
+    df_embed.insert(
+        2,
+        "labels",
+        [
+            dataset.glabel_dict[i.item()] if dataset.glabel_dict is not None else None
+            for i in labels
+        ],
+    )
 
     return df_embed
