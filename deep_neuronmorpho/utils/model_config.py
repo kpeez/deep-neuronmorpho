@@ -17,7 +17,7 @@ class Datasets(BaseModel):
 
     contra_train: str | None = None
     eval_train: str
-    eval_test: str
+    eval_test: str | None = None
 
 
 class Model(BaseModel):
@@ -42,7 +42,7 @@ class Training(BaseModel):
     """Parameters for training the model."""
 
     batch_size: int
-    contra_loss_temp: float
+    contra_loss_temp: float | None = None
     eval_interval: int
     max_epochs: int
     patience: int
@@ -76,7 +76,7 @@ class Config(BaseModel):
     datasets: Datasets
     model: Model
     training: Training
-    augmentation: Augmentation
+    augmentation: Augmentation | None = None
 
     @classmethod
     def from_yaml(cls, config_file: str | Path) -> "Config":
