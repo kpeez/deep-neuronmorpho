@@ -28,8 +28,8 @@ class ContrastiveTrainer:
     Methods:
         fit():
             Train the model for a given number of epochs.
-        load_checkpoint():
-            Load the best model checkpoint from disk.
+        load_checkpoint(checkpoint_name: str):
+            Load a checkpoint from file.
     """
 
     def __init__(
@@ -178,8 +178,11 @@ class ContrastiveTrainer:
                 )
                 self.checkpoint.save(
                     epoch=epoch,
-                    train_loss=train_loss,
-                    eval_acc=eval_acc,
+                    info_dict={
+                        "train_loss": train_loss,
+                        "eval_acc": eval_acc,
+                        "best_eval_acc": self.best_eval_acc,
+                    },
                 )
 
             if train_loss < self.best_train_loss:
