@@ -1,4 +1,11 @@
-from .trainer import ContrastiveTrainer
-from .trainer_utils import Checkpoint, setup_dataloaders
+from .contrastive_trainer import ContrastiveTrainer
+from .supervised_trainer import SupervisedTrainer
+from .trainer_utils import Checkpoint, setup_common_utilities, setup_dataloaders
 
-__all__ = ["ContrastiveTrainer", "setup_dataloaders", "Checkpoint"]
+__all__ = [
+    "SupervisedTrainer",
+    "ContrastiveTrainer",
+    "Checkpoint",
+    "setup_dataloaders",
+    "setup_common_utilities",
+]
