@@ -317,6 +317,7 @@ class NeuronGraphDataset(DGLDataset):
         if self.label_file:
             self.logger.message(f"Adding labels from {self.label_file} to graphs.")
             self.add_graph_labels()
+            self.num_classes = len(self.glabel_dict)
 
     def save(self, filename: str | None = None) -> None:
         """Save the dataset to disk."""
@@ -326,6 +327,7 @@ class NeuronGraphDataset(DGLDataset):
         label_dict = {"labels": self.labels}
         info_dict = {
             "graph_ids": self.graph_ids,
+            "num_classes": self.num_classes or None,
             "glabel_dict": self.glabel_dict,
             "self_loop": self.self_loop,
             "rescaled": bool(self.scaler),
@@ -348,6 +350,7 @@ class NeuronGraphDataset(DGLDataset):
         self.graph_ids = info_dict.get("graph_ids", None)
         self.labels = label_dict.get("labels", None)
         self.glabel_dict = info_dict.get("glabel_dict", None)
+        self.num_classes = info_dict.get("num_classes", None)
         self.self_loop = info_dict.get("self_loop", None)
         self.rescaled = info_dict.get("rescaled", None)
         self.label_file = info_dict.get("label_file", None)
