@@ -1,5 +1,6 @@
 """Create training, validation, and test splits of the dataset."""
 import random
+import re
 import shutil
 from pathlib import Path
 from typing import Tuple
@@ -49,6 +50,39 @@ def graph_is_broken(graph: DGLGraph) -> bool:
     nan_indices = torch.nonzero(torch.isnan(g_ndata))
 
     return len(nan_indices[:, 1].unique()) > 0
+
+
+def add_graph_labels(label_file: str | Path, graphs: list[DGLGraph]) -> tuple[torch.Tensor, dict]:
+    """Add graph labels to the dataset.
+
+    Args:
+        label_file (str | Path): Path to the label file.
+        graphs (list[DGLGraph]): List of graphs in the dataset.
+
+    Returns:
+        tuple[torch.Tensor, dict]: A tuple containing the graph labels and a dictionary mapping
+        graph labels to integers.
+    """
+    label_data = pd.read_csv(label_file)
+    unique_labels = label_data["dataset"].unique()
+    glabel_dict = dict(zip(range(len(unique_labels)), unique_labels, strict=True))
+    neuron_label_dict = dict(zip(label_data["neuron_name"], label_data["dataset"], strict=True))
+    glabel_dict_rev = {v: k for k, v in glabel_dict.items()}
+    # Extract neuron names from graph ids and assign labels
+    pattern = r"[^-]+-(.*?)(?:-resampled_[^\.]+)?$"
+    labels = []
+    for graph in graphs:
+        match = re.search(pattern, graph.id)
+        if match:
+            neuron_name = match.group(1)
+            neuron_label = neuron_label_dict.get(str(neuron_name))
+            labels.append(glabel_dict_rev.get(str(neuron_label), -1))
+        else:
+            labels.append(-1)
+
+    labels = torch.tensor(labels, dtype=torch.long)
+
+    return labels, glabel_dict
 
 
 def parse_dataset_log(logfile: str | Path, metadata_file: str | Path) -> pd.DataFrame:
