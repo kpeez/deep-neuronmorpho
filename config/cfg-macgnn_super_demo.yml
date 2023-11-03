@@ -26,7 +26,7 @@ model:
 
 # Training configuration
 training:
-  batch_size: 256
+  batch_size: 128
   eval_interval: 1
   max_epochs: 5
   patience: 60
