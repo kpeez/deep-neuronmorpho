@@ -15,7 +15,11 @@ def train_model(
 ) -> None:
     """Train a model using a configuration file."""
     conf, device = setup_common_utilities(config_file, gpu)
-    dataset = NeuronGraphDataset(conf.dirs.graph_data, dataset_name=conf.datasets.eval_train)
+    dataset = NeuronGraphDataset(
+        conf.dirs.graph_data,
+        dataset_name=conf.datasets.eval_train,
+        dataset_path=conf.dirs.graph_data,
+    )
     # create model and trainer
     # TODO: add support for other models (parse model name from config file)
     model = MACGNN(conf.model)
