@@ -38,11 +38,13 @@ class ContrastiveTrainer:
         config: Config,
         dataloaders: dict[str, GraphDataLoader],
         device: torch.device | str,
+        node_attrs: str = "nattrs",
     ):
         self.device = device
         self.cfg = config
         self.model = model.to(device)
         self.dataloaders = dataloaders
+        self.node_attrs = node_attrs
         self.model_name = self.cfg.model.name
         self.loss_fn = NTXEntLoss(self.cfg.training.contra_loss_temp)
         self.augmenter = GraphAugmenter(self.cfg.augmentation)
@@ -73,18 +75,20 @@ class ContrastiveTrainer:
         self.eval_interval = self.cfg.training.eval_interval
         self.best_eval_acc = 0.0
 
-    def _calculate_loss(self, batch: DGLGraph) -> float:
+    def _calculate_loss(self, batch_graphs: DGLGraph, batch_feats: Tensor) -> float:
         """Calculate the loss for a batch.
 
         Args:
-            batch (DGLGraph): Batch of graphs.
+            batch_graphs (DGLGraph): Batch of graphs.
+            batch_feats (Tensor): Batch of node features.
 
         Returns:
             float: The loss for the batch.
         """
-        ypred = self.model(batch)
-        augmented_batch = self.augmenter.augment_batch(batch)
-        ypred_aug = self.model(augmented_batch)
+        ypred = self.model(batch_graphs, batch_feats)
+        augmented_batch = self.augmenter.augment_batch(batch_graphs)
+        augmented_batch_feats = augmented_batch.ndata[self.node_attrs]
+        ypred_aug = self.model(augmented_batch, augmented_batch_feats)
         loss = self.loss_fn(ypred, ypred_aug)
 
         return loss
@@ -94,8 +98,10 @@ class ContrastiveTrainer:
         self.model.train()
         total_loss = 0.0
         for raw_batch in ProgressBar(self.dataloaders["contra_train"], desc="Processing batch:"):
-            batch = raw_batch.to(self.device)
-            loss = self._calculate_loss(batch)
+            batch_graphs = raw_batch.to(self.device)
+            batch_feats = batch_graphs.ndata[self.node_attrs]
+            batch_feats = batch_feats.to(self.device)
+            loss = self._calculate_loss(batch_graphs, batch_feats)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -115,12 +121,16 @@ class ContrastiveTrainer:
             ):
                 train_batch, train_labels = raw_train_batch
                 train_batch = train_batch.to(self.device)
-                tensor_embeddings["train"].append(self.model(train_batch))
+                train_batch_feats = train_batch.ndata[self.node_attrs]
+                train_batch_feats = train_batch_feats.to(self.device)
+                tensor_embeddings["train"].append(self.model(train_batch, train_batch_feats))
                 tensor_labels["train"].append(train_labels)
                 if raw_test_batch is not None:
                     test_batch, test_labels = raw_test_batch
                     test_batch = test_batch.to(self.device)
-                    tensor_embeddings["test"].append(self.model(test_batch))
+                    test_batch_feats = test_batch.ndata[self.node_attrs]
+                    test_batch_feats = test_batch_feats.to(self.device)
+                    tensor_embeddings["test"].append(self.model(test_batch, test_batch_feats))
                     tensor_labels["test"].append(test_labels)
 
         embeddings = {
