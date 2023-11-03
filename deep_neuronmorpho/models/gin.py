@@ -18,7 +18,7 @@ class GIN(nn.Module):
 
     From [How Powerful are Graph Neural Networks?](https://arxiv.org/abs/1810.00826).
 
-    At leach layer, the node representations are updated by:
+    At each layer, the node representations are updated by:
     - aggregating the representations of their neighbors
     - applying a multilayer perceptron (MLP) to the aggregated representation
 
