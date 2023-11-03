@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime as dt
 from logging import Logger
 from pathlib import Path
-from typing import Any, Callable, Collection
+from typing import Any, Collection
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -119,12 +119,54 @@ class EventLogger:
             raise ValueError(f"Unknown logging level: {level}")
 
 
-@dataclass
-class LogData:
-    """Class to parse and represent training log data.
+def extract_data(
+    content: str,
+    pattern: str,
+    num_values: int = 1,
+) -> pd.Series | tuple[pd.Series, pd.Series]:
+    """Extract data from string using regex pattern.
 
-    Parses the log file to extract training losses and evaluation accuracies.
-    Provides a method (`plot_results()`) to visualize the extracted data.
+    Args:
+        content (str):  The string to extract data from.
+        pattern (str): The regex pattern to use for extraction.
+        num_values (int, optional): Number of values to extract per line. Defaults to 1.
+
+    Returns:
+        pd.Series | tuple[pd.Series, pd.Series]: A pd.Series object containing the extracted data.
+    """
+    data = tuple(pd.Series(dtype=float) for _ in range(num_values))
+    for match in re.finditer(pattern, content):
+        epoch = int(match.group(1))
+        values = tuple(float(match.group(i)) for i in range(2, num_values + 2))
+        for series, value in zip(data, values, strict=True):
+            series[epoch] = value
+    return data if num_values > 1 else data[0]
+
+
+def plot_series(
+    data: pd.Series,
+    title: str,
+    ylabel: str,
+    ax: plt.Axes | None = None,
+    **kwargs,
+) -> None:
+    """Plot a pd.Series object."""
+    if not ax:
+        ax = plt.gca()
+
+    ax.plot(data, lw=2, **kwargs)
+    ax.set_title(title, fontsize=16)
+    ax.set_ylabel(ylabel, fontsize=14)
+    ax.set_xlabel("Epoch", fontsize=14)
+    ax.tick_params(axis="both", labelsize=12)
+    plt.tight_layout()
+
+
+@dataclass
+class ContrastiveLogData:
+    """Parses the log file to extract training losses and evaluation accuracies.
+
+    Also provides a method (`plot_results()`) to visualize the extracted data.
 
     Attributes:
         file (Path): The path to the log file.
@@ -143,6 +185,8 @@ class LogData:
         self.file = Path(self.file)
         if not self.file.exists() or self.file.stat().st_size == 0:
             raise ValueError(f"{self.file} is missing or empty.")
+        self._train_loss_pattern = r"Epoch (\d+)/(?:\d+): Train Loss: (\d+\.\d+)"
+        self._eval_acc_pattern = r"Epoch (\d+)/(?:\d+): Benchmark Test accuracy: (\d+\.\d+)"
         self._parse_log_file()
 
     def __repr__(self) -> str:
@@ -157,24 +201,8 @@ class LogData:
     def _parse_log_file(self) -> None:
         with self.file.open("r") as f:
             content = f.read()
-        self._extract_data(content, self._extract_train_loss)
-        self._extract_data(content, self._extract_eval_acc)
-
-    def _extract_data(self, content: str, extraction_func: Callable) -> None:
-        for match in re.finditer(extraction_func.pattern, content):
-            extraction_func(match)
-
-    def _extract_train_loss(self, match: re.Match) -> None:
-        epoch, loss = int(match.group(1)), float(match.group(2))
-        self.train_loss[epoch] = loss
-
-    _extract_train_loss.pattern = r"Epoch (\d+)/(?:\d+): Train Loss: (\d+\.\d+)"
-
-    def _extract_eval_acc(self, match: re.Match) -> None:
-        epoch, acc = int(match.group(1)), float(match.group(2))
-        self.eval_acc[epoch] = acc
-
-    _extract_eval_acc.pattern = r"Epoch (\d+)/(?:\d+): Benchmark Test accuracy: (\d+\.\d+)"
+        self.train_loss = extract_data(content=content, pattern=self._train_loss_pattern)
+        self.eval_acc = extract_data(content=content, pattern=self._eval_acc_pattern)
 
     @property
     def expt_name(self) -> str:
@@ -194,17 +222,92 @@ class LogData:
     def plot_results(self) -> None:
         """Plot training loss and evaluation accuracy."""
         fig, axs = plt.subplots(nrows=2, figsize=(10, 6))
-        axs[0].plot(self.train_loss, color="black", lw=2)
-        axs[0].set_title("Training Loss", fontsize=16)
-        axs[0].set_ylabel("Loss", fontsize=14)
-        axs[0].tick_params(axis="both", labelsize=12)
-
-        axs[1].plot(self.eval_acc, color="red", lw=2)
-        axs[1].set_title("Benchmark Classification Accuracy", fontsize=16)
-        axs[1].set_ylabel("Accuracy", fontsize=14)
-        axs[1].set_xlabel("Epoch", fontsize=14)
-        axs[1].tick_params(axis="both", labelsize=12)
-
+        plot_series(self.train_loss, "Training Loss", "Loss", color="black", ax=axs[0])
+        plot_series(
+            self.eval_acc, "Benchmark Classification Accuracy", "Accuracy", color="red", ax=axs[1]
+        )
         fig.suptitle(f"Training results: {self.expt_name}", fontsize=18)
+        plt.tight_layout()
 
+
+@dataclass
+class SupervisedLogData:
+    """Parses the log file to extract losses and evaluation accuracies.
+
+    Also provides a method (`plot_results()`) to visualize the extracted data.
+
+    Attributes:
+        file (Path): The path to the log file.
+        train_loss (pd.Series): Training loss values.
+        val_loss (pd.Series): Validation loss values.
+        train_acc (pd.Series): Training accuracy values.
+        val_acc (pd.Series): Validation accuracy values.
+        expt_name (str): The name of the model.
+    """
+
+    file: Path
+    train_loss: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+    val_loss: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+    train_acc: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+    val_acc: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
+    _expt_name: str | None = field(init=False, default=None)
+
+    def __post_init__(self) -> None:
+        """Initialize object."""
+        self.file = Path(self.file)
+        if not self.file.exists() or self.file.stat().st_size == 0:
+            raise ValueError(f"{self.file} is missing or empty.")
+        self._loss_pattern = r"Epoch (\d+)/(?:\d+): Train Loss: (\d+\.\d+) \| Val Loss: (\d+\.\d+)"
+        self._acc_pattern = r"Epoch (\d+)/(?:\d+): Train acc: (\d+\.\d+) \| Val acc: (\d+\.\d+)"
+
+        self._parse_log_file()
+
+    def __repr__(self) -> str:
+        """String representation of the logfile."""
+        train_loss_last = self.train_loss.iat[-1] if not self.train_loss.empty else "N/A"
+        val_loss_last = self.val_loss.iat[-1] if not self.val_loss.empty else "N/A"
+        train_acc_last = self.train_acc.iat[-1] if not self.train_acc.empty else "N/A"
+        val_acc_last = self.val_acc.iat[-1] if not self.val_acc.empty else "N/A"
+
+        return f"""{self.__class__.__name__}(file={self.file!r},
+        expt_name={self.expt_name!r},
+        last_train_loss={train_loss_last}, last_val_loss={val_loss_last},
+        last_train_acc= {train_acc_last}, last_val_acc={val_acc_last})
+        """
+
+    def _parse_log_file(self) -> None:
+        with self.file.open("r") as f:
+            content = f.read()
+        self.train_loss, self.val_loss = extract_data(
+            content=content, pattern=self._loss_pattern, num_values=2
+        )
+        self.train_acc, self.val_acc = extract_data(
+            content=content, pattern=self._acc_pattern, num_values=2
+        )
+
+    @property
+    def expt_name(self) -> str:
+        """Get model name from the log file name."""
+        if self._expt_name is None:
+            pattern = r"(?<=\d{4}_\d{2}_\d{2}_\d{2}h_\d{2}m-).+(?=.log)"
+            match = re.search(pattern, self.file.name)
+            self._expt_name = match.group() if match else "N/A"
+
+        return self._expt_name
+
+    @property
+    def total_epochs(self) -> int:
+        """Get the total number of epochs model was trained for."""
+        return len(self.train_loss)
+
+    def plot_results(self) -> None:
+        """Plot training and validation loss and accuracy."""
+        fig, axs = plt.subplots(nrows=2, figsize=(10, 6))
+        plot_series(self.train_loss, "", "Loss", ax=axs[0], label="Train loss")
+        plot_series(self.val_loss, "", "Loss", ax=axs[0], label="Validation loss")
+        plot_series(self.train_acc, "", "Accuracy", ax=axs[1], label="Train acc.")
+        plot_series(self.val_acc, "", "Accuracy", ax=axs[1], label="Validation acc.")
+        axs[0].legend()
+        axs[1].legend()
+        fig.suptitle(f"Training results: {self.expt_name}", fontsize=18)
         plt.tight_layout()
