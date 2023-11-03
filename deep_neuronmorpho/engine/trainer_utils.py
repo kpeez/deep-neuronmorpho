@@ -117,7 +117,9 @@ def setup_dataloaders(
     data_dir = conf.dirs.graph_data
     graph_datasets = {
         dataset: NeuronGraphDataset(
-            graphs_path=data_dir, dataset_name=getattr(conf.datasets, dataset)
+            graphs_path=data_dir,
+            dataset_name=getattr(conf.datasets, dataset),
+            dataset_path=data_dir,
         )
         for dataset in datasets
     }
@@ -169,7 +171,7 @@ class Checkpoint:
         self.device = device
         self.logger = logger
         self.epoch = None
-        self.info_dict = {}
+        self.info_dict: dict[str, Any] = {}
 
     def save(self, epoch: int, info_dict: dict[str, Any]) -> None:
         """Save model checkpoint.
