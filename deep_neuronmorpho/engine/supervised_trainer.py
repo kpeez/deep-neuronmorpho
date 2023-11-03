@@ -136,15 +136,15 @@ class SupervisedTrainer:
         Returns:
             float: Accuracy of the model on the given dataloader.
         """
-        self.model.eval()
         correct = 0
-        for batched_graphs, batched_label in dataloader:
-            graphs = batched_graphs.to(self.device)
-            labels = batched_label.to(self.device)
-            logits = self.model(graphs)
-            _, preds = torch.max(logits, dim=1)
-            correct += torch.sum(preds == labels).item()
-
+        self.model.eval()
+        with torch.inference_mode():
+            for batched_graphs, batched_label in dataloader:
+                graphs = batched_graphs.to(self.device)
+                labels = batched_label.to(self.device)
+                logits = self.model(graphs)
+                _, preds = torch.max(logits, dim=1)
+                correct += torch.sum(preds == labels).item()
         total_samples = (
             self.num_train_samples if dataloader == self.train_loader else self.num_val_samples
         )
