@@ -3,10 +3,11 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from dgl import DGLGraph
 from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
 from sklearn.model_selection import train_test_split
-from torch import nn
+from torch import Tensor, nn
 from torch.utils.data.sampler import SequentialSampler, SubsetRandomSampler
 from torch.utils.tensorboard import SummaryWriter
 
@@ -41,11 +42,13 @@ class SupervisedTrainer:
         config: Config,
         dataset: DGLDataset,
         device: torch.device | str,
+        node_attrs: str = "nattrs",
     ):
         self.device = device
         self.cfg = config
         self.model = model.to(device)
         self.loss_fn = nn.CrossEntropyLoss()
+        self.node_attrs = node_attrs
         self.dataset = dataset
         self.model_name = self.cfg.model.name
         self.batch_size = self.cfg.training.batch_size
@@ -76,7 +79,7 @@ class SupervisedTrainer:
         train_idx, val_idx = train_test_split(
             indices,
             test_size=0.2,
-            random_state=42,
+            random_state=0,
             stratify=self.dataset.labels,
         )
         self.train_loader = GraphDataLoader(
@@ -97,6 +100,20 @@ class SupervisedTrainer:
         self.best_train_loss, self.best_val_loss = float("inf"), float("inf")
         self.best_train_acc, self.best_val_acc = 0.0, 0.0
 
+    def _calculate_loss(
+        self,
+        model: nn.Module,
+        batch_graphs: DGLGraph,
+        batch_labels: Tensor,
+    ) -> float:
+        batch = batch_graphs.to(self.device)
+        nattrs = batch.ndata[self.node_attrs]
+        labels = batch_labels.to(self.device, dtype=torch.long)
+        logits = model(batch, nattrs)
+        loss = self.loss_fn(logits, labels)
+
+        return loss
+
     def train_step(self) -> tuple[float, float]:
         """Train the model on the training set."""
         self.model.train()
@@ -105,23 +122,17 @@ class SupervisedTrainer:
         for train_batched_graph, train_batched_labels in ProgressBar(
             self.train_loader, desc="Training batches:"
         ):
-            train_graph = train_batched_graph.to(self.device)
-            train_labels = train_batched_labels.to(self.device, dtype=torch.long)
-            train_logits = self.model(train_graph)
-            train_loss = self.loss_fn(train_logits, train_labels)
+            train_loss = self._calculate_loss(self.model, train_batched_graph, train_batched_labels)
             self.optimizer.zero_grad()
             train_loss.backward()
             self.optimizer.step()
             total_train_loss += train_loss.item()
         total_train_loss /= len(self.train_loader)
         # val loss
-        for val_batched_graph, val__batch_labels in ProgressBar(
+        for val_batch_graph, val_batch_labels in ProgressBar(
             self.val_loader, desc="Validation batches:"
         ):
-            val_graph = val_batched_graph.to(self.device)
-            val_labels = val__batch_labels.to(self.device, dtype=torch.long)
-            val_logits = self.model(val_graph)
-            val_loss = self.loss_fn(val_logits, val_labels)
+            val_loss = self._calculate_loss(self.model, val_batch_graph, val_batch_labels)
             total_val_loss += val_loss.item()
         total_val_loss /= len(self.val_loader)
 
@@ -137,19 +148,19 @@ class SupervisedTrainer:
             float: Accuracy of the model on the given dataloader.
         """
         correct = 0
+        total = 0
         self.model.eval()
         with torch.inference_mode():
             for batched_graphs, batched_label in dataloader:
                 graphs = batched_graphs.to(self.device)
+                nattrs = graphs.ndata[self.node_attrs]
                 labels = batched_label.to(self.device)
-                logits = self.model(graphs)
+                total += len(labels)
+                logits = self.model(graphs, nattrs)
                 _, preds = torch.max(logits, dim=1)
                 correct += torch.sum(preds == labels).item()
-        total_samples = (
-            self.num_train_samples if dataloader == self.train_loader else self.num_val_samples
-        )
 
-        return correct / total_samples
+        return correct / total
 
     def fit(
         self,
