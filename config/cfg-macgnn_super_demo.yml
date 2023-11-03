@@ -8,7 +8,7 @@ datasets:
   eval_test: "demo-neuromorpho_benchmark_radius-test"
 
 model:
-  name: "macgnn_demo"
+  name: "macgnn_super_demo"
   num_gnn_layers: 5
   num_mlp_layers: 2
   hidden_dim: 64
