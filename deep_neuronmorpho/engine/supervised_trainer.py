@@ -188,7 +188,7 @@ class SupervisedTrainer:
         writer = SummaryWriter(log_dir=self.logger.log_dir)
         num_epochs = self.max_epochs if epochs is None else epochs
         self.logger.message(
-            f"Training {self.model_name} on '{self.device}' for {num_epochs - start_epoch} epochs."
+            f"Training {self.expt_name} on '{self.device}' for {num_epochs - start_epoch} epochs."
         )
         bad_epochs = 0
         for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):
