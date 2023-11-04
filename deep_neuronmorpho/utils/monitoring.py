@@ -148,7 +148,7 @@ def plot_series(
     title: str,
     ylabel: str,
     ax: plt.Axes | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> None:
     """Plot a pd.Series object."""
     if not ax:
