@@ -47,7 +47,7 @@ class ContrastiveTrainer:
         self.node_attrs = node_attrs
         self.model_name = self.cfg.model.name
         self.loss_fn = NTXEntLoss(self.cfg.training.contra_loss_temp)
-        self.augmenter = GraphAugmenter(self.cfg.augmentation)
+        self.augmenter = GraphAugmenter(self.cfg.augmentation)  # type: ignore
         self.optimizer = get_optimizer(
             model=self.model,
             optimizer_name=self.cfg.training.optimizer,
@@ -85,11 +85,11 @@ class ContrastiveTrainer:
         Returns:
             float: The loss for the batch.
         """
-        ypred = self.model(batch_graphs, batch_feats)
-        augmented_batch = self.augmenter.augment_batch(batch_graphs)
-        augmented_batch_feats = augmented_batch.ndata[self.node_attrs]
-        ypred_aug = self.model(augmented_batch, augmented_batch_feats)
-        loss = self.loss_fn(ypred, ypred_aug)
+        aug1_batch = self.augmenter.augment_batch(batch_graphs)
+        aug2_batch = self.augmenter.augment_batch(batch_graphs)
+        aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs])
+        aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs])
+        loss = self.loss_fn(aug1_embeds, aug2_embeds)
 
         return loss
 
