@@ -134,13 +134,13 @@ def extract_data(
     Returns:
         pd.Series | tuple[pd.Series, pd.Series]: A pd.Series object containing the extracted data.
     """
-    data = tuple(pd.Series(dtype=float) for _ in range(num_values))
+    data: tuple = tuple(pd.Series(dtype=float) for _ in range(num_values))
     for match in re.finditer(pattern, content):
         epoch = int(match.group(1))
         values = tuple(float(match.group(i)) for i in range(2, num_values + 2))
         for series, value in zip(data, values, strict=True):
             series[epoch] = value
-    return data if num_values > 1 else data[0]
+    return data if num_values > 1 else data[0]  # type: ignore
 
 
 def plot_series(
@@ -201,8 +201,8 @@ class ContrastiveLogData:
     def _parse_log_file(self) -> None:
         with self.file.open("r") as f:
             content = f.read()
-        self.train_loss = extract_data(content=content, pattern=self._train_loss_pattern)
-        self.eval_acc = extract_data(content=content, pattern=self._eval_acc_pattern)
+        self.train_loss = extract_data(content=content, pattern=self._train_loss_pattern)  # type: ignore
+        self.eval_acc = extract_data(content=content, pattern=self._eval_acc_pattern)  # type: ignore
 
     @property
     def expt_name(self) -> str:

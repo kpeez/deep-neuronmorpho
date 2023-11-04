@@ -31,9 +31,9 @@ class NTXEntLoss(nn.Module):
         ```
     """
 
-    def __init__(self, temperature: float = 1.0) -> None:
+    def __init__(self, temperature: float | None = None) -> None:
         super().__init__()
-        self.temperature = temperature
+        self.temperature = temperature or 1.0
         self.cosine_similarity = nn.CosineSimilarity(dim=-1)
         self.mask: Tensor | None = None
 

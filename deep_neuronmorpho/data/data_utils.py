@@ -70,17 +70,17 @@ def add_graph_labels(label_file: str | Path, graphs: list[DGLGraph]) -> tuple[to
     glabel_dict_rev = {v: k for k, v in glabel_dict.items()}
     # Extract neuron names from graph ids and assign labels
     pattern = r"[^-]+-(.*?)(?:-resampled_[^\.]+)?$"
-    labels = []
+    _labels = []
     for graph in graphs:
         match = re.search(pattern, graph.id)
         if match:
             neuron_name = match.group(1)
             neuron_label = neuron_label_dict.get(str(neuron_name))
-            labels.append(glabel_dict_rev.get(str(neuron_label), -1))
+            _labels.append(glabel_dict_rev.get(str(neuron_label), -1))
         else:
-            labels.append(-1)
+            _labels.append(-1)
 
-    labels = torch.tensor(labels, dtype=torch.long)
+    labels = torch.tensor(_labels, dtype=torch.long)
 
     return labels, glabel_dict
 

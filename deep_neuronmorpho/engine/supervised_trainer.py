@@ -158,7 +158,7 @@ class SupervisedTrainer:
                 total += len(labels)
                 logits = self.model(graphs, nattrs)
                 _, preds = torch.max(logits, dim=1)
-                correct += torch.sum(preds == labels).item()
+                correct += torch.sum(preds == labels).item()  # type: ignore
 
         return correct / total
 
