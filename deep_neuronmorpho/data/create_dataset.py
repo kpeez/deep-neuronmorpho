@@ -17,13 +17,14 @@ from .data_utils import add_graph_labels, compute_graph_attrs, graph_is_broken
 from .process_swc import swc_to_neuron_tree
 
 
-def compute_edge_weights(G: nx.Graph, epsilon: float = 1.0) -> nx.Graph:
+def compute_edge_weights(G: nx.Graph, path_idx: int, epsilon: float = 1.0) -> nx.Graph:
     """Compute edge attention weights for a graph.
 
     Based on the method described in [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206).
 
     Args:
         G (nx.Graph): Graph to compute edge weights for.
+        path_idx (int): Index of path distance in node attributes.
         epsilon (float, optional): Small constant to prevent division by zero. Defaults to 1.0.
 
     Returns:
@@ -32,7 +33,9 @@ def compute_edge_weights(G: nx.Graph, epsilon: float = 1.0) -> nx.Graph:
     for u, v in G.edges:
         G.add_edge(v, u)
 
-    node_coeffs = {node: 1.0 / (ndata["nattrs"][5] + epsilon) for node, ndata in G.nodes(data=True)}
+    node_coeffs = {
+        node: 1.0 / (ndata["nattrs"][path_idx] + epsilon) for node, ndata in G.nodes(data=True)
+    }
     for node in G.nodes():
         neighbors = list(G.neighbors(node))
         local_coeffs = np.array([node_coeffs[neighbor] for neighbor in neighbors], dtype=np.float32)
@@ -84,9 +87,9 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
             x,
             y,
             z,
-            neuron_graph.nodes[node]["radius"],  # uncomment to include radius
-            nx.dijkstra_path_length(neuron_graph, 0, node, weight="path_length"),
+            # neuron_graph.nodes[node]["radius"],  # uncomment to include radius
             euclidean((x, y, z), (soma_x, soma_y, soma_z)),
+            nx.dijkstra_path_length(neuron_graph, 0, node, weight="path_length"),
             *angle_stats,
             *branch_stats,
         ]
@@ -96,8 +99,9 @@ def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
     for _, _, edge_data in neuron_graph.edges(data=True):
         del edge_data["euclidean_dist"]
         del edge_data["path_length"]
-
-    neuron_graph = compute_edge_weights(neuron_graph)
+    # get path_idx depending on if we have radius in dataset or not
+    path_idx = 5 if len(neuron_graph.nodes(data=True)[0]["nattrs"]) == 18 else 4
+    neuron_graph = compute_edge_weights(neuron_graph, path_idx=path_idx)
 
     return neuron_graph
 
