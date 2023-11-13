@@ -88,7 +88,9 @@ class GIN(nn.Module):
             edge_weight (Tensor | None, optional): Tensor of edge weights. Defaults to None.
 
         Returns:
-            Tensor: Graph-level representation of the input graph.
+            Tensor: Graph-level representation with output shape is (batch_size, output_dim).
+            Note that if layer_aggregation is 'cat', the output shape is
+            (batch_size, num_layers * output_dim).
         """
         hidden_rep = [h]
         for layer, gin_conv in enumerate(self.gin_layers):
