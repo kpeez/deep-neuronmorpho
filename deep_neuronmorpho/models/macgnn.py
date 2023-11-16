@@ -91,6 +91,12 @@ class MACGNN(nn.Module):
             hidden_dim=embedding_dim,
             num_layers=2,
         )
+        # old embedding layer, used for examining older models
+        # self.graph_embedding = nn.Sequential(
+        #     nn.BatchNorm1d(embedding_dim),
+        #     nn.PReLU(),
+        #     nn.Linear(embedding_dim, self.output_dim),
+        # )
 
     def process_stream(
         self,
