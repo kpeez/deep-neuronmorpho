@@ -15,13 +15,13 @@ model:
   output_dim: 7
   dropout_prob: 0.5
   attrs_streams:
-    geometric: [0, 2] # x, y, z
-    topological: [3, 17] # euc_dist, path_dist, angles/branches
+    geometric: [0, 3] # x, y, z
+    topological: [4, 17] # euc_dist, path_dist, angles/branches
   use_edge_weight: True # attention
   learn_eps: False # learnable eps in GINConv
   neighbor_aggregation: "sum" # "sum", "mean", "max"
   graph_pooling_type: "max" # "sum", "mean", "max"
-  gnn_layer_aggregation: "cat" # ["sum", "mean", "max", "wsum", "cat"]
+  gnn_layer_aggregation: "sum" # ["sum", "mean", "max", "wsum", "cat"]
   stream_aggregation: "wsum" # ["sum", "mean", "max", "wsum", "cat"]
 
 # Training configuration
@@ -31,6 +31,7 @@ training:
   max_epochs: 5
   patience: 60
   lr_init: 0.01
+  random_seed: 42 # optional
   optimizer: "adam"
   lr_scheduler: "step" # ["cosine", "step"]
   lr_decay_steps: 20
