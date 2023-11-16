@@ -5,6 +5,7 @@ from datetime import datetime as dt
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
@@ -12,6 +13,20 @@ from torch import nn, optim
 
 from ..data import NeuronGraphDataset
 from ..utils import Config, EventLogger
+
+
+def setup_seed(seed: int = 42) -> None:
+    """Set the random seed for reproducibility.
+
+    Args:
+        seed (int, optional): The random seed. Defaults to 42.
+    """
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
 
 
 def get_optimizer(
