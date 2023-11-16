@@ -14,7 +14,8 @@ from dgl import DGLGraph
 from torch import Tensor, nn
 
 from ..utils.model_config import Model
-from . import GIN, MLP
+from .gin import GIN
+from .mlp import MLP
 from .model_utils import (
     aggregate_tensor,
     compute_embedding_dim,
