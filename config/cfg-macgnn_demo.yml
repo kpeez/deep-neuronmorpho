@@ -29,6 +29,7 @@ model:
 training:
   batch_size: 256
   contra_loss_temp: 0.2
+  dual_aug_loss: False
   eval_interval: 1
   max_epochs: 5
   patience: 60
