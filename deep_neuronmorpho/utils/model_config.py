@@ -47,6 +47,7 @@ class Training(BaseModel):
     max_epochs: int
     patience: int
     lr_init: float
+    random_seed: int | None = None
     optimizer: str
     lr_scheduler: str
     lr_decay_steps: int
