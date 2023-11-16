@@ -2,7 +2,7 @@
 import typer
 
 from deep_neuronmorpho.data import NeuronGraphDataset
-from deep_neuronmorpho.engine import SupervisedTrainer, setup_common_utilities
+from deep_neuronmorpho.engine import SupervisedTrainer, setup_common_utilities, setup_seed
 from deep_neuronmorpho.models import MACGNN
 
 app = typer.Typer()
@@ -15,6 +15,8 @@ def train_model(
 ) -> None:
     """Train a model using a configuration file."""
     conf, device = setup_common_utilities(config_file, gpu)
+    if conf.training.random_seed is not None:
+        setup_seed(conf.training.random_seed)
     dataset = NeuronGraphDataset(
         conf.dirs.graph_data,
         dataset_name=conf.datasets.eval_train,

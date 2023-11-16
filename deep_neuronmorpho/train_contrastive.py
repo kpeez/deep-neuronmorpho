@@ -2,7 +2,12 @@
 
 import typer
 
-from deep_neuronmorpho.engine import ContrastiveTrainer, setup_common_utilities, setup_dataloaders
+from deep_neuronmorpho.engine import (
+    ContrastiveTrainer,
+    setup_common_utilities,
+    setup_dataloaders,
+    setup_seed,
+)
 from deep_neuronmorpho.models import MACGNN
 
 app = typer.Typer()
@@ -15,6 +20,9 @@ def train_model(
 ) -> None:
     """Train a model using a configuration file."""
     conf, device = setup_common_utilities(config_file, gpu)
+    if conf.training.random_seed is not None:
+        setup_seed(conf.training.random_seed)
+
     dataloaders = setup_dataloaders(
         conf,
         datasets=["contra_train", "eval_train", "eval_test"],
