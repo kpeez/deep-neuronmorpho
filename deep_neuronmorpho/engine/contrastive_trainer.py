@@ -92,9 +92,13 @@ class ContrastiveTrainer:
         """
         aug1_batch = self.augmenter.augment_batch(batch_graphs)
         aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs])
-        aug2_batch = self.augmenter.augment_batch(batch_graphs)
-        aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs])
-        loss = self.loss_fn(aug1_embeds, aug2_embeds)
+        if self.cfg.training.dual_aug_loss:
+            aug2_batch = self.augmenter.augment_batch(batch_graphs)
+            aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs])
+            loss = self.loss_fn(aug1_embeds, aug2_embeds)
+        else:
+            embeds = self.model(batch_graphs, batch_feats)
+            loss = self.loss_fn(embeds, aug1_embeds)
 
         return loss
 
@@ -172,9 +176,10 @@ class ContrastiveTrainer:
         writer = SummaryWriter(log_dir=self.logger.log_dir)
         num_epochs = self.max_epochs if epochs is None else epochs
         self.logger.message(
-            f"Training {self.expt_name} on '{self.device}' "
-            f"for {num_epochs - start_epoch} epochs "
-            f"with random_seed {self.cfg.training.random_seed}."
+            f"| Training {self.expt_name} on '{self.device}' "
+            f"| For {num_epochs - start_epoch} epochs \n"
+            f"| With random_seed: {self.cfg.training.random_seed}. "
+            f"| Loss uses dual augmentation: {self.cfg.training.dual_aug_loss}."
         )
         bad_epochs = 0
         for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):

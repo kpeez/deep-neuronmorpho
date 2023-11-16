@@ -43,15 +43,16 @@ class Training(BaseModel):
 
     batch_size: int
     contra_loss_temp: float | None = None
+    dual_aug_loss: bool | None = False
     eval_interval: int | None = None
     max_epochs: int
     patience: int
-    lr_init: float
-    random_seed: int | None = None
     optimizer: str
+    lr_init: float
     lr_scheduler: str
     lr_decay_steps: int
     lr_decay_rate: float
+    random_seed: int | None = None
 
 
 class AugmentationParams(BaseModel):
