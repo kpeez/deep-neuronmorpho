@@ -3,9 +3,11 @@
 For training models, a model configuration file is required. The configuration file is a YAML file with the following structure:
 
 ```yaml
+dirs:
+  graph_data: "path_to_graph_data_dir"
+  expt_results: "path_to_expt_results_dir"
+
 datasets:
-  metadata: "path_to_metadata_file.csv"
-  root: "path_to_root_data_folder"
   contra_train: "contrastive_training_dataset"
   eval_train: "evaluation_training_dataset"
   eval_test: "evaluation_test_dataset"
@@ -31,14 +33,16 @@ model:
 training:
   batch_size: 64
   contra_loss_temp: 0.2
+  dual_aug_loss: False
   eval_interval: 1
   max_epochs: 400
   patience: 60
-  lr_init: 0.01
   optimizer: "adam"
+  lr_init: 0.01
   lr_scheduler: "step" # ["cosine", "step"]
   lr_decay_steps: 20
   lr_decay_rate: 0.6
+  random_seed: 42 # optional
 
 # Augmentation info
 augmentation:
@@ -51,10 +55,5 @@ augmentation:
     drop_branches:
       prop: 0.02
       deg_power: 1.0
-
-# Output configuration
-output:
-  log_dir: "path_to_logging_dir"
-  ckpt_dir: "path_to_checkpoints_dir"
-
+      path_dist_idx: 4
 ```
