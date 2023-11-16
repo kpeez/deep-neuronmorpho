@@ -14,7 +14,7 @@ from dgl import DGLGraph
 from torch import Tensor, nn
 
 from ..utils.model_config import Model
-from . import GIN
+from . import GIN, MLP
 from .model_utils import (
     aggregate_tensor,
     compute_embedding_dim,
@@ -84,11 +84,11 @@ class MACGNN(nn.Module):
             stream_aggregation=self.stream_aggregation,
         )
 
-        self.graph_embedding = nn.Sequential(
-            nn.BatchNorm1d(embedding_dim),
-            nn.PReLU(),
-            nn.Linear(embedding_dim, self.output_dim),
-            # nn.BatchNorm1d(self.output_dim),
+        self.graph_embedding = MLP(
+            input_dim=embedding_dim,
+            output_dim=self.output_dim,
+            hidden_dim=embedding_dim,
+            num_layers=2,
         )
 
     def process_stream(
