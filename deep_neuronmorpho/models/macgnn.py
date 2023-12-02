@@ -96,6 +96,7 @@ class MACGNN(nn.Module):
         #     nn.BatchNorm1d(embedding_dim),
         #     nn.PReLU(),
         #     nn.Linear(embedding_dim, self.output_dim),
+        #     # nn.BatchNorm1d(self.output_dim),
         # )
 
     def process_stream(
