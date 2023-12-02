@@ -6,7 +6,7 @@ import dgl
 import pandas as pd
 from numpy.typing import NDArray
 from sklearn.model_selection import GridSearchCV
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.svm import SVC
 from torch import nn
 
@@ -35,9 +35,11 @@ def evaluate_embeddings(
     Returns:
         float: Mean accuracy of the classifier on the test set.
     """
-    train_embeddings, test_embeddings = embeddings["train"], embeddings["test"]
+    train_embeds, test_embeds = embeddings["train"], embeddings["test"]
+    scaler = StandardScaler().fit(train_embeds)
+    train_embeds_scaled = scaler.transform(train_embeds)
+    test_embeds_scaled = scaler.transform(test_embeds)
     train_targets, test_targets = targets["train"], targets["test"]
-
     label_encoder = LabelEncoder().fit(train_targets)
     train_labels = label_encoder.transform(train_targets)
     test_labels = label_encoder.transform(test_targets)
@@ -49,9 +51,9 @@ def evaluate_embeddings(
     else:
         clf = SVC(gamma="auto")
 
-    clf.fit(train_embeddings, train_labels)
+    clf.fit(train_embeds_scaled, train_labels)
 
-    return clf.score(test_embeddings, test_labels)
+    return clf.score(test_embeds_scaled, test_labels)
 
 
 def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.DataFrame:
