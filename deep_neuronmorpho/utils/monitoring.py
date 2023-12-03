@@ -311,3 +311,42 @@ class SupervisedLogData:
         axs[1].legend()
         fig.suptitle(f"Training results: {self.expt_name}", fontsize=18)
         plt.tight_layout()
+
+
+@dataclass
+class ExperimentResults:
+    """Dataclass for loading log data from several runs of a contrastive learning experiment."""
+
+    expt_dir: str | Path
+    supervised: bool = False
+
+    def __post_init__(self) -> None:
+        """Load all log files from the experiment directory."""
+        self.expt_dir = Path(self.expt_dir)
+        log_files = [
+            f
+            for d in self.expt_dir.iterdir()
+            if d.is_dir() and d.name != "old_bad_expts"
+            for f in (d / "logs").glob("*.log")
+        ]
+
+        if self.supervised:
+            self.log_data = [SupervisedLogData(file) for file in log_files]
+        else:
+            self.log_data = [ContrastiveLogData(file) for file in log_files]
+
+        self.expts = {log.expt_name: log for log in self.log_data}
+        self.expt_names = list(self.expts.keys())
+
+    def plot_results(self) -> None:
+        """Plot evaluation results for all runs in directory."""
+        for log in self.log_data:
+            log.plot_results()
+
+    def __getitem__(self, key: str) -> ContrastiveLogData | SupervisedLogData:
+        """Get log data for a specific experiment name."""
+        return self.expts[key]
+
+    def __repr__(self) -> str:
+        """String representation of the ExperimentResults object."""
+        return f"{self.__class__.__name__}(expts: {self.expt_names})"
