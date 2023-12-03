@@ -1,13 +1,12 @@
-"""Supervised learning version of MACGNN."""
+"""Trainer for graph classification tasks."""
 from pathlib import Path
 
 import numpy as np
 import torch
-from dgl import DGLGraph
 from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
 from sklearn.model_selection import train_test_split
-from torch import Tensor, nn
+from torch import nn
 from torch.utils.data.sampler import SequentialSampler, SubsetRandomSampler
 from torch.utils.tensorboard import SummaryWriter
 
@@ -100,67 +99,45 @@ class SupervisedTrainer:
         self.best_train_loss, self.best_val_loss = float("inf"), float("inf")
         self.best_train_acc, self.best_val_acc = 0.0, 0.0
 
-    def _calculate_loss(
-        self,
-        model: nn.Module,
-        batch_graphs: DGLGraph,
-        batch_labels: Tensor,
-    ) -> float:
-        batch = batch_graphs.to(self.device)
-        nattrs = batch.ndata[self.node_attrs]
-        labels = batch_labels.to(self.device, dtype=torch.long)
-        logits = model(batch, nattrs)
-        loss = self.loss_fn(logits, labels)
-
-        return loss
-
     def train_step(self) -> tuple[float, float]:
         """Train the model on the training set."""
         self.model.train()
-        total_train_loss, total_val_loss = 0.0, 0.0
-        # train loss
-        for train_batched_graph, train_batched_labels in ProgressBar(
-            self.train_loader, desc="Training batches:"
-        ):
-            train_loss = self._calculate_loss(self.model, train_batched_graph, train_batched_labels)
+        train_loss, train_acc = 0.0, 0.0
+        for batch_graphs, batch_labels in ProgressBar(self.train_loader, desc="Training batches:"):
+            graphs = batch_graphs.to(self.device)
+            labels = batch_labels.to(self.device, dtype=torch.long)
+            logits = self.model(graphs, graphs.ndata[self.node_attrs])
+            batch_loss = self.loss_fn(logits, labels)
+            train_loss += batch_loss.item()
             self.optimizer.zero_grad()
-            train_loss.backward()
+            batch_loss.backward()
             self.optimizer.step()
-            total_train_loss += train_loss.item()
-        total_train_loss /= len(self.train_loader)
-        # val loss
-        for val_batch_graph, val_batch_labels in ProgressBar(
-            self.val_loader, desc="Validation batches:"
-        ):
-            val_loss = self._calculate_loss(self.model, val_batch_graph, val_batch_labels)
-            total_val_loss += val_loss.item()
-        total_val_loss /= len(self.val_loader)
+            pred_labels = torch.argmax(logits, dim=1)
+            train_acc += torch.sum(pred_labels == labels).item() / len(logits)
 
-        return total_train_loss, total_val_loss
+        train_loss /= len(self.train_loader)
+        train_acc /= len(self.train_loader)
 
-    def evaluate(self, dataloader: GraphDataLoader) -> float:
-        """Evaluate model performance on a given dataloader.
+        return train_loss, train_acc
 
-        Args:
-            dataloader (GraphDataLoader): Dataloader to evaluate on.
-
-        Returns:
-            float: Accuracy of the model on the given dataloader.
-        """
-        correct = 0
-        total = 0
+    def evaluate(self) -> tuple[float, float]:
+        """Evaluate model performance on a given dataloader."""
+        val_loss, val_acc = 0.0, 0.0
         self.model.eval()
         with torch.inference_mode():
-            for batched_graphs, batched_label in dataloader:
-                graphs = batched_graphs.to(self.device)
-                nattrs = graphs.ndata[self.node_attrs]
-                labels = batched_label.to(self.device)
-                total += len(labels)
-                logits = self.model(graphs, nattrs)
-                _, preds = torch.max(logits, dim=1)
-                correct += torch.sum(preds == labels).item()  # type: ignore
+            for batch_graphs, batch_labels in self.val_loader:
+                graphs = batch_graphs.to(self.device)
+                labels = batch_labels.to(self.device, dtype=torch.long)
+                logits = self.model(graphs, graphs.ndata[self.node_attrs])
+                batch_loss = self.loss_fn(logits, labels)
+                val_loss += batch_loss.item()
+                pred_labels = torch.argmax(logits, dim=1)
+                val_acc += torch.sum(pred_labels == labels).item() / len(logits)
 
-        return correct / total
+            val_loss /= len(self.val_loader)
+            val_acc /= len(self.val_loader)
+
+        return val_loss, val_acc
 
     def fit(
         self,
@@ -194,20 +171,28 @@ class SupervisedTrainer:
         )
         bad_epochs = 0
         for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):
-            train_loss, val_loss = self.train_step()
-            writer.add_scalar("loss/train_loss", train_loss, epoch, new_style=True)
-            writer.add_scalar("loss/val_loss", val_loss, epoch, new_style=True)
+            train_loss, train_acc = self.train_step()
+            val_loss, val_acc = self.evaluate()
             self.lr_scheduler.step()
-            self.logger.message(
-                f"Epoch {epoch}/{num_epochs}: Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}"  # noqa: E501
-            )
-
-            train_acc, val_acc = self.evaluate(self.train_loader), self.evaluate(self.val_loader)
+            writer.add_scalar("loss/train_loss", train_loss, epoch, new_style=True)
             writer.add_scalar("acc/train_acc", train_acc, epoch, new_style=True)
+            writer.add_scalar("loss/val_loss", val_loss, epoch, new_style=True)
             writer.add_scalar("acc/val_acc", val_acc, epoch, new_style=True)
             self.logger.message(
-                f"Epoch {epoch}/{num_epochs}: Train acc: {train_acc:.4f} | Val acc: {val_acc:.4f}"
+                f"Epoch {epoch}/{num_epochs}: Train loss: {train_loss:.4f} | "
+                f"Train acc: {train_acc:.4f}"
             )
+
+            self.logger.message(
+                f"Epoch {epoch}/{num_epochs}: Val loss: {val_loss:.4f} | Val acc: {val_acc:.4f}"
+            )
+
+            if train_loss < self.best_train_loss:
+                self.best_train_loss = train_loss
+            if train_acc > self.best_train_acc:
+                self.best_train_acc = train_acc
+            if val_loss < self.best_val_loss:
+                self.best_val_loss = val_loss
             if val_acc > self.best_val_acc:
                 self.best_val_acc = val_acc
                 bad_epochs = 0
@@ -218,7 +203,6 @@ class SupervisedTrainer:
                     f"Stopping training after {epoch} epochs: Validation accuracy at plateau"
                 )
                 break
-
             info_dict = {"train_loss": train_loss, "val_loss": val_loss, "val_acc": val_acc}
             self.checkpoint.save(epoch=epoch, info_dict=info_dict)
         writer.close()
