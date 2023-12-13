@@ -178,7 +178,7 @@ class ContrastiveTrainer:
         self.logger.message(
             f"| Training {self.expt_name} on '{self.device}' "
             f"| For {num_epochs - start_epoch} epochs \n"
-            f"| With random_seed: {self.cfg.training.random_seed}. "
+            f"| With random_state: {self.cfg.training.random_state}. "
             f"| Loss uses dual augmentation: {self.cfg.training.dual_aug_loss}."
         )
         bad_epochs = 0

@@ -15,8 +15,8 @@ def train_model(
 ) -> None:
     """Train a model using a configuration file."""
     conf, device = setup_common_utilities(config_file, gpu)
-    if conf.training.random_seed is not None:
-        setup_seed(conf.training.random_seed)
+    if conf.training.random_state is not None:
+        setup_seed(conf.training.random_state)
     dataset = NeuronGraphDataset(
         conf.dirs.graph_data,
         dataset_name=conf.datasets.eval_train,

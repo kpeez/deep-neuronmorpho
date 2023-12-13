@@ -167,7 +167,7 @@ class SupervisedTrainer:
         self.logger.message(
             f"Training {self.expt_name} on '{self.device}' "
             f"for {num_epochs - start_epoch} epochs "
-            f"with random_seed {self.cfg.training.random_seed}."
+            f"with random_seed {self.cfg.training.random_state}."
         )
         bad_epochs = 0
         for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):

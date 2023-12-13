@@ -52,7 +52,7 @@ class Training(BaseModel):
     lr_scheduler: str
     lr_decay_steps: int
     lr_decay_rate: float
-    random_seed: int | None = None
+    random_state: int | None = None
 
 
 class AugmentationParams(BaseModel):
