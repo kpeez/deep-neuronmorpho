@@ -72,7 +72,7 @@ def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.Dat
     """
     graphs, labels = dataset[:]
     batch_graphs = dgl.batch(graphs)
-    embeds = model(batch_graphs)
+    embeds = model(batch_graphs, batch_graphs.ndata["nattrs"])
     df_embed = pd.DataFrame(
         embeds.detach().numpy(),
         columns=[f"dim_{i}" for i in range(embeds.shape[1])],
