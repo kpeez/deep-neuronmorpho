@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from typing_extensions import TypeAlias
+
+LogData: TypeAlias = "ContrastiveLogData" | "SupervisedLogData"
 
 
 class ProgressBar:
@@ -330,10 +333,10 @@ class ExperimentResults:
             for f in (d / "logs").glob("*.log")
         ]
 
-        if self.supervised:
-            self.log_data = [SupervisedLogData(file) for file in log_files]
-        else:
-            self.log_data = [ContrastiveLogData(file) for file in log_files]
+        self.log_data: list[LogData] = [
+            SupervisedLogData(file) if self.supervised else ContrastiveLogData(file)
+            for file in log_files
+        ]
 
         self.expts = {log.expt_name: log for log in self.log_data}
         self.expt_names = list(self.expts.keys())
@@ -343,7 +346,7 @@ class ExperimentResults:
         for log in self.log_data:
             log.plot_results()
 
-    def __getitem__(self, key: str) -> ContrastiveLogData | SupervisedLogData:
+    def __getitem__(self, key: str) -> LogData:
         """Get log data for a specific experiment name."""
         return self.expts[key]
 
