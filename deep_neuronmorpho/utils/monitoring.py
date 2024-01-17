@@ -13,8 +13,6 @@ import pandas as pd
 from tqdm import tqdm
 from typing_extensions import TypeAlias
 
-LogData: TypeAlias = "ContrastiveLogData" | "SupervisedLogData"
-
 
 class ProgressBar:
     """A class that wraps the tqdm progress bar to simplify tracking progress of iterable objects.
@@ -314,6 +312,9 @@ class SupervisedLogData:
         axs[1].legend()
         fig.suptitle(f"Training results: {self.expt_name}", fontsize=18)
         plt.tight_layout()
+
+
+LogData: TypeAlias = ContrastiveLogData | SupervisedLogData
 
 
 @dataclass
