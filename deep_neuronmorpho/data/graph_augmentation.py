@@ -1,14 +1,17 @@
 """Graph augmentations of neuron structures for contrastive learning."""
 import inspect
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 import dgl
 import numpy as np
 import torch
-from dgl import DGLGraph
 from torch.distributions.uniform import Uniform
 
 from deep_neuronmorpho.utils.model_config import Augmentation
+
+if TYPE_CHECKING:
+    from dgl import DGLGraph
 
 
 class GraphAugmentation(ABC):

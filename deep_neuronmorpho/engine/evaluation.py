@@ -67,7 +67,7 @@ def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.Dat
         model (nn.Module): Model to get embeddings from.
 
     Returns:
-        pd.DataFrame: DataFrame of embeddings with columns "neuron", "target", "labels",
+        DataFrame: DataFrame of embeddings with columns "neuron_name", "target", "labels",
         and embedding dimensions.
     """
     graphs, labels = dataset[:]
@@ -86,7 +86,7 @@ def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.Dat
         else:
             neuron_names.append("N/A")
 
-    df_embed.insert(0, "neuron", neuron_names)
+    df_embed.insert(0, "neuron_name", neuron_names)
     df_embed.insert(1, "target", labels)
     df_embed.insert(
         2,

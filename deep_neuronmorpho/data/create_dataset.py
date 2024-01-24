@@ -1,20 +1,23 @@
 """Prepare neuron graphs for conversion to DGL datasets."""
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import dgl
 import networkx as nx
 import numpy as np
 import torch
-from dgl import DGLGraph
-from dgl.data import DGLDataset
 from dgl.data.utils import load_graphs, load_info, save_graphs, save_info
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
-from torch import Tensor
 
 from ..utils import EventLogger, ProgressBar
 from .data_utils import add_graph_labels, compute_graph_attrs, graph_is_broken
 from .process_swc import swc_to_neuron_tree
+
+if TYPE_CHECKING:
+    from dgl import DGLGraph
+    from dgl.data import DGLDataset
+    from torch import Tensor
 
 
 def compute_edge_weights(G: nx.Graph, path_idx: int, epsilon: float = 1.0) -> nx.Graph:

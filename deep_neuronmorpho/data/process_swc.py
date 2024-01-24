@@ -1,5 +1,6 @@
 """Process SWC files."""
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -8,15 +9,19 @@ from typer import Argument, Typer
 
 from ..utils import ProgressBar
 
+if TYPE_CHECKING:
+    from morphopy.neurontree.NeuronTree import NeuronTree
+    from pandas.core.frame import DataFrame
 
-def set_swc_dtypes(swc_data: pd.DataFrame) -> pd.DataFrame:
+
+def set_swc_dtypes(swc_data: DataFrame) -> DataFrame:
     """Set dtypes for swc data. Sets ints to int32 and floats to float32.
 
     Args:
-        swc_data (pd.DataFrame): DataFrame of swc data.
+        swc_data (DataFrame): DataFrame of swc data.
 
     Returns:
-        pd.DataFrame: DataFrame of swc data with correct dtypes set.
+        DataFrame: DataFrame of swc data with correct dtypes set.
     """
     int_cols = ["n", "type", "parent"]
     float_cols = ["x", "y", "z", "radius"]
@@ -25,14 +30,14 @@ def set_swc_dtypes(swc_data: pd.DataFrame) -> pd.DataFrame:
     return swc_data.astype(col_type)
 
 
-def set_swc_soma_coords(swc_data: pd.DataFrame) -> pd.DataFrame:
+def set_swc_soma_coords(swc_data: DataFrame) -> DataFrame:
     """Set coordinates of soma to (0, 0, 0).
 
     Args:
-        swc_data (pd.DataFrame): DataFrame of swc data.
+        swc_data (DataFrame): DataFrame of swc data.
 
     Returns:
-        pd.DataFrame: DataFrame of swc data with soma set to (0, 0, 0).
+        DataFrame: DataFrame of swc data with soma set to (0, 0, 0).
     """
     if swc_data[["x", "y", "z"]].iloc[0].all() != 0.0:
         x, y, z = swc_data[["x", "y", "z"]].iloc[0]
@@ -41,14 +46,14 @@ def set_swc_soma_coords(swc_data: pd.DataFrame) -> pd.DataFrame:
     return swc_data
 
 
-def load_swc_file(swc_file: Path | str) -> pd.DataFrame:
+def load_swc_file(swc_file: Path | str) -> DataFrame:
     """Load swc file.
 
     Args:
         swc_file (Path): Path to swc file.
 
     Returns:
-        pd.DataFrame: SWC data.
+        DataFrame: SWC data.
     """
     swc_data = pd.read_csv(
         swc_file,
@@ -69,7 +74,7 @@ def load_swc_file(swc_file: Path | str) -> pd.DataFrame:
     return swc_data
 
 
-def swc_to_neuron_tree(swc_file: Path | str) -> nt.NeuronTree:
+def swc_to_neuron_tree(swc_file: Path | str) -> NeuronTree:
     """Load NeuronTree from MorphoPy.
 
     Args:
@@ -136,7 +141,7 @@ if __name__ == "__main__":
 
         Args:
             swc_files (Path): Path to folder containing .swc files.
-            resample_dist (Union[int, float]): Distance to resample neuron, in microns.
+            resample_dist (int | float): Distance to resample neuron, in microns.
         """
         print(f"Resampling neurons in {swc_files} to {resample_dist} um.")
         downsample_swc_files(swc_files, resample_dist)
