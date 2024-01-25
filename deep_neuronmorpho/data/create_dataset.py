@@ -17,21 +17,22 @@ from .process_swc import swc_to_neuron_tree
 if TYPE_CHECKING:
     from dgl import DGLGraph
     from dgl.data import DGLDataset
+    from networkx import DiGraph
     from torch import Tensor
 
 
-def compute_edge_weights(G: nx.Graph, path_idx: int, epsilon: float = 1.0) -> nx.Graph:
+def compute_edge_weights(G: DiGraph, path_idx: int, epsilon: float = 1.0) -> DiGraph:
     """Compute edge attention weights for a graph.
 
     Based on the method described in [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206).
 
     Args:
-        G (nx.Graph): Graph to compute edge weights for.
+        G (DiGraph): Graph to compute edge weights for.
         path_idx (int): Index of path distance in node attributes.
         epsilon (float, optional): Small constant to prevent division by zero. Defaults to 1.0.
 
     Returns:
-        nx.Graph: Graph with attention weights added as edge attributes.
+        DiGraph: Graph with attention weights added as edge attributes.
     """
     for u, v in G.edges:
         G.add_edge(v, u)
@@ -53,14 +54,14 @@ def compute_edge_weights(G: nx.Graph, path_idx: int, epsilon: float = 1.0) -> nx
     return G
 
 
-def create_neuron_graph(swc_file: str | Path) -> nx.Graph:
+def create_neuron_graph(swc_file: str | Path) -> DiGraph:
     """Create networkx graph of neuron from swc format.
 
     Args:
         swc_file (str | Path): Morphopy NeuronTree object of neuron swc data.
 
     Returns:
-        nx.Graph: Graph of neuron.
+        DiGraph: Graph of neuron.
 
     Notes:
         This function takes in a MorphoPy NeuronTree object and returns a networkx graph with the
