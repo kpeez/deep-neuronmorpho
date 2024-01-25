@@ -31,6 +31,6 @@ repos:
 # Ruff, the Ruff formatter
 - repo: https://github.com/charliermarsh/ruff-pre-commit
     # Ruff version.
-  rev: "v0.1.13"
+  rev: "v0.1.14"
   hooks:
     - id: ruff
