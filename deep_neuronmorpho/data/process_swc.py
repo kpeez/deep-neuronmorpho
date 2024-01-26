@@ -1,17 +1,14 @@
 """Process SWC files."""
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 from morphopy.neurontree import NeuronTree as nt
+from morphopy.neurontree.NeuronTree import NeuronTree
+from pandas.core.frame import DataFrame
 from typer import Argument, Typer
 
 from ..utils import ProgressBar
-
-if TYPE_CHECKING:
-    from morphopy.neurontree.NeuronTree import NeuronTree
-    from pandas.core.frame import DataFrame
 
 
 def set_swc_dtypes(swc_data: DataFrame) -> DataFrame:

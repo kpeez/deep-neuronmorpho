@@ -3,18 +3,15 @@ import random
 import re
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 import torch
+from dgl import DGLGraph
 from scipy import stats
+from torch import Tensor
 
 from ..utils import ProgressBar
-
-if TYPE_CHECKING:
-    from dgl import DGLGraph
-    from torch import Tensor
 
 
 def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
@@ -55,9 +52,7 @@ def graph_is_broken(graph: DGLGraph) -> bool:
     return len(nan_indices[:, 1].unique()) > 0
 
 
-def add_graph_labels(
-    label_file: str | Path, graphs: list[DGLGraph]
-) -> tuple[Tensor, dict]:
+def add_graph_labels(label_file: str | Path, graphs: list[DGLGraph]) -> tuple[Tensor, dict]:
     """Add graph labels to the dataset.
 
     Args:
@@ -71,9 +66,7 @@ def add_graph_labels(
     label_data = pd.read_csv(label_file)
     unique_labels = label_data["dataset"].unique()
     glabel_dict = dict(zip(range(len(unique_labels)), unique_labels, strict=True))
-    neuron_label_dict = dict(
-        zip(label_data["neuron_name"], label_data["dataset"], strict=True)
-    )
+    neuron_label_dict = dict(zip(label_data["neuron_name"], label_data["dataset"], strict=True))
     glabel_dict_rev = {v: k for k, v in glabel_dict.items()}
     # Extract neuron names from graph ids and assign labels
     pattern = r"[^-]+-(.*?)(?:-resampled_[^\.]+)?$"
@@ -107,20 +100,12 @@ def parse_dataset_log(logfile: str | Path, metadata_file: str | Path) -> pd.Data
         pd.Series: A dataframe containing the file name and label for each processed sample.
     """
     metadata_file = (
-        metadata_file
-        if Path(metadata_file).suffix == ".csv"
-        else f"{metadata_file}.csv"
+        metadata_file if Path(metadata_file).suffix == ".csv" else f"{metadata_file}.csv"
     )
     metadata = pd.read_csv(metadata_file)
-    log_data = pd.read_csv(
-        logfile, skiprows=1, header=None, names=["timestamps", "log"]
-    )
-    log_data["file_name"] = log_data["log"].str.extract(
-        r"mouse-(.*?)-resampled_\d{2}um"
-    )
-    log_data["label"] = log_data["file_name"].map(
-        metadata.set_index("neuron_name")["dataset"]
-    )
+    log_data = pd.read_csv(logfile, skiprows=1, header=None, names=["timestamps", "log"])
+    log_data["file_name"] = log_data["log"].str.extract(r"mouse-(.*?)-resampled_\d{2}um")
+    log_data["label"] = log_data["file_name"].map(metadata.set_index("neuron_name")["dataset"])
 
     return log_data
 
