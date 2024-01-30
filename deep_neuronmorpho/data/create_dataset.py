@@ -393,7 +393,7 @@ if __name__ == "__main__":
             help="Optional flag to add self-loops to each graph.",
         ),
         scale: bool = typer.Option(
-            True,
+            False,
             help="Optional flag to apply scaling to the dataset.",
         ),
         scale_xyz: str = typer.Option(
