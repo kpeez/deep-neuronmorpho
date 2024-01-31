@@ -72,13 +72,12 @@ select = [
 ]
 
 ignore = [
-  # "E203", # ignore ' : ' (used by black) ( not implemented yet ) 
-  # missing docstring in __init__.py
-  "D107",
   # too many arguments
   "PLR0913",
   # magic number
   "PLR2004",
+  # line too long
+  "E501",
 ]
 
 [tool.ruff.per-file-ignores]
