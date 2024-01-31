@@ -5,20 +5,19 @@ import numpy as np
 import pandas as pd
 from morphopy.neurontree import NeuronTree as nt
 from morphopy.neurontree.NeuronTree import NeuronTree
-from pandas.core.frame import DataFrame
 from typer import Argument, Typer
 
 from ..utils import ProgressBar
 
 
-def set_swc_dtypes(swc_data: DataFrame) -> DataFrame:
+def set_swc_dtypes(swc_data: pd.DataFrame) -> pd.DataFrame:
     """Set dtypes for swc data. Sets ints to int32 and floats to float32.
 
     Args:
-        swc_data (DataFrame): DataFrame of swc data.
+        swc_data (pd.DataFrame): DataFrame of swc data.
 
     Returns:
-        DataFrame: DataFrame of swc data with correct dtypes set.
+        pd.DataFrame: DataFrame of swc data with correct dtypes set.
     """
     int_cols = ["n", "type", "parent"]
     float_cols = ["x", "y", "z", "radius"]
@@ -27,14 +26,14 @@ def set_swc_dtypes(swc_data: DataFrame) -> DataFrame:
     return swc_data.astype(col_type)
 
 
-def set_swc_soma_coords(swc_data: DataFrame) -> DataFrame:
+def set_swc_soma_coords(swc_data: pd.DataFrame) -> pd.DataFrame:
     """Set coordinates of soma to (0, 0, 0).
 
     Args:
-        swc_data (DataFrame): DataFrame of swc data.
+        swc_data (pd.DataFrame): DataFrame of swc data.
 
     Returns:
-        DataFrame: DataFrame of swc data with soma set to (0, 0, 0).
+        pd.DataFrame: DataFrame of swc data with soma set to (0, 0, 0).
     """
     if swc_data[["x", "y", "z"]].iloc[0].all() != 0.0:
         x, y, z = swc_data[["x", "y", "z"]].iloc[0]
@@ -43,7 +42,7 @@ def set_swc_soma_coords(swc_data: DataFrame) -> DataFrame:
     return swc_data
 
 
-def load_swc_file(swc_file: Path | str) -> DataFrame:
+def load_swc_file(swc_file: Path | str) -> pd.DataFrame:
     """Load swc file.
 
     Args:
