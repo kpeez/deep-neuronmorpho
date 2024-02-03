@@ -1,146 +1,269 @@
 """Process SWC files."""
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from morphopy.neurontree import NeuronTree as nt
-from morphopy.neurontree.NeuronTree import NeuronTree
-from typer import Argument, Typer
+from morphopy.neurontree.utils import get_standardized_swc
+from sklearn.decomposition import PCA
 
-from ..utils import ProgressBar
-
-
-def set_swc_dtypes(swc_data: pd.DataFrame) -> pd.DataFrame:
-    """Set dtypes for swc data. Sets ints to int32 and floats to float32.
-
-    Args:
-        swc_data (pd.DataFrame): DataFrame of swc data.
-
-    Returns:
-        pd.DataFrame: DataFrame of swc data with correct dtypes set.
-    """
-    int_cols = ["n", "type", "parent"]
-    float_cols = ["x", "y", "z", "radius"]
-    col_type = {col: np.int32 for col in int_cols} | {col: np.float32 for col in float_cols}
-
-    return swc_data.astype(col_type)
+from deep_neuronmorpho.utils import ProgressBar
 
 
-def set_swc_soma_coords(swc_data: pd.DataFrame) -> pd.DataFrame:
-    """Set coordinates of soma to (0, 0, 0).
+class SWCData:
+    """Class for loading, preprocessing, and manipulating SWC data.
+
+    This class provides methods for loading SWC data from a file, standardizing the data by
+    aligning it to principal axes and centering it at the origin, removing axon nodes from the
+    reconstruction, downsampling the data, plotting the raw and standardized data, and saving the
+    data to a CSV file.
 
     Args:
-        swc_data (pd.DataFrame): DataFrame of swc data.
+        swc_file (str | Path): Path to the SWC file.
+        standardize (bool, optional): Flag indicating whether to standardize the data. Defaults to True.
+        align (bool, optional): Flag indicating whether to align the data to principal axes. Defaults to True.
+        resample_dist (float, optional): Value to downsample the data. Default is 1.0 (no downsampling).
 
-    Returns:
-        pd.DataFrame: DataFrame of swc data with soma set to (0, 0, 0).
+    Attributes:
+        swc_file (Path): Path to the SWC file.
+        raw_data (pd.DataFrame): Raw SWC data.
+        data (pd.DataFrame): Standardized SWC data.
+        ntree (nt.NeuronTree): NeuronTree object representing the SWC data.
+
     """
-    if swc_data[["x", "y", "z"]].iloc[0].all() != 0.0:
-        x, y, z = swc_data[["x", "y", "z"]].iloc[0]
-        swc_data[["x", "y", "z"]] = swc_data[["x", "y", "z"]] - [x, y, z]
 
-    return swc_data
+    def __init__(
+        self,
+        swc_file: str | Path,
+        standardize: bool = True,
+        align: bool = True,
+        resample_dist: float = 1.0,
+    ):
+        self.swc_file = Path(swc_file)
+        self._raw_data = self.load_swc_data(self.swc_file)
+        self._data = None
+        self._ntree: nt.NeuronTree = None
 
+        if float(resample_dist) != 1.0:
+            self.resample(resample_dist, standardize=standardize)
 
-def load_swc_file(swc_file: Path | str) -> pd.DataFrame:
-    """Load swc file.
+        if standardize:
+            self._data = self.standardize_swc(self._raw_data, align=align)
 
-    Args:
-        swc_file (Path): Path to swc file.
+    @property
+    def raw_data(self) -> pd.DataFrame:
+        """Return the raw swc data."""
+        return self._raw_data
 
-    Returns:
-        DataFrame: SWC data.
-    """
-    swc_data = pd.read_csv(
-        swc_file,
-        sep=" ",
-        header=None,
-        names=["n", "type", "x", "y", "z", "radius", "parent"],
-        low_memory=False,
-    )
+    @property
+    def data(self) -> pd.DataFrame:
+        """Return the (possibly) standardized swc data."""
+        return self._data if self._data is not None else self._raw_data
 
-    # check for header
-    if (swc_data.columns[1:] == swc_data.iloc[0][1:]).all():
-        swc_data.drop(0, inplace=True)
-        swc_data.reset_index(drop=True, inplace=True)
+    @property
+    def ntree(self) -> nt.NeuronTree:
+        """Return the NeuronTree object."""
+        return self._ntree if self._ntree else nt.NeuronTree(self._data)
 
-    swc_data = set_swc_dtypes(swc_data)
-    swc_data = set_swc_soma_coords(swc_data)
+    @staticmethod
+    def load_swc_data(swc_file: str | Path) -> pd.DataFrame:
+        """Load swc data from a file."""
+        with open(swc_file, "r") as file:
+            lines = file.readlines()
+        # Find the start of data
+        start_idx = 0
+        for i, line in enumerate(lines):
+            if line.strip() and not line.startswith("#"):
+                start_idx = i
+                break
+        data = pd.DataFrame(
+            [line.split() for line in lines[start_idx:]],
+            columns=["n", "type", "x", "y", "z", "radius", "parent"],
+        )
+        int_cols = ["n", "type", "parent"]
+        float_cols = ["x", "y", "z", "radius"]
+        col_type = {col: np.int32 for col in int_cols} | {col: np.float32 for col in float_cols}
 
-    return swc_data
+        return data.astype(col_type)
 
+    @staticmethod
+    def standardize_swc(swc_data: pd.DataFrame, align: bool = True) -> pd.DataFrame:
+        """Standardize swc data to single node soma, PCA aligned axes, and centered at origin.
 
-def swc_to_neuron_tree(swc_file: Path | str) -> NeuronTree:
-    """Load NeuronTree from MorphoPy.
+        1. Soma is collapsed to a single node (by placing a single node at the centroid of the
+        convex hull of the soma nodes).
+        2. Coordinates are aligned to principal axes (PCA). The first principal component (PC1)
+        is aligned to the y-axis, the second principal component (PC2) is aligned to the x-axis,
+        and the third principal component (PC3) is aligned to the z-axis.
+        3. Soma is centered at the origin.
 
-    Args:
-        swc_file (Path | str): Path to swc file.
+        Note: Step 1 is performed by MorphoPy's `get_standardized_swc()` function.
 
-    Returns:
-        NeuronTree: NeuronTree object.
-    """
-    neuron_swc = load_swc_file(swc_file)
-    if "id" in neuron_swc.columns:
-        neuron_swc.rename(columns={"id": "n"}, inplace=True)
+        Args:
+            swc_data (DataFrame): DataFrame of swc data.
+            align (bool, optional): Align to PCA axes. Defaults to True.
 
-    return nt.NeuronTree(neuron_swc)
+        Returns:
+            DataFrame: DataFrame of standardized swc data.
+        """
 
+        new_swc = get_standardized_swc(
+            swc_data.copy(),
+            scaling=1.0,
+            soma_radius=None,
+            soma_center=False,
+            pca_rot=False,
+        )
+        if align:
+            pca = PCA(random_state=42)
+            xyz_pca = pca.fit_transform(new_swc[["x", "y", "z"]])
+            # set PC1 = y, PC2 = x, and PC3 = z
+            new_swc[["x", "y", "z"]] = xyz_pca[:, [1, 0, 2]]
 
-def downsample_swc_files(swc_files: Path, resample_dist: int | float) -> None:
-    """Downsample and export swc files.
+        soma_coords = new_swc[["x", "y", "z"]].iloc[0]
+        new_swc[["x", "y", "z"]] -= soma_coords
 
-    Exported files are saved in a new folder in the parent directory to
-    swc_files.
+        return new_swc
 
-    Args:
-        swc_files (Path): Path to folder containing swc files.
-        resample_dist (int | float): Distance to resample neuron, in microns.
-    """
-    export_dir = Path(f"{swc_files}_resampled_{resample_dist}um")
-    if not export_dir.exists():
-        export_dir.mkdir(exist_ok=True)
+    def remove_axon(self):
+        """Use MorphoPy to remove axon nodes from the reconstruction.
 
-    swc_files_list = list(swc_files.glob("*.swc"))
-    for swc_file in ProgressBar(swc_files_list, desc="Resampling neurons: "):
-        new_filename = swc_file.name.replace(".swc", f"-resampled_{resample_dist}um.swc")
-        new_swc_file = Path(f"{export_dir}/{new_filename}")
+        This updates both the `data` and `ntree` attributes to contain a neuron without axon nodes.
+        """
 
-        if new_swc_file.exists():
-            continue
-        try:
-            neuron_tree = swc_to_neuron_tree(swc_file)
-            neuron_tree = neuron_tree.resample_tree(resample_dist)
-            neuron_tree.to_swc().to_csv(new_swc_file, sep=" ", index=False)
-        except Exception as e:
-            print(f"Error processing {swc_file}. {e}")
+        def _map_parent_id(parent_id: int, mapping: dict) -> int:
+            """Map the parent ID, keeping -1 as is."""
+            return mapping[parent_id] if parent_id != -1 else -1
+
+        self._ntree = self.ntree.get_dendritic_tree()
+        self._data = self._ntree.to_swc()
+        sample_to_idx = dict(zip(self._data["n"], self._data.index + 1, strict=True))
+        self._data["n"] = self._data["n"].map(sample_to_idx).astype(int)
+        self._data["parent"] = (
+            self._data["parent"].apply(lambda x: _map_parent_id(x, sample_to_idx)).astype(int)
+        )
+        assert len(self._data["type"].unique()) > 1, "Neuron only contained axon nodes."
+
+    def resample(
+        self,
+        resample_dist: float,
+        standardize: bool = True,
+    ) -> None:
+        """Resample the swc data to a given distance.
+
+        Calls MorphoPy's `resample_tree()` method to resample the swc data to a given distance (assumed µm).
+
+        Args:
+            resample_dist (float): Value to downsample the data.
+            standardize (bool, optional): Flag indicating whether to re-standardize the data after resampling. Defaults to True.
+        """
+        self._ntree = self.ntree.resample_tree(resample_dist)
+        # self._ntree = self._ntree
+        self._data = self._ntree.to_swc()
+
+        if standardize:
+            self._data = self.standardize_swc(self._data)
+
+    def plot_swc(self, ax=None):
+        """Plot the raw and standardized swc data.
+
+        Determine if the neuron contains axon and creates a plot of the raw and standardized swc data."""
+        raw_ntree = nt.NeuronTree(self._raw_data)
+        if not self._ntree:
+            self._ntree = nt.NeuronTree(self._data)
+        if self._ntree.get_axon_nodes().size == 0:
+            raw_ntree = raw_ntree.get_dendritic_tree()
+
+        if ax is None:
+            fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+        raw_ntree.draw_2D(projection="xy", ax=axs[0], axon_color="lightblue")
+        self._ntree.draw_2D(projection="xy", ax=axs[1], axon_color="lightblue")
+        axs[0].set_title(f"Raw: {self.swc_file.stem}")
+        axs[1].set_title(f"Standardized: {self.swc_file.stem}")
+        fig.tight_layout()
+
+        return ax
+
+    def save_swc(self, file_name: str | Path, **kwargs) -> None:
+        """Use pandas to save data to .swc file."""
+        file_path = Path(file_name)
+        print(f"Saving SWC data to {file_path.with_suffix('.swc')}")
+        self._data.to_csv(file_path.with_suffix(".swc"), index=False, sep=" ", **kwargs)
 
 
 if __name__ == "__main__":
+    from typer import Argument, Option, Typer
+
     app = Typer()
 
     @app.command()
     def main(
-        swc_files: Path = Argument(  # noqa: B008
+        swc_files: str = Argument(
             ...,
             help="Path to folder containing swc files.",
         ),
-        resample_dist: int = Argument(
-            ...,
-            help="Distance to resample neuron, in microns.",
+        standardize: bool = Option(
+            True,
+            "-s",
+            "--standardize",
+            help="Standardize the data by aligning to principal axes and centering at the origin.",
+        ),
+        align: bool = Option(
+            True,
+            "-a",
+            "--align",
+            help="Align the data to principal axes.",
+        ),
+        resample_dist: float = Option(
+            1.0,
+            "-r",
+            "--resample",
+            help="Resample the data so each node is `resample_dist` apart. Default is 1.0 (no resampling).",
+        ),
+        drop_axon: bool = Option(
+            True,
+            "-d",
+            "--drop_axon",
+            help="Remove axon nodes from the reconstruction.",
         ),
     ) -> None:
-        """Downsample and export .swc neuron morphology files to a specified distance.
+        """Process SWC file.
 
-        This function takes a folder containing .swc files and resamples the neuron morphologies
-        to a specified distance in microns. The resampled files are saved in a new folder in the
-        parent directory of the input folder.
+        This function takes an SWC file and processes it by loading, standardizing (optional),
+        and downsampling (optional) the data. The processed data is then saved to a CSV file.
 
         Args:
-            swc_files (Path): Path to folder containing .swc files.
-            resample_dist (int | float): Distance to resample neuron, in microns.
+            swc_file (str): Path to the SWC file.
+            standardize (bool, optional): Flag indicating whether to standardize the data. Defaults to True.
+            resample_dist (float, optional): Value to downsample the data. Default is 1.0 (no downsampling).
         """
-        print(f"Resampling neurons in {swc_files} to {resample_dist} um.")
-        downsample_swc_files(swc_files, resample_dist)
-        print("Done resampling neurons.")
+        swc_files = Path(swc_files)
+        print(standardize, align, resample_dist, drop_axon)
+        export_dir = swc_files.parents[0] / "interim"
+        print(export_dir)
+        if not export_dir.exists():
+            export_dir.mkdir(exist_ok=True)
+        swc_files_list = list(swc_files.glob("*.swc"))
+
+        for swc_file in ProgressBar(swc_files_list, desc="Processing neurons: "):
+            try:
+                output_file = f"{export_dir}/{swc_file.stem}"
+                swc_data = SWCData(
+                    swc_file,
+                    standardize=standardize,
+                    align=align,
+                    resample_dist=resample_dist,
+                )
+                if resample_dist != 1.0:
+                    output_file = f"{output_file}-resampled_{resample_dist}um"
+
+                if drop_axon:
+                    swc_data.remove_axon()
+
+                swc_data.save_swc(output_file)
+                print(f"Processed: {swc_file.stem}")
+            except Exception as e:
+                print(f"Error processing {swc_file}. {e}")
 
     app()

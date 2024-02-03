@@ -15,7 +15,7 @@ from torch import Tensor
 
 from ..utils import EventLogger, ProgressBar
 from .data_utils import add_graph_labels, compute_graph_attrs, graph_is_broken
-from .process_swc import swc_to_neuron_tree
+from .process_swc import SWCData
 
 
 def compute_edge_weights(G: DiGraph, path_idx: int, epsilon: float = 1.0) -> DiGraph:
@@ -73,7 +73,7 @@ def create_neuron_graph(swc_file: str | Path) -> DiGraph:
             7.-12. angle attrs (n=6): min, mean, median, max, std, num of branch angles.
             13.-18. branch attrs (n=6): min, mean, median, max, std, num of branch lengths.
     """
-    neuron_tree = swc_to_neuron_tree(swc_file)
+    neuron_tree = SWCData(swc_file=swc_file, standardize=False, align=False).ntree
     angles = list(neuron_tree.get_branch_angles().values())
     branches = list(neuron_tree.get_segment_length().values())
     angle_stats = compute_graph_attrs(angles)
