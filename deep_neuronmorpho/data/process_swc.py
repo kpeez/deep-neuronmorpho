@@ -187,8 +187,10 @@ class SWCData:
     def save_swc(self, file_name: str | Path, **kwargs) -> None:
         """Use pandas to save data to .swc file."""
         file_path = Path(file_name)
-        print(f"Saving SWC data to {file_path.with_suffix('.swc')}")
-        self._data.to_csv(file_path.with_suffix(".swc"), index=False, sep=" ", **kwargs)
+        if file_path.suffix != ".swc":
+            file_path = file_path.with_name(f"{file_path.name}.swc")
+        print(f"Saving SWC data to {file_path}")
+        self._data.to_csv(file_path, index=False, sep=" ", **kwargs)
 
 
 if __name__ == "__main__":
