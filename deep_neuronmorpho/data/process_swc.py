@@ -159,7 +159,6 @@ class SWCData:
             standardize (bool, optional): Flag indicating whether to re-standardize the data after resampling. Defaults to True.
         """
         self._ntree = self.ntree.resample_tree(resample_dist)
-        # self._ntree = self._ntree
         self._data = self._ntree.to_swc()
 
         if standardize:
