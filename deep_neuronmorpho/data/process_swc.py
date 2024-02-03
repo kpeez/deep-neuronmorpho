@@ -238,7 +238,6 @@ if __name__ == "__main__":
             resample_dist (float, optional): Value to downsample the data. Default is 1.0 (no downsampling).
         """
         swc_files = Path(swc_files)
-        print(standardize, align, resample_dist, drop_axon)
         export_dir = swc_files.parents[0] / "interim"
         print(export_dir)
         if not export_dir.exists():
