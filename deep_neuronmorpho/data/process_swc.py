@@ -45,7 +45,7 @@ class SWCData:
         self._data = None
         self._ntree: nt.NeuronTree = None
 
-        if float(resample_dist) is not None:
+        if resample_dist is not None:
             self.resample(resample_dist, standardize=standardize)
 
         if standardize:
