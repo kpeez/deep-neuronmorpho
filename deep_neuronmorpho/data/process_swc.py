@@ -38,14 +38,14 @@ class SWCData:
         swc_file: str | Path,
         standardize: bool = True,
         align: bool = True,
-        resample_dist: float = 1.0,
+        resample_dist: float | None = None,
     ):
         self.swc_file = Path(swc_file)
         self._raw_data = self.load_swc_data(self.swc_file)
         self._data = None
         self._ntree: nt.NeuronTree = None
 
-        if float(resample_dist) != 1.0:
+        if float(resample_dist) is not None:
             self.resample(resample_dist, standardize=standardize)
 
         if standardize:
@@ -216,8 +216,8 @@ if __name__ == "__main__":
             "--align",
             help="Align the data to principal axes.",
         ),
-        resample_dist: float = Option(
-            1.0,
+        resample_dist: float | None = Option(
+            None,
             "-r",
             "--resample",
             help="Resample the data so each node is `resample_dist` apart. Default is 1.0 (no resampling).",
@@ -255,7 +255,7 @@ if __name__ == "__main__":
                     align=align,
                     resample_dist=resample_dist,
                 )
-                if resample_dist != 1.0:
+                if resample_dist is not None:
                     output_file = f"{output_file}-resampled_{resample_dist}um"
 
                 if drop_axon:
