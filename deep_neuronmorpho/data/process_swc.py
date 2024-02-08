@@ -1,5 +1,6 @@
 """Process SWC files."""
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,7 +43,7 @@ class SWCData:
     ):
         self.swc_file = Path(swc_file)
         self._raw_data = self.load_swc_data(self.swc_file)
-        self._data = None
+        self._data = pd.DataFrame()
         self._ntree: nt.NeuronTree = None
 
         if resample_dist is not None:
@@ -59,7 +60,7 @@ class SWCData:
     @property
     def data(self) -> pd.DataFrame:
         """Return the (possibly) standardized swc data."""
-        return self._data if self._data is not None else self._raw_data
+        return self._data if not self._data.empty else self._raw_data
 
     @property
     def ntree(self) -> nt.NeuronTree:
@@ -126,7 +127,7 @@ class SWCData:
 
         return new_swc
 
-    def remove_axon(self):
+    def remove_axon(self) -> None:
         """Use MorphoPy to remove axon nodes from the reconstruction.
 
         This updates both the `data` and `ntree` attributes to contain a neuron without axon nodes.
@@ -164,7 +165,7 @@ class SWCData:
         if standardize:
             self._data = self.standardize_swc(self._data)
 
-    def plot_swc(self, ax=None):
+    def plot_swc(self) -> None:
         """Plot the raw and standardized swc data.
 
         Determine if the neuron contains axon and creates a plot of the raw and standardized swc data."""
@@ -174,17 +175,16 @@ class SWCData:
         if self._ntree.get_axon_nodes().size == 0:
             raw_ntree = raw_ntree.get_dendritic_tree()
 
-        if ax is None:
-            fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
         raw_ntree.draw_2D(projection="xy", ax=axs[0], axon_color="lightblue")
         self._ntree.draw_2D(projection="xy", ax=axs[1], axon_color="lightblue")
         axs[0].set_title(f"Raw: {self.swc_file.stem}")
         axs[1].set_title(f"Standardized: {self.swc_file.stem}")
         fig.tight_layout()
 
-        return ax
+        fig.show()
 
-    def save_swc(self, file_name: str | Path, **kwargs) -> None:
+    def save_swc(self, file_name: str | Path, **kwargs: Any) -> None:
         """Use pandas to save data to .swc file."""
         file_path = Path(file_name)
         if file_path.suffix != ".swc":
@@ -202,7 +202,7 @@ if __name__ == "__main__":
 
     @app.command()
     def main(
-        swc_files: str = Argument(
+        swc_folder: str = Argument(
             ...,
             help="Path to folder containing swc files.",
         ),
@@ -237,11 +237,11 @@ if __name__ == "__main__":
         and downsampling (optional) the data. The processed data is then saved to a CSV file.
 
         Args:
-            swc_file (str): Path to the SWC file.
+            swc_folder (str): Path to the SWC file.
             standardize (bool, optional): Flag indicating whether to standardize the data. Defaults to True.
             resample_dist (float, optional): Value to downsample the data. Default is 1.0 (no downsampling).
         """
-        swc_files = Path(swc_files)
+        swc_files = Path(swc_folder)
         export_dir = swc_files.parents[0] / "interim"
         print(export_dir)
         if not export_dir.exists():

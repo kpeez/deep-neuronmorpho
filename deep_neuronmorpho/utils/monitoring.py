@@ -141,7 +141,7 @@ def extract_data(
         values = tuple(float(match.group(i)) for i in range(2, num_values + 2))
         for series, value in zip(data, values, strict=True):
             series[epoch] = value
-    return data if num_values > 1 else data[0]  # type: ignore
+    return data if num_values > 1 else data[0]
 
 
 def plot_series(
