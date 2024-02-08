@@ -190,7 +190,10 @@ class SWCData:
         if file_path.suffix != ".swc":
             file_path = file_path.with_name(f"{file_path.name}.swc")
         print(f"Saving SWC data to {file_path}")
-        self._data.to_csv(file_path, index=False, sep=" ", **kwargs)
+        with open(file_path, "w") as file:
+            header = " ".join(self._data.columns)
+            file.write(f"# {header}\n")
+        self._data.to_csv(file_path, mode="a", index=False, sep=" ", header=False, **kwargs)
 
 
 if __name__ == "__main__":
