@@ -194,6 +194,8 @@ class SWCData:
 
 
 if __name__ == "__main__":
+    from typing import Optional
+
     from typer import Argument, Option, Typer
 
     app = Typer()
@@ -216,7 +218,7 @@ if __name__ == "__main__":
             "--align",
             help="Align the data to principal axes.",
         ),
-        resample_dist: float | None = Option(
+        resample_dist: Optional[float] = Option(
             None,
             "-r",
             "--resample",
