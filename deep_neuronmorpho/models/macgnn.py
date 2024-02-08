@@ -13,7 +13,8 @@ import torch
 from dgl import DGLGraph
 from torch import Tensor, nn
 
-from ..utils.model_config import Model
+from deep_neuronmorpho.utils.model_config import Model
+
 from .gin import GIN
 from .mlp import MLP
 from .model_utils import (

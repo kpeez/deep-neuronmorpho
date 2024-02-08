@@ -11,8 +11,8 @@ from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
 from torch import nn, optim
 
-from ..data import NeuronGraphDataset
-from ..utils import Config, EventLogger
+from deep_neuronmorpho.data import NeuronGraphDataset
+from deep_neuronmorpho.utils import Config, EventLogger
 
 
 def setup_seed(seed: int = 42) -> None:

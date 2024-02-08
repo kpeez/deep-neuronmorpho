@@ -8,8 +8,9 @@ from dgl.dataloading import GraphDataLoader
 from torch import Tensor, nn
 from torch.utils.tensorboard import SummaryWriter
 
-from ..data import GraphAugmenter
-from ..utils import Config, EventLogger, ProgressBar
+from deep_neuronmorpho.data import GraphAugmenter
+from deep_neuronmorpho.utils import Config, EventLogger, ProgressBar
+
 from .evaluation import evaluate_embeddings
 from .ntxent_loss import NTXEntLoss
 from .trainer_utils import (
