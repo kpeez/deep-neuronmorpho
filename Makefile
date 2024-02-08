@@ -18,12 +18,9 @@ check: ## Run code quality tools.
 install_cuda: ## install CUDA-dependent pacakges
 	@echo "📦 Installing CUDA-dependent packages..."
 	@poetry run pip install --upgrade pip
-	@echo "Installing requirements.txt..."
-	@poetry run pip install -r requirements.txt              
-	@echo "Reinstalling CUDA-enabled versions PyTorch and DGL..."
-	@poetry run pip uninstall dgl torch -y
-	@poetry run pip install torch==2.0.0 -f https://download.pytorch.org/whl/cu117
-	@poetry run pip install dgl -f https://data.dgl.ai/wheels/cu117/repo.html
+	@echo "Installing CUDA-enabled version of DGL..."
+	@poetry run pip uninstall dgl -y
+	@poetry run pip install dgl -f https://data.dgl.ai/wheels/cu118/repo.html
 
 .PHONY: test
 test: ## Test the code with pytest
