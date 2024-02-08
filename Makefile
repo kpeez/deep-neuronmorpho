@@ -20,7 +20,7 @@ install_cuda: ## install CUDA-dependent pacakges
 	@poetry run pip install --upgrade pip
 	@echo "Installing CUDA-enabled version of DGL..."
 	@poetry run pip uninstall dgl -y
-	@poetry run pip install dgl -f https://data.dgl.ai/wheels/cu118/repo.html
+	@poetry run pip install dgl==1.1.3 -f https://data.dgl.ai/wheels/cu118/repo.html
 
 .PHONY: test
 test: ## Test the code with pytest
