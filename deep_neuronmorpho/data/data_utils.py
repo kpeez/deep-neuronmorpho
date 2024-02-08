@@ -4,6 +4,7 @@ import re
 import shutil
 from pathlib import Path
 
+import networkx as nx
 import numpy as np
 import pandas as pd
 import torch
@@ -11,7 +12,40 @@ from dgl import DGLGraph
 from scipy import stats
 from torch import Tensor
 
-from ..utils import ProgressBar
+from deep_neuronmorpho.utils import ProgressBar
+
+
+def compute_edge_weights(G: nx.DiGraph, path_idx: int, epsilon: float = 1.0) -> nx.DiGraph:
+    """Compute edge attention weights for a graph.
+
+    Based on the method described in [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206).
+
+    Args:
+        G (nx.DiGraph): Graph to compute edge weights for.
+        path_idx (int): Index of path distance in node attributes.
+        epsilon (float, optional): Small constant to prevent division by zero. Defaults to 1.0.
+
+    Returns:
+        nx.DiGraph: Graph with attention weights added as edge attributes.
+    """
+    for u, v in G.edges:
+        G.add_edge(v, u)
+
+    node_coeffs = {
+        node: 1.0 / (ndata["nattrs"][path_idx] + epsilon) for node, ndata in G.nodes(data=True)
+    }
+    for node in G.nodes():
+        neighbors = list(G.neighbors(node))
+        local_coeffs = np.array([node_coeffs[neighbor] for neighbor in neighbors], dtype=np.float32)
+        attention_coeffs = np.exp(local_coeffs) / np.sum(np.exp(local_coeffs))
+
+        edge_weights = (
+            (neighbor, coeff) for neighbor, coeff in zip(neighbors, attention_coeffs, strict=True)
+        )
+        for neighbor, weight in edge_weights:
+            G[node][neighbor]["edge_weight"] = weight
+
+    return G
 
 
 def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:

@@ -8,57 +8,24 @@ import torch
 from dgl import DGLGraph
 from dgl.data import DGLDataset
 from dgl.data.utils import load_graphs, load_info, save_graphs, save_info
-from networkx import DiGraph
 from scipy.spatial.distance import euclidean
 from sklearn.preprocessing import MinMaxScaler, RobustScaler, StandardScaler
 from torch import Tensor
 
-from ..utils import EventLogger, ProgressBar
-from .data_utils import add_graph_labels, compute_graph_attrs, graph_is_broken
+from deep_neuronmorpho.utils import EventLogger, ProgressBar
+
+from .data_utils import add_graph_labels, compute_edge_weights, compute_graph_attrs, graph_is_broken
 from .process_swc import SWCData
 
 
-def compute_edge_weights(G: DiGraph, path_idx: int, epsilon: float = 1.0) -> DiGraph:
-    """Compute edge attention weights for a graph.
-
-    Based on the method described in [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206).
-
-    Args:
-        G (DiGraph): Graph to compute edge weights for.
-        path_idx (int): Index of path distance in node attributes.
-        epsilon (float, optional): Small constant to prevent division by zero. Defaults to 1.0.
-
-    Returns:
-        DiGraph: Graph with attention weights added as edge attributes.
-    """
-    for u, v in G.edges:
-        G.add_edge(v, u)
-
-    node_coeffs = {
-        node: 1.0 / (ndata["nattrs"][path_idx] + epsilon) for node, ndata in G.nodes(data=True)
-    }
-    for node in G.nodes():
-        neighbors = list(G.neighbors(node))
-        local_coeffs = np.array([node_coeffs[neighbor] for neighbor in neighbors], dtype=np.float32)
-        attention_coeffs = np.exp(local_coeffs) / np.sum(np.exp(local_coeffs))
-
-        edge_weights = (
-            (neighbor, coeff) for neighbor, coeff in zip(neighbors, attention_coeffs, strict=True)
-        )
-        for neighbor, weight in edge_weights:
-            G[node][neighbor]["edge_weight"] = weight
-
-    return G
-
-
-def create_neuron_graph(swc_file: str | Path) -> DiGraph:
+def create_neuron_graph(swc_file: str | Path) -> nx.DiGraph:
     """Create networkx graph of neuron from swc format.
 
     Args:
         swc_file (str | Path): Morphopy NeuronTree object of neuron swc data.
 
     Returns:
-        DiGraph: Graph of neuron.
+        nx.DiGraph: Graph of neuron.
 
     Notes:
         This function takes in a MorphoPy NeuronTree object and returns a networkx graph with the
