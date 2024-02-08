@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 from morphopy.neurontree import NeuronTree as nt
 from morphopy.neurontree.utils import get_standardized_swc
@@ -84,7 +83,8 @@ class SWCData:
         )
         int_cols = ["n", "type", "parent"]
         float_cols = ["x", "y", "z", "radius"]
-        col_type = {col: np.int32 for col in int_cols} | {col: np.float32 for col in float_cols}
+        col_type = {col: int for col in int_cols} | {col: float for col in float_cols}
+        data.astype(col_type)
 
         return data.astype(col_type)
 
