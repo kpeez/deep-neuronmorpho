@@ -227,6 +227,7 @@ class NeuronGraphDataset(DGLDataset):
         self.dataset_path = (
             Path(dataset_path) if dataset_path else Path(self.graphs_path.parent / "dgl_datasets")
         )
+        self.dataset_path.mkdir(exist_ok=True)
         self.graphs: list[DGLGraph] = []
         self.graph_ids: list[str] = []
         self.labels: Tensor | None = None
@@ -238,7 +239,12 @@ class NeuronGraphDataset(DGLDataset):
         self.rescaled = bool(scaler)
         self.logger: EventLogger | None = None
 
-        super().__init__(name=dataset_name, raw_dir=self.dataset_path, verbose=False)
+        super().__init__(
+            name=dataset_name,
+            raw_dir=self.graphs_path,
+            save_dir=self.dataset_path,
+            verbose=True,
+        )
 
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
@@ -248,6 +254,8 @@ class NeuronGraphDataset(DGLDataset):
         self.logger.message(f"Dataset {self.name} has self-loop: {self.self_loop}")
         swc_files = sorted(self.graphs_path.glob("*.swc"))
         self.graphs = dgl_from_swc(swc_files=swc_files, logger=self.logger)
+        assert self.graphs, f"No graphs were created from {self.graphs_path}"
+
         if self.scaler is not None:
             self.scaler.fit(self.graphs)
 
@@ -277,7 +285,7 @@ class NeuronGraphDataset(DGLDataset):
         """Save the dataset to disk."""
         if not self.dataset_path.exists():
             self.dataset_path.mkdir(exist_ok=True)
-        export_filename = filename if filename else f"{super().name}"
+        export_filename = filename if filename else f"{self.name}"
         label_dict = {"labels": self.labels}
         info_dict = {
             "graph_ids": self.graph_ids,
@@ -312,24 +320,18 @@ class NeuronGraphDataset(DGLDataset):
         self.graphs = graphs
 
     def has_cache(self) -> bool:
-        """Determine whether there exists a cached dataset.
-
-        Returns:
-            bool: True if there exists a cached dataset, False otherwise.
-        """
-        cached_file_path = self.cached_graphs_path
-        info_file_path = self.info_path
-        return cached_file_path.exists() and info_file_path.exists()
+        """Determine whether there exists a cached dataset."""
+        return self.cached_graphs_path.exists() and self.info_path.exists()
 
     @property
     def info_path(self) -> Path:
         """The path to the info file."""
-        return Path(self.dataset_path / f"{super().name}.pkl")
+        return Path(self.dataset_path / f"{self.name}.pkl")
 
     @property
     def cached_graphs_path(self) -> Path:
         """The path to the cached graphs."""
-        return Path(self.dataset_path / f"{super().name}.bin")
+        return Path(self.dataset_path / f"{self.name}.bin")
 
     def __len__(self) -> int:
         """Return the number of graphs in the dataset."""
@@ -360,43 +362,38 @@ if __name__ == "__main__":
     def create_dataset(
         input_dir: str = Argument(..., help="Path to the directory containing the .swc files."),
         self_loop: bool = Option(
-            True,
-            "-sl",
-            "--self-loop",
-            help="Optional flag to add self-loops to each graph.",
+            True, help="Enable self-loops by default. Use --no-self-loop to disable."
         ),
+        no_self_loop: bool = Option(False, "--no-self-loop", help="Disable self-loops."),
         scale: bool = Option(
             False,
-            "-sc",
             "--scale",
             help="Optional flag to apply scaling to the dataset.",
+            is_flag=True,
         ),
         scale_xyz: str = Option(
             "standard",
-            "-sx",
             "--scale-xyz",
             help="The type of scaler to use for the 'xyz' features.",
         ),
         scale_attrs: str = Option(
             "robust",
-            "-sa",
             "--scale-attrs",
             help="The type of scaler to use for the 'attr' features.",
         ),
         dataset_name: str = Option(
             "neuron_graph_dataset",
-            "-d",
-            "--dataset-name",
+            "--name",
             help="Name of the dataset.",
         ),
         dataset_path: Optional[str] = Option(
             None,
-            "-p",
-            "--export",
+            "--dataset-path",
             help="Path to the directory where the processed dataset will be saved.",
         ),
         label_file: Optional[str] = Option(
             None,
+            "-label-file",
             help="Path to the file containing the metadata (graph labels).",
         ),
     ) -> None:
@@ -415,7 +412,7 @@ if __name__ == "__main__":
         scaler = GraphScaler(scale_xyz=scale_xyz, scale_attrs=scale_attrs) if scale else None
         NeuronGraphDataset(
             graphs_path=graphs_dir,
-            self_loop=self_loop,
+            self_loop=self_loop and not no_self_loop,
             scaler=scaler,
             dataset_name=dataset_name,
             dataset_path=dataset_path,
