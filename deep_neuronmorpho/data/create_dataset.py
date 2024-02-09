@@ -197,12 +197,18 @@ class NeuronGraphDataset(DGLDataset):
         dataset_name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
         dataset_path (Path, optional): The path where the processed dataset will be saved.
         Defaults to the parent directory of the graphs_path.
+        label_file (Path, optional): The path to the file containing the metadata (graph labels).
 
     Attributes:
         graphs_path (Path): The path to the SWC file directory.
         dataset_path (Path): The path to the directory where the processed dataset will be saved.
         self_loop (bool): Whether to add self-loops to each graph.
         graphs (list[DGLGraph]): The list of DGLGraphs representing neuron morphologies.
+        graph_ids (list[str]): The list of graph IDs.
+        labels (Tensor): The tensor of graph labels.
+        num_classes (int): The number of classes in the dataset.
+        glabel_dict (dict[int, str]): The dictionary of graph labels.
+        rescaled (bool): Whether the node attributes have been rescaled.
 
     See Also:
         Documentation for DGLDataset: https://docs.dgl.ai/en/latest/api/python/dgl.data.html#dgl.data.DGLDataset
@@ -289,10 +295,8 @@ class NeuronGraphDataset(DGLDataset):
         save_info(f"{self.dataset_path}/{export_filename}.pkl", info_dict)
 
     def load(self) -> None:
-        """Load the dataset from disk.
-
-        If the dataset has not been cached, it will be created and cached.
-        """
+        """Load the dataset from disk. If the dataset has not been cached,
+        it will be created and cached."""
         graphs, label_dict = load_graphs(str(self.cached_graphs_path))
         info_dict = load_info(str(self.info_path))
         self.graph_ids = info_dict.get("graph_ids", None)
@@ -346,36 +350,52 @@ class NeuronGraphDataset(DGLDataset):
 
 
 if __name__ == "__main__":
-    import typer
+    from typing import Optional
 
-    app = typer.Typer()
+    from typer import Argument, Option, Typer
+
+    app = Typer()
 
     @app.command()
     def create_dataset(
-        input_dir: str = typer.Argument(
-            ..., help="Path to the directory containing the .swc files."
-        ),
-        self_loop: bool = typer.Option(
+        input_dir: str = Argument(..., help="Path to the directory containing the .swc files."),
+        self_loop: bool = Option(
             True,
+            "-sl",
+            "--self-loop",
             help="Optional flag to add self-loops to each graph.",
         ),
-        scale: bool = typer.Option(
+        scale: bool = Option(
             False,
+            "-sc",
+            "--scale",
             help="Optional flag to apply scaling to the dataset.",
         ),
-        scale_xyz: str = typer.Option(
+        scale_xyz: str = Option(
             "standard",
+            "-sx",
+            "--scale-xyz",
             help="The type of scaler to use for the 'xyz' features.",
         ),
-        scale_attrs: str = typer.Option(
+        scale_attrs: str = Option(
             "robust",
+            "-sa",
+            "--scale-attrs",
             help="The type of scaler to use for the 'attr' features.",
         ),
-        dataset_name: str = typer.Option(
+        dataset_name: str = Option(
             "neuron_graph_dataset",
+            "-d",
+            "--dataset-name",
             help="Name of the dataset.",
         ),
-        label_file: str = typer.Option(
+        dataset_path: Optional[str] = Option(
+            None,
+            "-p",
+            "--export",
+            help="Path to the directory where the processed dataset will be saved.",
+        ),
+        label_file: Optional[str] = Option(
             None,
             help="Path to the file containing the metadata (graph labels).",
         ),
@@ -398,6 +418,7 @@ if __name__ == "__main__":
             self_loop=self_loop,
             scaler=scaler,
             dataset_name=dataset_name,
+            dataset_path=dataset_path,
             label_file=label_file,
         )
 
