@@ -42,7 +42,6 @@ class SWCData:
     ):
         self.swc_file = Path(swc_file)
         self._raw_data = self.load_swc_data(self.swc_file)
-        self._data = pd.DataFrame()
         self._ntree: nt.NeuronTree = None
 
         if resample_dist is not None:
@@ -50,6 +49,8 @@ class SWCData:
 
         if standardize:
             self._data = self.standardize_swc(self._raw_data, align=align)
+        else:
+            self._data = self._raw_data
 
     @property
     def raw_data(self) -> pd.DataFrame:
@@ -59,12 +60,12 @@ class SWCData:
     @property
     def data(self) -> pd.DataFrame:
         """Return the (possibly) standardized swc data."""
-        return self._data if not self._data.empty else self._raw_data
+        return self._data
 
     @property
     def ntree(self) -> nt.NeuronTree:
         """Return the NeuronTree object."""
-        return self._ntree if self._ntree else nt.NeuronTree(self._data)
+        return self._ntree if self._ntree else nt.NeuronTree(self.data)
 
     @staticmethod
     def load_swc_data(swc_file: str | Path) -> pd.DataFrame:
@@ -211,15 +212,23 @@ if __name__ == "__main__":
         ),
         standardize: bool = Option(
             True,
-            "-s",
-            "--standardize",
-            help="Standardize the data by aligning to principal axes and centering at the origin.",
+            help="Standardize the data by aligning to principal axes and centering at the origin. Use --no-standardize to skip.",
+        ),
+        no_standardize: bool = Option(
+            False,
+            "--no-standardize",
+            help="Do not standardize the data.",
+            is_flag=True,
         ),
         align: bool = Option(
             True,
-            "-a",
-            "--align",
-            help="Align the data to principal axes.",
+            help="Use PCA to align the data. Default is True. Use --no-align to skip.",
+        ),
+        no_align: bool = Option(
+            False,
+            "--no-align",
+            help="Do not use PCA to align the data.",
+            is_flag=True,
         ),
         resample_dist: Optional[float] = Option(
             None,
@@ -228,10 +237,11 @@ if __name__ == "__main__":
             help="Resample the data so each node is `resample_dist` apart. Default is 1.0 (no resampling).",
         ),
         drop_axon: bool = Option(
-            True,
+            False,
             "-d",
-            "--drop_axon",
+            "--drop-axon",
             help="Remove axon nodes from the reconstruction.",
+            is_flag=True,
         ),
     ) -> None:
         """Process SWC file.
@@ -256,8 +266,8 @@ if __name__ == "__main__":
                 output_file = f"{export_dir}/{swc_file.stem}"
                 swc_data = SWCData(
                     swc_file,
-                    standardize=standardize,
-                    align=align,
+                    standardize=standardize and not no_standardize,
+                    align=align and not no_align,
                     resample_dist=resample_dist,
                 )
                 if resample_dist is not None:
