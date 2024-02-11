@@ -42,15 +42,15 @@ class SWCData:
     ):
         self.swc_file = Path(swc_file)
         self._raw_data = self.load_swc_data(self.swc_file)
-        self._ntree: nt.NeuronTree = None
+        self._data = self._raw_data
+        self._ntree = nt.NeuronTree(self._data)
 
         if resample_dist is not None:
-            self.resample(resample_dist, standardize=standardize)
+            self.resample(resample_dist)
 
         if standardize:
-            self._data = self.standardize_swc(self._raw_data, align=align)
-        else:
-            self._data = self._raw_data
+            self._data = self.standardize_swc(self._data, align=align)
+            self._ntree = nt.NeuronTree(self._data)
 
     @property
     def raw_data(self) -> pd.DataFrame:
@@ -65,7 +65,7 @@ class SWCData:
     @property
     def ntree(self) -> nt.NeuronTree:
         """Return the NeuronTree object."""
-        return self._ntree if self._ntree else nt.NeuronTree(self.data)
+        return self._ntree
 
     @staticmethod
     def load_swc_data(swc_file: str | Path) -> pd.DataFrame:
@@ -150,21 +150,18 @@ class SWCData:
     def resample(
         self,
         resample_dist: float,
-        standardize: bool = True,
     ) -> None:
         """Resample the swc data to a given distance.
 
-        Calls MorphoPy's `resample_tree()` method to resample the swc data to a given distance (assumed µm).
+        Calls MorphoPy's `resample_tree()` method to resample the swc data to a given distance.
+
+        Note: The distance is assumed to be in microns, so this should be run before data is PCA aligned.
 
         Args:
             resample_dist (float): Value to downsample the data.
-            standardize (bool, optional): Flag indicating whether to re-standardize the data after resampling. Defaults to True.
         """
         self._ntree = self.ntree.resample_tree(resample_dist)
         self._data = self._ntree.to_swc()
-
-        if standardize:
-            self._data = self.standardize_swc(self._data)
 
     def plot_swc(self) -> None:
         """Plot the raw and standardized swc data.
@@ -181,9 +178,9 @@ class SWCData:
         self._ntree.draw_2D(projection="xy", ax=axs[1], axon_color="lightblue")
         axs[0].set_title(f"Raw: {self.swc_file.stem}")
         axs[1].set_title(f"Standardized: {self.swc_file.stem}")
-        fig.tight_layout()
+        plt.tight_layout()
 
-        fig.show()
+        plt.show()
 
     def save_swc(self, file_name: str | Path, **kwargs: Any) -> None:
         """Use pandas to save data to .swc file."""
