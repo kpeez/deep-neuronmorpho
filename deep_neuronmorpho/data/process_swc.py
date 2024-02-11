@@ -240,6 +240,12 @@ if __name__ == "__main__":
             help="Remove axon nodes from the reconstruction.",
             is_flag=True,
         ),
+        export_dir: Optional[str] = Option(
+            None,
+            "-e",
+            "--export-dir",
+            help="Path to directory to save processed SWC files. Default is `swc_folder`/interim.",
+        ),
     ) -> None:
         """Process SWC file.
 
@@ -252,15 +258,14 @@ if __name__ == "__main__":
             resample_dist (float, optional): Value to downsample the data. Default is 1.0 (no downsampling).
         """
         swc_files = Path(swc_folder)
-        export_dir = swc_files.parents[0] / "interim"
-        print(export_dir)
-        if not export_dir.exists():
-            export_dir.mkdir(exist_ok=True)
+        export_path = Path(export_dir) if export_dir else Path(swc_files.parents[0] / "interim")
+        if not export_path.exists():
+            export_path.mkdir(exist_ok=True)
         swc_files_list = list(swc_files.glob("*.swc"))
 
         for swc_file in ProgressBar(swc_files_list, desc="Processing neurons: "):
             try:
-                output_file = f"{export_dir}/{swc_file.stem}"
+                output_file = f"{export_path}/{swc_file.stem}"
                 swc_data = SWCData(
                     swc_file,
                     standardize=standardize and not no_standardize,
