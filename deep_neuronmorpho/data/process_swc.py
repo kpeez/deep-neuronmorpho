@@ -283,4 +283,7 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Error processing {swc_file}. {e}")
 
+        num_processed = len(list(output_dir.glob("*.swc")))
+        print(f"Processed {num_processed}/{len(swc_files_list)} SWC files. Saved to {output_dir}")
+
     app()
