@@ -43,10 +43,10 @@ class Training(BaseModel):
 
     batch_size: int
     contra_loss_temp: float | None = None
-    dual_aug_loss: bool | None = False
     eval_interval: int | None = None
-    max_epochs: int
-    patience: int
+    max_epochs: int | None = None
+    patience: int | None = None
+    save_every: int
     optimizer: str
     lr_init: float
     lr_scheduler: str

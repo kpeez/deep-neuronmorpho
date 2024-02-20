@@ -1,12 +1,12 @@
 # model config
 dirs:
-  graph_data: "../datasets/demo_gnn_data/processed/dgl_datasets"
-  expt_results: "../datasets/demo_gnn_data/expt_results/"
+  graph_data: "../datasets/demo-neuromorpho/processed/"
+  expt_results: "../datasets/demo-neuromorpho/expt_results/"
 
 datasets:
-  contra_train: "demo-neuromorpho_benchmark_radius-all"
-  eval_train: "demo-neuromorpho_benchmark_radius-train"
-  eval_test: "demo-neuromorpho_benchmark_radius-test"
+  contra_train: "demo-neuromorpho"
+  eval_train: "demo-neuromorpho"
+  eval_test: "demo-neuromorpho"
 
 model:
   name: "macgnn_demo"
@@ -17,7 +17,7 @@ model:
   dropout_prob: 0.5
   attrs_streams:
     geometric: [0, 3] # x, y, z, radius
-    topological: [4, 17] # euc_dist, path_dist, angles/branches
+    topological: [4, 16] # euc_dist, path_dist, angles/branches
   use_edge_weight: True # attention
   learn_eps: False # learnable eps in GINConv
   neighbor_aggregation: "sum" # "sum", "mean", "max"
@@ -29,12 +29,12 @@ model:
 training:
   batch_size: 256
   contra_loss_temp: 0.2
-  dual_aug_loss: False
-  eval_interval: 1
-  max_epochs: 5
+  # eval_interval: None
+  save_every: 2
+  max_epochs: 6
   patience: 60
   lr_init: 0.01
-  random_seed: 42 # optional
+  random_state: 42 # optional
   optimizer: "adam"
   lr_scheduler: "step" # ["cosine", "step"]
   lr_decay_steps: 20
