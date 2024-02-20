@@ -93,13 +93,9 @@ class ContrastiveTrainer:
         """
         aug1_batch = self.augmenter.augment_batch(batch_graphs)
         aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs])
-        if self.cfg.training.dual_aug_loss:
-            aug2_batch = self.augmenter.augment_batch(batch_graphs)
-            aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs])
-            loss = self.loss_fn(aug1_embeds, aug2_embeds)
-        else:
-            embeds = self.model(batch_graphs, batch_feats)
-            loss = self.loss_fn(embeds, aug1_embeds)
+        aug2_batch = self.augmenter.augment_batch(batch_graphs)
+        aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs])
+        loss = self.loss_fn(aug1_embeds, aug2_embeds)
 
         return loss
 
@@ -180,7 +176,6 @@ class ContrastiveTrainer:
             f"| Training {self.expt_name} on '{self.device}' "
             f"| For {num_epochs - start_epoch} epochs \n"
             f"| With random_state: {self.cfg.training.random_state}. "
-            f"| Loss uses dual augmentation: {self.cfg.training.dual_aug_loss}."
         )
         bad_epochs = 0
         for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):
@@ -189,7 +184,7 @@ class ContrastiveTrainer:
             self.logger.message(f"Epoch {epoch}/{num_epochs}: Train Loss: {train_loss:.4f}")
             self.lr_scheduler.step()
 
-            if epoch % self.eval_interval == 0:
+            if self.eval_interval is not None and epoch % self.eval_interval == 0:
                 eval_acc = self.eval_step()
 
                 if eval_acc > self.best_eval_acc:
@@ -199,13 +194,11 @@ class ContrastiveTrainer:
                 self.logger.message(
                     f"Epoch {epoch}/{num_epochs}: Benchmark Test accuracy: {eval_acc:.4f}"
                 )
+
+            if epoch % self.cfg.training.save_every == 0:
                 self.checkpoint.save(
                     epoch=epoch,
-                    info_dict={
-                        "train_loss": train_loss,
-                        "eval_acc": eval_acc,
-                        "best_eval_acc": self.best_eval_acc,
-                    },
+                    info_dict={"train_loss": train_loss},
                 )
 
             if train_loss < self.best_train_loss:
