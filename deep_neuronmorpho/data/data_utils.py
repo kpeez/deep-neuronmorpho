@@ -89,6 +89,8 @@ def graph_is_broken(graph: DGLGraph) -> bool:
 def add_graph_labels(label_file: str | Path, graphs: list[DGLGraph]) -> tuple[Tensor, dict]:
     """Add graph labels to the dataset.
 
+    Note: The label file should be a CSV file with columns 'neuron_name' and 'label'. Other column names are ignored.
+
     Args:
         label_file (str | Path): Path to the label file.
         graphs (list[DGLGraph]): List of graphs in the dataset.
@@ -98,9 +100,9 @@ def add_graph_labels(label_file: str | Path, graphs: list[DGLGraph]) -> tuple[Te
         graph labels to integers.
     """
     label_data = pd.read_csv(label_file)
-    unique_labels = label_data["dataset"].unique()
+    unique_labels = label_data["label"].unique()
     glabel_dict = dict(zip(range(len(unique_labels)), unique_labels, strict=True))
-    neuron_label_dict = dict(zip(label_data["neuron_name"], label_data["dataset"], strict=True))
+    neuron_label_dict = dict(zip(label_data["neuron_name"], label_data["label"], strict=True))
     glabel_dict_rev = {v: k for k, v in glabel_dict.items()}
     # Extract neuron names from graph ids and assign labels
     pattern = r"[^-]+-(.*?)(?:-resampled_[^\.]+)?$"
