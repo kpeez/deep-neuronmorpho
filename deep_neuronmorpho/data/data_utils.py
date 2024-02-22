@@ -1,6 +1,5 @@
 """Create training, validation, and test splits of the dataset."""
 import random
-import re
 import shutil
 from pathlib import Path
 
@@ -10,6 +9,7 @@ import pandas as pd
 import torch
 from dgl import DGLGraph
 from scipy import stats
+from sklearn.preprocessing import LabelEncoder
 from torch import Tensor
 
 from deep_neuronmorpho.utils import ProgressBar
@@ -100,25 +100,18 @@ def add_graph_labels(label_file: str | Path, graphs: list[DGLGraph]) -> tuple[Te
         graph labels to integers.
     """
     label_data = pd.read_csv(label_file)
-    unique_labels = label_data["label"].unique()
-    glabel_dict = dict(zip(range(len(unique_labels)), unique_labels, strict=True))
-    neuron_label_dict = dict(zip(label_data["neuron_name"], label_data["label"], strict=True))
-    glabel_dict_rev = {v: k for k, v in glabel_dict.items()}
-    # Extract neuron names from graph ids and assign labels
-    pattern = r"[^-]+-(.*?)(?:-resampled_[^\.]+)?$"
-    _labels = []
-    for graph in graphs:
-        match = re.search(pattern, graph.id)
-        if match:
-            neuron_name = match.group(1)
-            neuron_label = neuron_label_dict.get(str(neuron_name))
-            _labels.append(glabel_dict_rev.get(str(neuron_label), -1))
-        else:
-            _labels.append(-1)
-
+    label_encoder = LabelEncoder()
+    label_encoder.fit(label_data["label"])
+    label_to_int = dict(
+        zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_), strict=False)
+    )
+    # map neuron names to labels and then to their encoded integers
+    neuron_to_label = dict(zip(label_data["neuron_name"], label_data["label"], strict=False))
+    # map neuron -> labels -> encoded integers
+    _labels = [label_to_int.get(neuron_to_label.get(g.id, None), -1) for g in graphs]
     labels = torch.tensor(_labels, dtype=torch.long)
 
-    return labels, glabel_dict
+    return labels, label_to_int
 
 
 def parse_dataset_log(logfile: str | Path, metadata_file: str | Path) -> pd.DataFrame:
