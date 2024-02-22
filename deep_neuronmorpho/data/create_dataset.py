@@ -243,7 +243,7 @@ class NeuronGraphDataset(DGLDataset):
             name=dataset_name,
             raw_dir=self.graphs_path,
             save_dir=self.dataset_path,
-            verbose=True,
+            verbose=False,
         )
 
     def process(self) -> None:
@@ -393,7 +393,7 @@ if __name__ == "__main__":
         ),
         label_file: Optional[str] = Option(
             None,
-            "-label-file",
+            "--label-file",
             help="Path to the file containing the metadata (graph labels).",
         ),
     ) -> None:
