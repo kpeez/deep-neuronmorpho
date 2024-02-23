@@ -85,7 +85,6 @@ class SWCData:
         int_cols = ["n", "type", "parent"]
         float_cols = ["x", "y", "z", "radius"]
         col_type = {col: int for col in int_cols} | {col: float for col in float_cols}
-        data.astype(col_type)
 
         return data.astype(col_type)
 
