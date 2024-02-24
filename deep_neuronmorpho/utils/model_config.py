@@ -24,18 +24,33 @@ class Model(BaseModel):
     """Model architecture and hyperparameters."""
 
     name: str
-    num_gnn_layers: int
-    num_mlp_layers: int | None
     hidden_dim: int
     output_dim: int
     dropout_prob: float
-    attrs_streams: dict[str, list[int]] | None
+
+
+class GNNModel(Model):
+    """Model architecture and hyperparameters for GNN model."""
+
+    num_gnn_layers: int
+    num_mlp_layers: int | None
     use_edge_weight: bool | None
     learn_eps: bool | None
     neighbor_aggregation: str
     graph_pooling_type: str
     gnn_layer_aggregation: str
+    attrs_streams: dict[str, list[int]] | None
     stream_aggregation: str | None
+
+
+class TransformerModel(Model):
+    """Model architecture and hyperparameters for Transformer model."""
+
+    num_classes: int
+    num_heads: int
+    depth: int
+    num_encoder_layers: int
+    pos_dim: int
 
 
 class Training(BaseModel):
@@ -76,7 +91,7 @@ class Config(BaseModel):
     config_file: str | Path
     dirs: Dirs
     datasets: Datasets
-    model: Model
+    model: GNNModel | TransformerModel
     training: Training
     augmentation: Augmentation | None = None
 
