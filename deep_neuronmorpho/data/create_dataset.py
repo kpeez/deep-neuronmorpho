@@ -223,7 +223,7 @@ class NeuronGraphDataset(DGLDataset):
         dataset_path: str | Path | None = None,
         label_file: str | Path | None = None,
     ):
-        self.graphs_path = Path(graphs_path)
+        self.graphs_path = Path(graphs_path).resolve()
         self.dataset_path = (
             Path(dataset_path) if dataset_path else Path(self.graphs_path.parent / "dgl_datasets")
         )
