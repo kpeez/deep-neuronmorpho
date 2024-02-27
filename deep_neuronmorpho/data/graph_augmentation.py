@@ -159,6 +159,8 @@ class DropBranches(GraphAugmentation):
     with larger distances as more likely to be dropped. The path distance of a node is assumed to be
     stored in the graph.ndata["nattrs"] tensor, specified by the path_dist_idx parameter.
 
+    If dataset does not have radius: path_dist_idx = 4, otherwise path_dist_idx = 5.
+
     Args:
         prop (float): Proportion of nodes to drop.
         deg_power (float): Power to which to raise each node's path distance when computing P(drop).
@@ -168,12 +170,12 @@ class DropBranches(GraphAugmentation):
         apply(G: DGLGraph) -> DGLGraph: Applies the branch dropping operation to a DGLGraph object.
 
     Example:
-        drop_branches_aug = DropBranches(prop=0.25, deg_power=1.0, path_dist_idx=3)
+        drop_branches_aug = DropBranches(prop=0.25, deg_power=1.0, path_dist_idx=4)
         pruned_graph = drop_branches_aug.apply(graph)
 
     """
 
-    def __init__(self, prop: float, deg_power: float = 1.0, path_dist_idx: int = 3) -> None:
+    def __init__(self, prop: float, deg_power: float = 1.0, path_dist_idx: int = 4) -> None:
         self.prop = prop
         self.deg_power = deg_power
         self.path_dist_idx = path_dist_idx
