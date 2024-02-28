@@ -224,9 +224,18 @@ class ContrastiveLogData:
         """Plot training loss and evaluation accuracy."""
         fig, axs = plt.subplots(nrows=2, figsize=(10, 6))
         plot_series(self.train_loss, "Training Loss", "Loss", color="black", ax=axs[0])
-        plot_series(
-            self.eval_acc, "Benchmark Classification Accuracy", "Accuracy", color="red", ax=axs[1]
-        )
+
+        if not self.eval_acc.empty:
+            plot_series(
+                self.eval_acc,
+                "Benchmark Classification Accuracy",
+                "Accuracy",
+                color="red",
+                ax=axs[1],
+            )
+        else:
+            fig.delaxes(axs[1])
+
         fig.suptitle(f"Training results: {self.expt_name}", fontsize=18)
         plt.tight_layout()
 
