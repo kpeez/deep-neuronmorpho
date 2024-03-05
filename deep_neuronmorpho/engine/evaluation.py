@@ -1,8 +1,7 @@
 """Evaluate contrastive learning embeddings on benchmark classification task."""
 
-import re
-
 import dgl
+import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from sklearn.model_selection import GridSearchCV
@@ -70,31 +69,30 @@ def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.Dat
         DataFrame: DataFrame of embeddings with columns "neuron_name", "target", "labels",
         and embedding dimensions.
     """
-    graphs, labels = dataset[:]
+    if dataset.num_classes is None:
+        graphs = dataset[:]
+        labels = np.zeros(len(graphs), dtype=int)
+    else:
+        graphs, labels = dataset[:]
     batch_graphs = dgl.batch(graphs)
     embeds = model(batch_graphs, batch_graphs.ndata["nattrs"])
     df_embed = pd.DataFrame(
         embeds.detach().numpy(),
         columns=[f"dim_{i}" for i in range(embeds.shape[1])],
     )
-    pattern = r"[^-]+-(.*?)(?:-resampled_[^\.]+)?$"
-    neuron_names = []
-    for graph in dataset.graphs:
-        match = re.search(pattern, graph.id)
-        if match:
-            neuron_names.append(match.group(1))
-        else:
-            neuron_names.append("N/A")
+
+    neuron_names = [graph.id if graph.id is not None else "N/A" for graph in dataset.graphs]
 
     df_embed.insert(0, "neuron_name", neuron_names)
-    df_embed.insert(1, "target", labels)
-    df_embed.insert(
-        2,
-        "labels",
-        [
-            dataset.glabel_dict[i.item()] if dataset.glabel_dict is not None else None
-            for i in labels
-        ],
-    )
+    if dataset.num_classes is not None:
+        df_embed.insert(1, "target", labels)
+        df_embed.insert(
+            2,
+            "labels",
+            [
+                dataset.glabel_dict[i.item()] if dataset.glabel_dict is not None else None
+                for i in labels
+            ],
+        )
 
     return df_embed
