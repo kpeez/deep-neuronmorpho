@@ -1,4 +1,5 @@
 """Implementation of the NT-Xent loss function from [Chen et al. 2020](https://arxiv.org/abs/2002.05709)."""
+
 import torch
 from torch import Tensor, nn
 

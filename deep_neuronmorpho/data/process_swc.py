@@ -1,4 +1,5 @@
 """Process SWC files."""
+
 from pathlib import Path
 from typing import Any
 

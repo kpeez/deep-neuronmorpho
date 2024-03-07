@@ -1,4 +1,5 @@
 """Prepare neuron graphs for conversion to DGL datasets."""
+
 from pathlib import Path
 
 import dgl

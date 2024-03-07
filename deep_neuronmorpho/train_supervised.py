@@ -1,4 +1,5 @@
 """Training module."""
+
 import typer
 
 from deep_neuronmorpho.data import NeuronGraphDataset

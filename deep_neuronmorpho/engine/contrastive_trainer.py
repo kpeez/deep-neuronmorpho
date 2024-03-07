@@ -1,4 +1,5 @@
 """Trainer class for training a model."""
+
 from itertools import zip_longest
 from pathlib import Path
 
