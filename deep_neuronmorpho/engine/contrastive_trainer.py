@@ -7,10 +7,9 @@ import torch
 from dgl import DGLGraph
 from dgl.dataloading import GraphDataLoader
 from torch import Tensor, nn
-from torch.utils.tensorboard import SummaryWriter
 
 from deep_neuronmorpho.data import GraphAugmenter
-from deep_neuronmorpho.utils import Config, EventLogger, ProgressBar
+from deep_neuronmorpho.utils import Config, ProgressBar, TrainLogger
 
 from .evaluation import evaluate_embeddings
 from .ntxent_loss import NTXEntLoss
@@ -49,6 +48,7 @@ class ContrastiveTrainer:
     ):
         self.device = device
         self.cfg = config
+        self.expt_name, expt_dir = setup_experiment_results(self.cfg)
         self.model = model.to(device)
         self.dataloaders = dataloaders
         self.node_attrs = node_attrs
@@ -60,14 +60,18 @@ class ContrastiveTrainer:
             optimizer_name=self.cfg.training.optimizer,
             lr=self.cfg.training.lr_init,
         )
-        self.lr_scheduler = get_scheduler(
-            scheduler=self.cfg.training.lr_scheduler,
-            optimizer=self.optimizer,
-            decay_steps=self.cfg.training.lr_decay_steps,
-            decay_rate=self.cfg.training.lr_decay_rate,
-        )
-        self.expt_name, expt_dir = setup_experiment_results(self.cfg)
-        self.logger = EventLogger(f"{expt_dir}/logs", expt_name=self.expt_name)
+        if (
+            self.cfg.training.lr_scheduler is not None
+            and self.cfg.training.lr_decay_steps is not None
+            and self.cfg.training.lr_decay_rate is not None
+        ):
+            self.lr_scheduler = get_scheduler(
+                scheduler=self.cfg.training.lr_scheduler,
+                optimizer=self.optimizer,
+                decay_steps=self.cfg.training.lr_decay_steps,
+                decay_rate=self.cfg.training.lr_decay_rate,
+            )
+        self.logger = TrainLogger(f"{expt_dir}", expt_name=self.expt_name)
         self.checkpoint = Checkpoint(
             model=self.model,
             expt_name=self.expt_name,
@@ -75,9 +79,8 @@ class ContrastiveTrainer:
             lr_scheduler=self.lr_scheduler,
             ckpt_dir=f"{expt_dir}/ckpts",
             device=self.device,
-            logger=self.logger,
         )
-        self.max_epochs = self.cfg.training.max_epochs
+        self.num_epochs = self.cfg.training.epochs
         self.best_train_loss = float("inf")
         self.eval_interval = self.cfg.training.eval_interval
         self.best_eval_acc = 0.0
@@ -166,41 +169,38 @@ class ContrastiveTrainer:
         """
         if ckpt_file is not None:
             self.checkpoint.load(ckpt_file)
-            self.logger.message(f"Resuming training from checkpoint: {ckpt_file}")
             start_epoch = self.checkpoint.epoch if self.checkpoint.epoch is not None else 0
+            self.logger.on_resume_training(ckpt_file, start_epoch)
         else:
             start_epoch = 0
 
-        writer = SummaryWriter(log_dir=self.logger.log_dir)
-        num_epochs = self.max_epochs if epochs is None else epochs
-        self.logger.message(
-            f"| Training {self.expt_name} on '{self.device}' "
-            f"| For {num_epochs - start_epoch} epochs \n"
-            f"| With random_state: {self.cfg.training.random_state}. "
+        num_epochs = self.num_epochs - start_epoch if epochs is None else epochs
+        self.logger.initialize(
+            expt_name=self.expt_name,
+            model_arch=self.cfg.model.model_dump(),
+            hparams=self.cfg.training.model_dump(),
+            num_epochs=num_epochs,
+            device=self.device,
+            random_state=self.cfg.training.random_state,
         )
         bad_epochs = 0
         for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):
             train_loss = self.train_step()
-            writer.add_scalar("loss/train", train_loss, epoch, new_style=True)
-            self.logger.message(f"Epoch {epoch}/{num_epochs}: Train Loss: {train_loss:.4f}")
+            self.logger.on_train_step(
+                epoch=epoch,
+                train_loss=train_loss,
+                scheduler=self.lr_scheduler,
+            )
             self.lr_scheduler.step()
 
             if self.eval_interval is not None and epoch % self.eval_interval == 0:
-                eval_acc = self.eval_step()
-
-                if eval_acc > self.best_eval_acc:
-                    self.best_eval_acc = eval_acc
-
-                writer.add_scalar("acc/eval_acc", eval_acc, epoch, new_style=True)
-                self.logger.message(
-                    f"Epoch {epoch}/{num_epochs}: Benchmark Test accuracy: {eval_acc:.4f}"
-                )
+                val_acc = self.eval_step()
+                self.on_eval_step(val_acc, epoch)
+                if val_acc > self.best_eval_acc:
+                    self.best_eval_acc = val_acc
 
             if epoch % self.cfg.training.save_every == 0:
-                self.checkpoint.save(
-                    epoch=epoch,
-                    info_dict={"train_loss": train_loss},
-                )
+                self.checkpoint.save(epoch=epoch, info_dict={"train_loss": train_loss})
 
             if train_loss < self.best_train_loss:
                 self.best_train_loss = train_loss
@@ -208,13 +208,11 @@ class ContrastiveTrainer:
             else:
                 bad_epochs += 1
 
-            if bad_epochs > self.cfg.training.patience:
-                self.logger.message(
-                    f"Stopping training after {epoch} epochs: Training loss at plateau"
-                )
+            if self.cfg.training.patience and bad_epochs > self.cfg.training.patience:
+                self.logger.on_early_stop(epoch)
                 break
 
-        writer.close()
+        self.logger.stop()
 
     def load_checkpoint(self, ckpt_name: str) -> None:
         """Load model checkpoint."""
