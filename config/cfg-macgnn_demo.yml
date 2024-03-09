@@ -1,7 +1,7 @@
 # model config
 dirs:
-  graph_data: "../datasets/demo-neuromorpho/processed/"
-  expt_results: "../datasets/demo-neuromorpho/expt_results/"
+  data: "../datasets/demo-neuromorpho/processed/"
+  results: "../datasets/demo-neuromorpho/expt_results/macgnn/runs/"
 
 datasets:
   contra_train: "demo-neuromorpho"
@@ -31,7 +31,7 @@ training:
   contra_loss_temp: 0.2
   # eval_interval: None
   save_every: 2
-  max_epochs: 6
+  epochs: 6
   patience: 60
   lr_init: 0.01
   random_state: 42 # optional

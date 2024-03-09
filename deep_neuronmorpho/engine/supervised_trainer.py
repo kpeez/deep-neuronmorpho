@@ -1,4 +1,5 @@
 """Trainer for graph classification tasks."""
+
 from pathlib import Path
 
 import numpy as np
@@ -8,7 +9,6 @@ from dgl.dataloading import GraphDataLoader
 from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.utils.data.sampler import SequentialSampler, SubsetRandomSampler
-from torch.utils.tensorboard import SummaryWriter
 
 from deep_neuronmorpho.engine.trainer_utils import (
     Checkpoint,
@@ -16,7 +16,7 @@ from deep_neuronmorpho.engine.trainer_utils import (
     get_scheduler,
     setup_experiment_results,
 )
-from deep_neuronmorpho.utils import Config, EventLogger, ProgressBar
+from deep_neuronmorpho.utils import Config, ProgressBar, TrainLogger
 
 
 class SupervisedTrainer:
@@ -57,14 +57,19 @@ class SupervisedTrainer:
             optimizer_name=self.cfg.training.optimizer,
             lr=self.cfg.training.lr_init,
         )
-        self.lr_scheduler = get_scheduler(
-            scheduler=self.cfg.training.lr_scheduler,
-            optimizer=self.optimizer,
-            decay_steps=self.cfg.training.lr_decay_steps,
-            decay_rate=self.cfg.training.lr_decay_rate,
-        )
+        if (
+            self.cfg.training.lr_scheduler is not None
+            and self.cfg.training.lr_decay_steps is not None
+            and self.cfg.training.lr_decay_rate is not None
+        ):
+            self.lr_scheduler = get_scheduler(
+                scheduler=self.cfg.training.lr_scheduler,
+                optimizer=self.optimizer,
+                decay_steps=self.cfg.training.lr_decay_steps,
+                decay_rate=self.cfg.training.lr_decay_rate,
+            )
         self.expt_name, expt_dir = setup_experiment_results(self.cfg)
-        self.logger = EventLogger(f"{expt_dir}/logs", expt_name=self.expt_name)
+        self.logger = TrainLogger(f"{expt_dir}/logs", expt_name=self.expt_name)
         self.checkpoint = Checkpoint(
             model=self.model,
             expt_name=self.expt_name,
@@ -72,7 +77,6 @@ class SupervisedTrainer:
             lr_scheduler=self.lr_scheduler,
             ckpt_dir=f"{expt_dir}/ckpts",
             device=self.device,
-            logger=self.logger,
         )
         indices = np.arange(len(dataset))
         train_idx, val_idx = train_test_split(
@@ -95,7 +99,7 @@ class SupervisedTrainer:
         )
         self.num_train_samples = len(train_idx)
         self.num_val_samples = len(val_idx)
-        self.max_epochs = self.cfg.training.max_epochs
+        self.num_epochs = self.cfg.training.epochs
         self.best_train_loss, self.best_val_loss = float("inf"), float("inf")
         self.best_train_acc, self.best_val_acc = 0.0, 0.0
 
@@ -120,7 +124,7 @@ class SupervisedTrainer:
 
         return train_loss, train_acc
 
-    def evaluate(self) -> tuple[float, float]:
+    def eval_step(self) -> tuple[float, float]:
         """Evaluate model performance on a given dataloader."""
         val_loss, val_acc = 0.0, 0.0
         self.model.eval()
@@ -157,35 +161,35 @@ class SupervisedTrainer:
         """
         if ckpt_file is not None:
             self.checkpoint.load(ckpt_file)
-            self.logger.message(f"Resuming training from checkpoint: {ckpt_file}")
             start_epoch = self.checkpoint.epoch if self.checkpoint.epoch is not None else 0
+            self.logger.on_resume_training(ckpt_file, start_epoch)
         else:
             start_epoch = 0
-
-        writer = SummaryWriter(log_dir=self.logger.log_dir)
-        num_epochs = self.max_epochs if epochs is None else epochs
-        self.logger.message(
-            f"Training {self.expt_name} on '{self.device}' "
-            f"for {num_epochs - start_epoch} epochs "
-            f"with random_seed {self.cfg.training.random_state}."
+        num_epochs = self.num_epochs - start_epoch if epochs is None else epochs
+        self.logger.initialize(
+            expt_name=self.expt_name,
+            model_arch=self.cfg.model.model_dump(),
+            hparams=self.cfg.training.model_dump(),
+            num_epochs=num_epochs,
+            device=self.device,
+            random_state=self.cfg.training.random_state,
         )
         bad_epochs = 0
         for epoch in ProgressBar(range(start_epoch + 1, num_epochs + 1), desc="Training epochs:"):
             train_loss, train_acc = self.train_step()
-            val_loss, val_acc = self.evaluate()
+            self.logger.on_train_step(
+                epoch=epoch,
+                train_loss=train_loss,
+                train_acc=train_acc,
+                scheduler=self.lr_scheduler,
+            )
+            val_loss, val_acc = self.eval_step()
+            self.logger.on_eval_step(
+                epoch=epoch,
+                val_loss=val_loss,
+                val_acc=val_acc,
+            )
             self.lr_scheduler.step()
-            writer.add_scalar("loss/train_loss", train_loss, epoch, new_style=True)
-            writer.add_scalar("acc/train_acc", train_acc, epoch, new_style=True)
-            writer.add_scalar("loss/val_loss", val_loss, epoch, new_style=True)
-            writer.add_scalar("acc/val_acc", val_acc, epoch, new_style=True)
-            self.logger.message(
-                f"Epoch {epoch}/{num_epochs}: Train loss: {train_loss:.4f} | "
-                f"Train acc: {train_acc:.4f}"
-            )
-
-            self.logger.message(
-                f"Epoch {epoch}/{num_epochs}: Val loss: {val_loss:.4f} | Val acc: {val_acc:.4f}"
-            )
 
             if train_loss < self.best_train_loss:
                 self.best_train_loss = train_loss
@@ -198,14 +202,13 @@ class SupervisedTrainer:
                 bad_epochs = 0
             else:
                 bad_epochs += 1
-            if bad_epochs > self.cfg.training.patience:
-                self.logger.message(
-                    f"Stopping training after {epoch} epochs: Validation accuracy at plateau"
-                )
+            if self.cfg.training.patience and bad_epochs > self.cfg.training.patience:
+                self.logger.on_early_stop(epoch)
                 break
             info_dict = {"train_loss": train_loss, "val_loss": val_loss, "val_acc": val_acc}
             self.checkpoint.save(epoch=epoch, info_dict=info_dict)
-        writer.close()
+
+        self.logger.stop()
 
     def load_checkpoint(self, ckpt_name: str) -> None:
         """Load model checkpoint."""

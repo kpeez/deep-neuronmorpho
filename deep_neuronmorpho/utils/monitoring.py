@@ -1,4 +1,5 @@
 """Utilities for monitoring the training process."""
+
 import logging
 import re
 from dataclasses import dataclass, field
@@ -10,6 +11,7 @@ from typing import Any, Collection
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from typing_extensions import TypeAlias
 
@@ -120,11 +122,145 @@ class EventLogger:
             raise ValueError(f"Unknown logging level: {level}")
 
 
+class TrainLogger:
+    """
+    A class to handle logging and checkpoint management for the ContrastiveTrainer.
+
+    Args:
+        expt_name (str): The name of the experiment.
+        expt_dir (str): The directory where experiment logs and checkpoints will be saved.
+        config (Config): The configuration object containing training parameters.
+        device (torch.device): The device (CPU or GPU) used for training.
+        model (nn.Module): The model being trained.
+        optimizer (torch.optim.Optimizer): The optimizer used for training.
+        lr_scheduler (torch.optim.lr_scheduler._LRScheduler): The learning rate scheduler.
+
+    Methods:
+        initialize(): Initialize the logger and summary writer.
+        on_train_step(): Log the training loss for a given step.
+        on_eval_step(): Log the evaluation accuracy for a given step.
+        on_resume_training(): Log a message when resuming training from a checkpoint.
+        on_early_stop(): Log a message when early stopping is triggered.
+        stop(): Close the summary writer and log a message.
+    """
+
+    def __init__(self, log_dir: Path | str, expt_name: str) -> None:
+        self.expt_name = expt_name
+        self.log_dir = log_dir
+        self.logger = EventLogger(log_dir, expt_name=self.expt_name)
+        self.writer = SummaryWriter(log_dir)
+
+    def _flatten_dict(
+        self, d: dict[str, Any], parent_key: str = "", sep: str = "_"
+    ) -> dict[str, Any]:
+        """Flattens a nested dictionary and converts values to supported types (str, int, float, bool)."""
+        items: list[tuple[str, Any]] = []
+        for k, v in d.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, dict):
+                items.extend(self._flatten_dict(v, new_key, sep=sep).items())
+            else:
+                if not isinstance(v, (str, int, float, bool)):
+                    v = str(v)
+                items.append((new_key, v))
+
+        return dict(items)
+
+    def initialize(
+        self,
+        model_arch: dict[str, Any],
+        hparams: dict[str, Any],
+        expt_name: str,
+        device: str | Any,
+        num_epochs: int,
+        random_state: int | None = None,
+    ) -> None:
+        """
+        Initializes the logger and summary writer.
+        """
+
+        self.logger.message(
+            f"| Training {expt_name} on '{device}' "
+            f"| For {num_epochs} epochs \n"
+            f"| With random_state: {random_state}. "
+        )
+        model_arch_text = "\n".join(str(model_arch).split(" "))
+        self.writer.add_text("Model Architecture", f"<pre>{model_arch_text}</pre>")
+        self.writer.add_hparams(hparam_dict=self._flatten_dict(hparams), metric_dict={})
+
+    def on_train_step(
+        self,
+        epoch: int,
+        train_loss: float,
+        train_acc: float | None = None,
+        scheduler: Any | None = None,
+    ) -> None:
+        """
+        Logs the training loss for a given step.
+
+        Args:
+            train_loss (float): The training loss for the current step.
+            train_acc (float): The training accuracy for the current step.
+            epoch (int): The current epoch.
+            step (int): The current step.
+            train_loss (float): The training loss for the current step.
+        """
+        log_msg = f"Epoch {epoch}: Train Loss: {train_loss:.4f}"
+        self.writer.add_scalar("loss/train_loss", train_loss, epoch, new_style=True)
+        if train_acc is not None:
+            self.writer.add_scalar("acc/train_acc", train_acc, epoch, new_style=True)
+            log_msg += f" | Train Acc: {train_acc:.4f}"
+        if scheduler is not None:
+            self.writer.add_scalar("lr", scheduler.get_last_lr()[0], epoch, new_style=True)
+        self.logger.message(log_msg)
+
+    def on_eval_step(
+        self,
+        epoch: int,
+        val_loss: float,
+        val_acc: float | None = None,
+    ) -> None:
+        """
+        Logs the evaluation accuracy for a given step.
+
+        Args:
+            epoch (int): The current epoch.
+            eval_acc (float): The evaluation accuracy for the current step.
+        """
+        log_msg = f"Epoch {epoch}: Val loss: {val_loss:.4f}"
+        self.writer.add_scalar("loss/val_loss", val_loss, epoch, new_style=True)
+        if val_acc is not None:
+            log_msg += f" | Val acc: {val_acc:.4f}"
+            self.writer.add_scalar("acc/val_acc", val_acc, epoch, new_style=True)
+        self.logger.message(log_msg)
+
+    def on_resume_training(self, ckpt_file: Path | str, epoch: int) -> None:
+        """
+        Logs a message when resuming training from a checkpoint.
+
+        Args:
+            ckpt_file (str): The name of the checkpoint file.
+            epoch (int): The epoch from which training is being resumed.
+        """
+        self.logger.message(f"Resuming training from epoch {epoch} using checkpoint: {ckpt_file}")
+
+    def on_early_stop(self, epoch: int) -> None:
+        """Logs a message when early stopping is triggered."""
+        self.logger.message(f"Early stopping triggered at epoch {epoch}")
+
+    def stop(self) -> None:
+        """
+        Closes the summary writer and logs a message.
+        """
+        self.writer.close()
+        self.logger.message("Training completed.")
+
+
 def extract_data(
     content: str,
     pattern: str,
-    num_values: int = 1,
-) -> pd.Series | tuple[pd.Series, pd.Series]:
+    num_values: int,
+) -> tuple[pd.Series, ...]:
     """Extract data from string using regex pattern.
 
     Args:
@@ -133,15 +269,15 @@ def extract_data(
         num_values (int, optional): Number of values to extract per line. Defaults to 1.
 
     Returns:
-        pd.Series | tuple[pd.Series, pd.Series]: A pd.Series object containing the extracted data.
+        tuple[pd.Series, pd.Series] | pd.Series: A pd.Series object containing the extracted data.
     """
-    data: tuple = tuple(pd.Series(dtype=float) for _ in range(num_values))
+    data = tuple(pd.Series(dtype=float) for _ in range(num_values))
     for match in re.finditer(pattern, content):
         epoch = int(match.group(1))
         values = tuple(float(match.group(i)) for i in range(2, num_values + 2))
         for series, value in zip(data, values, strict=True):
             series[epoch] = value
-    return data if num_values > 1 else data[0]
+    return data  # if num_values > 1 else data[0]
 
 
 def plot_series(
@@ -202,8 +338,12 @@ class ContrastiveLogData:
     def _parse_log_file(self) -> None:
         with self.file.open("r") as f:
             content = f.read()
-        self.train_loss = extract_data(content=content, pattern=self._train_loss_pattern)  # type: ignore
-        self.eval_acc = extract_data(content=content, pattern=self._eval_acc_pattern)  # type: ignore
+        (self.train_loss,) = extract_data(
+            content=content, pattern=self._train_loss_pattern, num_values=1
+        )
+        (self.eval_acc,) = extract_data(
+            content=content, pattern=self._eval_acc_pattern, num_values=1
+        )
 
     @property
     def expt_name(self) -> str:

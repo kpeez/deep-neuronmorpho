@@ -1,4 +1,5 @@
 """Graph augmentations of neuron structures for contrastive learning."""
+
 import inspect
 from abc import ABC, abstractmethod
 
@@ -259,9 +260,10 @@ class GraphAugmenter:
         original_graphs = dgl.unbatch(g_batch)
         augmented_graphs = []
         for g in original_graphs:
+            g_aug = g.clone()
             for augmentation in self.augmentations:
-                aug_g = augmentation.apply(g)
-            augmented_graphs.append(aug_g)
+                g_aug = augmentation.apply(g_aug)
+            augmented_graphs.append(g_aug)
         batch_augmented_graphs = dgl.batch(augmented_graphs)
 
         return batch_augmented_graphs

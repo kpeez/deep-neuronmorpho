@@ -5,13 +5,15 @@ from .monitoring import (
     ExperimentResults,
     ProgressBar,
     SupervisedLogData,
+    TrainLogger,
 )
 
 __all__ = [
     "Config",
-    "ProgressBar",
-    "EventLogger",
-    "ExperimentResults",
     "ContrastiveLogData",
+    "EventLogger",
+    "TrainLogger",
+    "ProgressBar",
+    "ExperimentResults",
     "SupervisedLogData",
 ]

@@ -1,4 +1,5 @@
 """Utilities for working with and tracking the training process."""
+
 import random
 import shutil
 from datetime import datetime as dt
@@ -12,7 +13,7 @@ from dgl.dataloading import GraphDataLoader
 from torch import nn, optim
 
 from deep_neuronmorpho.data import NeuronGraphDataset
-from deep_neuronmorpho.utils import Config, EventLogger
+from deep_neuronmorpho.utils import Config
 
 
 def setup_seed(seed: int = 42) -> None:
@@ -129,7 +130,7 @@ def setup_dataloaders(
     Returns:
         dict[str, GraphDataLoader]: Dictionary of dataloaders for each dataset.
     """
-    data_dir = conf.dirs.graph_data
+    data_dir = conf.dirs.data
     graph_datasets = {
         dataset: NeuronGraphDataset(
             graphs_path=data_dir,
@@ -176,7 +177,6 @@ class Checkpoint:
         lr_scheduler: Any,
         ckpt_dir: str | Path,
         device: str | torch.device,
-        logger: EventLogger,
     ):
         self.model = model
         self.expt_name = expt_name
@@ -184,7 +184,6 @@ class Checkpoint:
         self.lr_scheduler = lr_scheduler
         self.ckpt_dir = ckpt_dir
         self.device = device
-        self.logger = logger
         self.epoch = None
         self.info_dict: dict[str, Any] = {}
 
@@ -197,7 +196,6 @@ class Checkpoint:
         """
         chkpt_name = f"{self.expt_name}-epoch_{epoch:04d}.pt"
         chkpt_file = Path(self.ckpt_dir) / chkpt_name
-        self.logger.message(f"Saving checkpoint: {self.ckpt_dir}/{chkpt_name}")
         checkpoint = {
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
@@ -215,14 +213,12 @@ class Checkpoint:
             ckpt_file (str): Name of the checkpoint file to load.
         """
         if Path(ckpt_file).is_file():
-            self.logger.message(f"Loading {ckpt_file}...")
             checkpoint = torch.load(ckpt_file, map_location=self.device)
             self.model.load_state_dict(checkpoint["model"])
             self.optimizer.load_state_dict(checkpoint["optimizer"])
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
             self.epoch = checkpoint["epoch"]
             self.info_dict = checkpoint["info_dict"]
-            self.logger.message(f"Loaded model at epoch={checkpoint['epoch']}")
         else:
             raise FileNotFoundError(f"Checkpoint file {ckpt_file} not found")
 
@@ -332,18 +328,17 @@ def setup_experiment_results(cfg: Config) -> tuple[str, str]:
         tuple[str, str]: The experiment name and results directory.
     """
     expt_id = generate_experiment_name()
-    prev_expts = list(Path(cfg.dirs.expt_results).glob(f"*{expt_id}*"))
+    prev_expts = list(Path(cfg.dirs.results).glob(f"*{expt_id}*"))
     while prev_expts:
         expt_id = generate_experiment_name()
-        prev_expts = list(Path(cfg.dirs.expt_results).glob(f"*{expt_id}*"))
+        prev_expts = list(Path(cfg.dirs.results).glob(f"*{expt_id}*"))
 
     expt_name = f"{cfg.model.name}-{expt_id}"
     timestamp = dt.now().strftime("%Y_%m_%d_%Hh_%Mm")
-    expt_dir = Path(cfg.dirs.expt_results) / f"{timestamp}-{expt_name}"
-    for result in ["ckpts", "logs"]:
-        result_dir = Path(expt_dir / result)
-        if result_dir.exists() is False:
-            result_dir.mkdir(parents=True, exist_ok=True)
+    expt_dir = Path(cfg.dirs.results) / f"{timestamp}-{expt_name}"
+    result_dir = Path(expt_dir / "ckpts")
+    if result_dir.exists() is False:
+        result_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(cfg.config_file, expt_dir / f"{expt_name}.yml")
 
     return expt_name, str(expt_dir)

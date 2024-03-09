@@ -1,4 +1,5 @@
 """Simple feed-forward MLP implementation."""
+
 from torch import Tensor, nn
 
 
