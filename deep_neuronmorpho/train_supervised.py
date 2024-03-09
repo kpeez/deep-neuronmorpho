@@ -19,9 +19,9 @@ def train_model(
     if conf.training.random_state is not None:
         setup_seed(conf.training.random_state)
     dataset = NeuronGraphDataset(
-        conf.dirs.graph_data,
+        conf.dirs.data,
         dataset_name=conf.datasets.eval_train,
-        dataset_path=conf.dirs.graph_data,
+        dataset_path=conf.dirs.data,
     )
     # create model and trainer
     # TODO: add support for other models (parse model name from config file)

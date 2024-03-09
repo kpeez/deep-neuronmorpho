@@ -1,7 +1,7 @@
 # model config
 dirs:
-  graph_data: "../datasets/demo_gnn_data/processed/dgl_datasets"
-  expt_results: "../datasets/demo_gnn_data/expt_results/supervised"
+  data: "../datasets/demo_gnn_data/processed/dgl_datasets"
+  results: "../datasets/demo_gnn_data/expt_results/supervised"
 
 datasets:
   eval_train: "demo-neuromorpho_benchmark_radius-train"
@@ -28,7 +28,7 @@ model:
 training:
   batch_size: 128
   eval_interval: 1
-  max_epochs: 5
+  epochs: 5
   patience: 60
   lr_init: 0.01
   random_seed: 42 # optional

@@ -9,8 +9,8 @@ from pydantic import BaseModel
 class Dirs(BaseModel):
     """Paths to directories for storing data and experiment results."""
 
-    graph_data: str
-    expt_results: str
+    data: str
+    results: str
 
 
 class Datasets(BaseModel):
@@ -58,16 +58,16 @@ class Training(BaseModel):
     """Parameters for training the model."""
 
     batch_size: int
-    contra_loss_temp: float | None = None
-    eval_interval: int | None = None
-    max_epochs: int | None = None
-    patience: int | None = None
+    epochs: int
     save_every: int
     optimizer: str
     lr_init: float
-    lr_scheduler: str
-    lr_decay_steps: int
-    lr_decay_rate: float
+    lr_scheduler: str | None = None
+    lr_decay_steps: int | None = None
+    lr_decay_rate: float | None = None
+    eval_interval: int | None = None
+    patience: int | None = None
+    contra_loss_temp: float | None = None
     random_state: int | None = None
 
 
