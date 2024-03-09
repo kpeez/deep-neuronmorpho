@@ -1,5 +1,6 @@
 """Evaluate contrastive learning embeddings on benchmark classification task."""
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -118,7 +119,7 @@ def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.Dat
 
 def repeated_kfold_evaluation(
     X: pd.DataFrame,
-    y: ArrayLike,
+    y: Sequence | np.ndarray | pd.Series,
     model: Classifier,
     n_splits: int = 5,
     n_repeats: int = 10,
