@@ -4,9 +4,8 @@ install: ## Install the poetry environment and install the pre-commit hooks
 	@echo "📦 Creating virtual environment using poetry"
 	@poetry install	
 	@poetry run pre-commit install
-	@poetry shell
 
-install-cuda: ## install CUDA-dependent pacakges
+install-cuda: install ## install CUDA-dependent pacakges
 	@echo "📦 Installing CUDA-dependent packages..."
 	@poetry run pip install --upgrade pip
 	@echo "Installing CUDA-enabled version of DGL..."
