@@ -82,13 +82,10 @@ class EventLogger:
         """Create a logger for logging training progress."""
         logger = logging.getLogger(self.expt_name)
         logger.setLevel(logging.INFO)
-        # log to console
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)
         logger.addHandler(console_handler)
-        # log to file if specified
         if self.to_file:
-            # add timestamp if none in expt_name
             fname_pattern = re.compile(r"\d{4}[-_]\d{2}[-_]\d{2}[-_]\d{2}h?[-_]\d{2}m?")
             if fname_pattern.search(self.expt_name) is None:
                 timestamp = dt.now().strftime("%Y_%m_%d_%Hh_%Mm")
