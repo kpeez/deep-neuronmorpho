@@ -160,9 +160,8 @@ class TrainLogger:
             if isinstance(v, dict):
                 items.extend(self._flatten_dict(v, new_key, sep=sep).items())
             else:
-                if not isinstance(v, (str, int, float, bool)):
-                    v = str(v)
-                items.append((new_key, v))
+                new_v = str(v) if not isinstance(v, (str, int, float, bool)) else v
+                items.append((new_key, new_v))
 
         return dict(items)
 
