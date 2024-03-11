@@ -2,7 +2,7 @@
 
 install: ## Install the poetry environment and install the pre-commit hooks
 	@echo "📦 Creating virtual environment using poetry"
-	@poetry install	
+	@poetry install
 	@poetry run pre-commit install
 
 install-cuda: install ## install CUDA-dependent pacakges
@@ -14,11 +14,13 @@ install-cuda: install ## install CUDA-dependent pacakges
 
 check: ## Run code quality tools.
 	@echo "🔒 Checking Poetry lock file consistency with 'pyproject.toml': Running poetry lock --check"
-	@poetry lock --check
-	@echo "🧹 Linting code: Running pre-commit"
+	@poetry check --lock
+	@echo "⚡️ Linting / Formatting: Running ruff"
+	@poetry run ruff check
+	@echo "🧹 Running pre-commit"
 	@poetry run pre-commit run -a
 	@echo "🔬 Static type checking: Running mypy"
-	@poetry run mypy
+	@poetry run mypy deep_neuronmorpho
 
 test: ## Test the code with pytest
 	@echo "✅ Testing code: Running pytest"
