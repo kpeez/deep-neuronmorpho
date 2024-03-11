@@ -65,15 +65,15 @@ def get_scheduler(
     scheduler: str,
     optimizer: optim.Optimizer,
     step_size: int,
-    factor: float,
+    factor: float | int,
 ) -> Any:
     """Get learning rate scheduler for the optimizer.
 
     Args:
         scheduler (str): The name of the scheduler to use.
         optimizer (optim.Optimizer): The optimizer to use.
-        decay_steps (int): The number of steps between each decay.
-        decay_rate (float): The decay rate.
+        step_size (int): The step size for the scheduler.
+        factor (float | int): The factor for the scheduler. Typically < 1 for step and > 1 for cosine annealing.
 
     Returns:
         optim.lr_scheduler: The learning rate scheduler.
@@ -89,7 +89,7 @@ def get_scheduler(
         return optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer,
             T_0=step_size,
-            T_mult=factor,
+            T_mult=int(factor),
             eta_min=1e-6,
         )
     else:
