@@ -55,7 +55,7 @@ class SupervisedTrainer:
         self.optimizer = get_optimizer(
             model=self.model,
             optimizer_name=self.cfg.training.optimizer,
-            lr=self.cfg.training.lr_init,
+            lr=self.cfg.training.lr,
         )
         if (
             self.cfg.training.lr_scheduler is not None
@@ -63,10 +63,10 @@ class SupervisedTrainer:
             and self.cfg.training.lr_decay_rate is not None
         ):
             self.lr_scheduler = get_scheduler(
-                scheduler=self.cfg.training.lr_scheduler,
+                scheduler=self.cfg.training.lr_scheduler.kind,
                 optimizer=self.optimizer,
-                decay_steps=self.cfg.training.lr_decay_steps,
-                decay_rate=self.cfg.training.lr_decay_rate,
+                step_size=self.cfg.training.lr_scheduler.step_size,
+                factor=self.cfg.training.lr_scheduler.factor,
             )
         self.expt_name, expt_dir = setup_experiment_results(self.cfg)
         self.logger = TrainLogger(f"{expt_dir}/logs", expt_name=self.expt_name)

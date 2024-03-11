@@ -14,8 +14,8 @@ datasets:
 
 model:
   name: "model_name"
-  num_gnn_layers: 
-  num_mlp_layers: 
+  num_gnn_layers:
+  num_mlp_layers:
   hidden_dim: # dimensionality of the hidden layers in GNN
   output_dim:  # hidden_dim * num_gnn_layers
   dropout_prob: # dropout probability

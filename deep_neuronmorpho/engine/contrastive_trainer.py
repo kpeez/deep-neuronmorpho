@@ -58,18 +58,14 @@ class ContrastiveTrainer:
         self.optimizer = get_optimizer(
             model=self.model,
             optimizer_name=self.cfg.training.optimizer,
-            lr=self.cfg.training.lr_init,
+            lr=self.cfg.training.lr,
         )
-        if (
-            self.cfg.training.lr_scheduler is not None
-            and self.cfg.training.lr_decay_steps is not None
-            and self.cfg.training.lr_decay_rate is not None
-        ):
+        if self.cfg.training.lr_scheduler is not None:
             self.lr_scheduler = get_scheduler(
-                scheduler=self.cfg.training.lr_scheduler,
+                scheduler=self.cfg.training.lr_scheduler.kind,
                 optimizer=self.optimizer,
-                decay_steps=self.cfg.training.lr_decay_steps,
-                decay_rate=self.cfg.training.lr_decay_rate,
+                step_size=self.cfg.training.lr_scheduler.step_size,
+                factor=self.cfg.training.lr_scheduler.factor,
             )
         self.logger = TrainLogger(f"{expt_dir}", expt_name=self.expt_name)
         self.checkpoint = Checkpoint(
@@ -178,7 +174,7 @@ class ContrastiveTrainer:
         self.logger.initialize(
             expt_name=self.expt_name,
             model_arch=self.cfg.model.model_dump(),
-            hparams=self.cfg.training.model_dump(),
+            hparams={"hidden_dim": self.cfg.model.hidden_dim, **self.cfg.training.model_dump()},
             num_epochs=num_epochs,
             device=self.device,
             random_state=self.cfg.training.random_state,

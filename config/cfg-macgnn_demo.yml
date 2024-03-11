@@ -33,12 +33,13 @@ training:
   save_every: 2
   epochs: 6
   patience: 60
-  lr_init: 0.01
-  random_state: 42 # optional
   optimizer: "adam"
-  lr_scheduler: "step" # ["cosine", "step"]
-  lr_decay_steps: 20
-  lr_decay_rate: 0.6
+  lr: 0.01
+  lr_scheduler: # ["cosine", "step"]
+    kind: "step"
+    step_size: 20
+    factor: 0.6
+  random_state: 42 # optional
 
 # Augmentation info
 augmentation:
