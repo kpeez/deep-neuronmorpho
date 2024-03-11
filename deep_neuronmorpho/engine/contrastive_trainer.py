@@ -174,7 +174,7 @@ class ContrastiveTrainer:
         self.logger.initialize(
             expt_name=self.expt_name,
             model_arch=self.cfg.model.model_dump(),
-            hparams=self.cfg.training.model_dump(),
+            hparams={"hidden_dim": self.cfg.model.hidden_dim, **self.cfg.training.model_dump()},
             num_epochs=num_epochs,
             device=self.device,
             random_state=self.cfg.training.random_state,
