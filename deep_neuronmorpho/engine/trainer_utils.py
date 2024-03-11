@@ -16,7 +16,7 @@ from deep_neuronmorpho.data import NeuronGraphDataset
 from deep_neuronmorpho.utils import Config
 
 
-def setup_seed(seed: int = 42) -> None:
+def setup_seed(seed: int) -> None:
     """Set the random seed for reproducibility.
 
     Args:
@@ -64,8 +64,8 @@ def get_optimizer(
 def get_scheduler(
     scheduler: str,
     optimizer: optim.Optimizer,
-    decay_steps: int,
-    decay_rate: float,
+    step_size: int,
+    factor: float,
 ) -> Any:
     """Get learning rate scheduler for the optimizer.
 
@@ -80,7 +80,18 @@ def get_scheduler(
 
     """
     if scheduler == "step":
-        return optim.lr_scheduler.StepLR(optimizer, step_size=decay_steps, gamma=decay_rate)
+        return optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=step_size,
+            gamma=factor,
+        )
+    elif scheduler == "cosine":
+        return optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer,
+            T_0=step_size,
+            T_mult=factor,
+            eta_min=1e-6,
+        )
     else:
         raise ValueError(f"Scheduler '{scheduler}' not recognized")
 
