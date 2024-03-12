@@ -27,7 +27,7 @@ class Model(BaseModel):
     name: str
     hidden_dim: int
     output_dim: int
-    dropout_prob: float
+    dropout: float
 
 
 class GNNModel(Model):

@@ -41,7 +41,7 @@ class MACGNN(nn.Module):
         self.graph_pooling_type = self.args.graph_pooling_type
         self.neighbor_aggregation = self.args.neighbor_aggregation
         self.gnn_layer_aggregation = self.args.gnn_layer_aggregation
-        self.dropout_prob = self.args.dropout_prob
+        self.dropout_prob = self.args.dropout
         self.attrs_streams = load_attrs_streams(self.args.attrs_streams)
         self.num_streams = len(self.attrs_streams)
         self.streams_weight = None
