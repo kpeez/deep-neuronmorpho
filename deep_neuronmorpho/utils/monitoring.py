@@ -148,7 +148,7 @@ class TrainLogger:
         self.writer = SummaryWriter(log_dir)
 
     def _flatten_dict(
-        self, d: dict[str, Any], parent_key: str = "", sep: str = "_"
+        self, d: dict[str, Any], parent_key: str = "", sep: str = "."
     ) -> dict[str, Any]:
         """Flattens a nested dictionary and converts values to supported types (str, int, float, bool)."""
         items: list[tuple[str, Any]] = []
@@ -165,7 +165,6 @@ class TrainLogger:
     def initialize(
         self,
         model_arch: dict[str, Any],
-        hparams: dict[str, Any],
         expt_name: str,
         device: str | Any,
         num_epochs: int,
@@ -182,7 +181,6 @@ class TrainLogger:
         )
         model_arch_text = "\n".join(str(model_arch).split(" "))
         self.writer.add_text("Model Architecture", f"<pre>{model_arch_text}</pre>")
-        self.writer.add_hparams(hparam_dict=self._flatten_dict(hparams), metric_dict={})
 
     def on_train_step(
         self,
@@ -240,14 +238,19 @@ class TrainLogger:
         """
         self.logger.message(f"Resuming training from epoch {epoch} using checkpoint: {ckpt_file}")
 
+    def log_hyperparams(self, params: dict[str, Any], metrics: dict[str, float]) -> None:
+        """Log hyperparameters to tensorboard."""
+        self.writer.add_hparams(self._flatten_dict(params), metrics, run_name="hyperparams")
+
     def on_early_stop(self, epoch: int) -> None:
         """Logs a message when early stopping is triggered."""
         self.logger.message(f"Early stopping triggered at epoch {epoch}")
 
-    def stop(self) -> None:
+    def stop(self, params: dict[str, Any], metrics: dict[str, float]) -> None:
         """
         Closes the summary writer and logs a message.
         """
+        self.log_hyperparams(params, metrics)
         self.writer.close()
         self.logger.message("Training completed.")
 
@@ -273,7 +276,7 @@ def extract_data(
         values = tuple(float(match.group(i)) for i in range(2, num_values + 2))
         for series, value in zip(data, values, strict=True):
             series[epoch] = value
-    return data  # if num_values > 1 else data[0]
+    return data
 
 
 def plot_series(
