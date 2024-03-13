@@ -174,7 +174,6 @@ class ContrastiveTrainer:
         self.logger.initialize(
             expt_name=self.expt_name,
             model_arch=self.cfg.model.model_dump(),
-            hparams={"hidden_dim": self.cfg.model.hidden_dim, **self.cfg.training.model_dump()},
             num_epochs=num_epochs,
             device=self.device,
             random_state=self.cfg.training.random_state,
@@ -187,7 +186,8 @@ class ContrastiveTrainer:
                 train_loss=train_loss,
                 scheduler=self.lr_scheduler,
             )
-            self.lr_scheduler.step()
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
 
             if self.eval_interval is not None and epoch % self.eval_interval == 0:
                 val_acc = self.eval_step()
@@ -208,7 +208,19 @@ class ContrastiveTrainer:
                 self.logger.on_early_stop(epoch)
                 break
 
-        self.logger.stop()
+        model_hparams = {
+            "hidden_dim": self.cfg.model.hidden_dim,
+            "output_dim": self.cfg.model.output_dim,
+            "dropout": self.cfg.model.dropout_prob,
+            **self.cfg.training.model_dump(),
+        }
+        self.logger.stop(
+            params=model_hparams,
+            metrics={
+                "metric/best_train_loss": self.best_train_loss,
+                "metric/best_eval_acc": self.best_eval_acc,
+            },
+        )
 
     def load_checkpoint(self, ckpt_name: str) -> None:
         """Load model checkpoint."""
