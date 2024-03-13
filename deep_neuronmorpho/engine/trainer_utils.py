@@ -20,7 +20,7 @@ def setup_seed(seed: int) -> None:
     """Set the random seed for reproducibility.
 
     Args:
-        seed (int, optional): The random seed. Defaults to 42.
+        seed (int, optional): The random seed to set.
     """
     np.random.seed(seed)
     random.seed(seed)
