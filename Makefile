@@ -10,7 +10,7 @@ install-cuda: install ## install CUDA-dependent pacakges
 	@poetry run pip install --upgrade pip
 	@echo "Installing CUDA-enabled version of DGL..."
 	@poetry run pip uninstall dgl -y
-	@poetry run pip install dgl==1.1.3 -f https://data.dgl.ai/wheels/cu118/repo.html
+	@poetry run pip install dgl==2.1.0 -f https://data.dgl.ai/wheels/cu121/repo.html
 
 check: ## Run code quality tools.
 	@echo "🔒 Checking Poetry lock file consistency with 'pyproject.toml': Running poetry lock --check"
