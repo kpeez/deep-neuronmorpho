@@ -15,7 +15,10 @@ numpy = "^1.24"
 matplotlib = "^3.6"
 seaborn = "^0.12"
 scikit-learn = "^1.4"
-torch = "2.2.0"
+torch = [
+    { version = "^2.2.0", source = "PyPI", platform = "darwin" },
+    { version = "2.2.0", source = "pytorch", platform = "!=darwin" },
+]
 dgl = "1.1.3"
 xgboost = "^2.0"
 umap-learn = "^0.5.4"
@@ -25,6 +28,11 @@ morphopy = "^0.7.2"
 tensorboard = "^2.16.2"
 typer = "^0.9"
 pydantic = "^2.3.0"
+
+[[tool.poetry.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu118"
+priority = "explicit"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "*"
