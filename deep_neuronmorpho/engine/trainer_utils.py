@@ -100,7 +100,7 @@ def create_dataloader(
     graph_dataset: DGLDataset,
     batch_size: int,
     shuffle: bool = True,
-    drop_last: bool = False,
+    drop_last: bool = True,
     **kwargs: Any,
 ) -> GraphDataLoader:
     """Create dataloaders for training and validation datasets.
