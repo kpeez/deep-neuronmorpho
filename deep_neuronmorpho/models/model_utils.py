@@ -1,5 +1,6 @@
 """Utility functions for model-related tasks."""
 
+from collections.abc import Mapping, Sequence
 from functools import partial
 
 import torch
@@ -116,7 +117,7 @@ def compute_embedding_dim(
     return embedding_dim
 
 
-def load_attrs_streams(attrs_streams: dict[str, list[int]] | None) -> dict[str, list[int]]:
+def load_attrs_streams(attrs_streams: Mapping[str, Sequence[int]] | None) -> dict[str, list[int]]:
     """Load attribute streams from a dictionary containing the range of indices.
 
     Args:

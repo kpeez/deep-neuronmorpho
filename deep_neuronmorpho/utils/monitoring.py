@@ -2,11 +2,12 @@
 
 import logging
 import re
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime as dt
 from logging import Logger
 from pathlib import Path
-from typing import Any, Collection
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,7 +30,7 @@ class ProgressBar:
 
 
     Attributes:
-        iterable (Collection): The iterable object being tracked.
+        iterable (Iterable): The iterable object being tracked.
         desc (str): The short description of the progress bar.
         num_iterations (int): The total number of iterations in the iterable.
         increment_value (int): The number of iterations between each update.
@@ -148,7 +149,10 @@ class TrainLogger:
         self.writer = SummaryWriter(log_dir)
 
     def _flatten_dict(
-        self, d: dict[str, Any], parent_key: str = "", sep: str = "."
+        self,
+        d: Mapping[str, Any],
+        parent_key: str = "",
+        sep: str = ".",
     ) -> dict[str, Any]:
         """Flattens a nested dictionary and converts values to supported types (str, int, float, bool)."""
         items: list[tuple[str, Any]] = []
