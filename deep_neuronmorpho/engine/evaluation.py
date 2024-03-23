@@ -1,12 +1,13 @@
 """Evaluate contrastive learning embeddings on benchmark classification task."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 import dgl
 import numpy as np
 import pandas as pd
+import torch
 from dgl.data import DGLDataset
 from numpy.typing import ArrayLike
 from sklearn.base import ClassifierMixin
@@ -32,17 +33,17 @@ class Classifier(ClassifierMixin):
 
 
 def evaluate_embeddings(
-    embeddings: dict[str, ArrayLike],
-    targets: dict[str, ArrayLike],
+    embeddings: Mapping[str, ArrayLike],
+    targets: Mapping[str, ArrayLike],
     search: bool = True,
     random_state: int | None = None,
 ) -> float:
     """Evaluate the quality of the contrastive learning embeddings on benchmark classification task.
 
     Args:
-        embeddings (dict[str, ArrayLike]): Dictionary of embeddings with keys "train" and "test".
+        embeddings (Mapping[str, ArrayLike]): Dictionary of embeddings with keys "train" and "test".
             Each value should be a 2D array-like object (samples, embeddings).
-        targets (dict[str, str]): Dictionary of targets with keys "train" and "test".
+        targets (Mapping[str, str]): Dictionary of targets with keys "train" and "test".
             Each value should be a 1D array-like object of categorical string labels.
         search (bool, optional): Whether to perform a grid search for hyperparameter tuning.
         Defaults to True.
@@ -88,13 +89,15 @@ def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.Dat
         DataFrame: DataFrame of embeddings with columns "neuron_name", "target", "labels",
         and embedding dimensions.
     """
+    model.eval()
     if dataset.num_classes is None:
         graphs = dataset[:]
         labels = np.zeros(len(graphs), dtype=int)
     else:
         graphs, labels = dataset[:]
     batch_graphs = dgl.batch(graphs)
-    embeds = model(batch_graphs, batch_graphs.ndata["nattrs"])
+    with torch.inference_mode():
+        embeds = model(batch_graphs, batch_graphs.ndata["nattrs"])
     df_embed = pd.DataFrame(
         embeds.detach().numpy(),
         columns=[f"dim_{i}" for i in range(embeds.shape[1])],
@@ -187,7 +190,7 @@ def get_model_embeddings(
 
 def evaluate_model_embeddings(
     df_embeds: pd.DataFrame,
-    label_dict: dict[str, str],
+    label_dict: Mapping[str, str],
     clf: Classifier,
     **kwargs: Any,
 ) -> tuple[float, float, float, float]:
@@ -195,7 +198,7 @@ def evaluate_model_embeddings(
 
     Args:
         df_embeds (pd.DataFrame): DataFrame of model embeddings.
-        label_dict (dict[str, str]): Dictionary mapping neuron names to labels.
+        label_dict (Mapping[str, str]): Dictionary mapping neuron names to labels.
         clf (Classifier): Scikit-learn classifier to use for evaluation.
 
     Returns:
