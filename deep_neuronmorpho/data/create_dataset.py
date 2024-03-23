@@ -1,5 +1,6 @@
 """Prepare neuron graphs for conversion to DGL datasets."""
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import dgl
@@ -91,11 +92,11 @@ def create_dgl_graph(neuron_graph: nx.DiGraph) -> DGLGraph | None:
         return dgl_graph
 
 
-def dgl_from_swc(swc_files: list[Path], logger: EventLogger | None = None) -> list[DGLGraph]:
+def dgl_from_swc(swc_files: Sequence[Path], logger: EventLogger | None = None) -> list[DGLGraph]:
     """Convert a neuron swc file into a DGL graph.
 
     Args:
-        swc_files (list[Path]): List of swc files.
+        swc_files (Sequence[Path]): List of swc files.
         logger (Logger): Logger object.
 
     Returns:
@@ -151,11 +152,11 @@ class GraphScaler:
         self.scale_attrs = scaler_dict[scale_attrs]
         self.fitted = False
 
-    def fit(self, graphs: list[DGLGraph]) -> None:
+    def fit(self, graphs: Sequence[DGLGraph]) -> None:
         """Fit the scalers to the node attributes of the graphs in the dataset.
 
         Args:
-            graphs (list[DGLGraph]): The list of graphs to fit the scalers to.
+            graphs (Sequence[DGLGraph]): The list of graphs to fit the scalers to.
         """
         graph_nattrs = [graph.ndata["nattrs"].cpu() for graph in graphs]
         nattrs = torch.cat(graph_nattrs, dim=0)

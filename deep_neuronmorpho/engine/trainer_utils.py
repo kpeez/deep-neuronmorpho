@@ -2,6 +2,7 @@
 
 import random
 import shutil
+from collections.abc import Sequence
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Any
@@ -128,13 +129,13 @@ def create_dataloader(
 
 
 def setup_dataloaders(
-    conf: Config, datasets: list[str], **kwargs: Any
+    conf: Config, datasets: Sequence[str], **kwargs: Any
 ) -> dict[str, GraphDataLoader]:
     """Create dataloaders for contrastive training and evaluation datasets.
 
     Args:
         conf (ModelConfig): Model configuration.
-        datasets (list[str]): List of dataset names from model configuration.
+        datasets (Sequence[str]): List of dataset names from model configuration.
         kwargs: Additional keyword arguments to pass to the parent torch.utils.data.DataLoader
         arguments such as num_workers, pin_memory, etc.
 

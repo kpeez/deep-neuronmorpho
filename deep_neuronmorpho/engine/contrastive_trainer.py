@@ -1,5 +1,6 @@
 """Trainer class for training a model."""
 
+from collections.abc import Mapping
 from itertools import zip_longest
 from pathlib import Path
 
@@ -27,7 +28,7 @@ class ContrastiveTrainer:
     Args:
         model (nn.Module): The model to train.
         config (ModelConfig): Configuration parameters for the model.
-        dataloaders (dict[str, GraphDataLoader]): Dictionary of dataloaders for the
+        dataloaders (Mapping[str, GraphDataLoader]): Dictionary of dataloaders for the
         contrastive training and classification evaluation datasets.
         device (torch.device): The device (CPU or GPU) to use for training.
 
@@ -42,7 +43,7 @@ class ContrastiveTrainer:
         self,
         model: nn.Module,
         config: Config,
-        dataloaders: dict[str, GraphDataLoader],
+        dataloaders: Mapping[str, GraphDataLoader],
         device: torch.device | str,
         node_attrs: str = "nattrs",
     ):

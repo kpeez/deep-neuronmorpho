@@ -2,6 +2,7 @@
 
 import random
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 import networkx as nx
@@ -49,11 +50,11 @@ def compute_edge_weights(G: nx.DiGraph, path_idx: int, epsilon: float = 1.0) -> 
     return G
 
 
-def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
+def compute_graph_attrs(graph_attrs: Sequence[float]) -> list[float]:
     """Compute summary statistics for a list of graph attributes.
 
     Args:
-        graph_attrs (list[float]): Graph attribute data.
+        graph_attrs (Sequence[float]): Graph attribute data.
 
     Returns:
         list[float]: Summary statistics of graph attributes. In the following order:
@@ -87,14 +88,14 @@ def graph_is_broken(graph: DGLGraph) -> bool:
     return len(nan_indices[:, 1].unique()) > 0
 
 
-def add_graph_labels(label_file: str | Path, graphs: list[DGLGraph]) -> tuple[Tensor, dict]:
+def add_graph_labels(label_file: str | Path, graphs: Sequence[DGLGraph]) -> tuple[Tensor, dict]:
     """Add graph labels to the dataset.
 
     Note: The label file should be a CSV file with columns 'neuron_name' and 'label'. Other column names are ignored.
 
     Args:
         label_file (str | Path): Path to the label file.
-        graphs (list[DGLGraph]): List of graphs in the dataset.
+        graphs (Sequence[DGLGraph]): List of graphs in the dataset.
 
     Returns:
         tuple[torch.Tensor, dict]: A tuple containing the graph labels and a dictionary mapping
