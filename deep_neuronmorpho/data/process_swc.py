@@ -70,13 +70,21 @@ class SWCData:
 
     @staticmethod
     def load_swc_data(swc_file: str | Path) -> pd.DataFrame:
-        """Load swc data from a file."""
+        """Load swc data from a file.
+
+        Args:
+            swc_file (str | Path): Path to the SWC file.
+
+        Raises:
+            AssertionError: If no dendrites are connected to the soma.
+
+        """
         with open(swc_file, "r") as file:
             lines = file.readlines()
         # Find the start of data
         start_idx = 0
         for i, line in enumerate(lines):
-            if line.strip() and not line.startswith("#"):
+            if line.strip() and not (line.startswith("#") or line.startswith("n")):
                 start_idx = i
                 break
         data = pd.DataFrame(
@@ -86,8 +94,13 @@ class SWCData:
         int_cols = ["n", "type", "parent"]
         float_cols = ["x", "y", "z", "radius"]
         col_type = {col: int for col in int_cols} | {col: float for col in float_cols}
+        data = data.astype(col_type)
+        # validate swc file
+        assert not data.query(
+            "parent == 1 and (type == 3 or type == 4)"
+        ).empty, "Bad SWC file: No dendrites connected to soma!"
 
-        return data.astype(col_type)
+        return data
 
     @staticmethod
     def standardize_swc(swc_data: pd.DataFrame, align: bool = True) -> pd.DataFrame:
@@ -146,6 +159,10 @@ class SWCData:
             self._data["parent"].apply(lambda x: _map_parent_id(x, sample_to_idx)).astype(int)
         )
         assert len(self._data["type"].unique()) > 1, "Neuron only contained axon nodes."
+        # reset soma to origin
+        soma_coords = self._data[["x", "y", "z"]].iloc[0]
+        self._data[["x", "y", "z"]] -= soma_coords
+        self._ntree = nt.NeuronTree(self._data)
 
     def resample(
         self,
@@ -192,6 +209,9 @@ class SWCData:
             header = " ".join(self._data.columns)
             file.write(f"# {header}\n")
         self._data.to_csv(file_path, mode="a", index=False, sep=" ", header=False, **kwargs)
+
+    def __repr__(self) -> str:
+        return f"SWCData(swc_file={self.swc_file}, standardize={self._data is not self._raw_data})"
 
 
 if __name__ == "__main__":
