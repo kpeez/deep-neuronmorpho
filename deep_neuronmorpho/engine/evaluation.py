@@ -179,6 +179,10 @@ def get_model_embeddings(
 ) -> pd.DataFrame:
     config_file = next(iter(Path(model_dir).glob(("*.yml"))))
     ckpt_dir = Path(model_dir) / "ckpts"
+    last_epoch = max(int(ckpt.stem.split("epoch_")[-1]) for ckpt in ckpt_dir.glob("*.pt"))
+    if epoch > last_epoch:
+        print(f"Epoch {epoch} does not exist. Using last epoch: {last_epoch} instead.")
+        epoch = last_epoch
     ckpt_file = next(ckpt_dir.glob(f"*{epoch:04d}*.pt"))
     conf = Config.from_yaml(config_file)
     base_model = MACGNN(conf.model)
