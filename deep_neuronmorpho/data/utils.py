@@ -61,6 +61,10 @@ def compute_graph_attrs(graph_attrs: Sequence[float]) -> list[float]:
          min, mean, median, max, std, num of observations
 
     """
+    # some graphs don't have attributes but we don't want to break them downstream
+    if not graph_attrs:
+        graph_attrs.extend([0, 0])
+
     res = stats.describe(graph_attrs)
     attr_stats = [
         res.minmax[0],
