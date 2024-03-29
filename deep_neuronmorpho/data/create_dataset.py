@@ -284,7 +284,7 @@ class NeuronGraphDataset(DGLDataset):
             self.logger.message(f"Adding labels from {self.label_file} to graphs.")
             self.labels, self.glabel_dict = add_graph_labels(self.label_file, self.graphs)
             self.num_classes = len(self.glabel_dict)
-        self.logger.message("Finished creating dataset! :)")
+        self.logger.message(f"Processed {len(self.graphs)}/{len(swc_files)} graphs.")
 
     def save(self, filename: str | None = None) -> None:
         """Save the dataset to disk."""
