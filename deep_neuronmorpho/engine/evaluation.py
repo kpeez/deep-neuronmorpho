@@ -99,7 +99,6 @@ def repeated_kfold_eval(
     rskf = RepeatedStratifiedKFold(
         n_splits=n_splits, n_repeats=n_repeats, random_state=random_state
     )
-    print(rskf)
     for train_index, test_index in rskf.split(X, y):
         X_train, X_test = X[train_index], X[test_index]
         y_train, y_test = y[train_index], y[test_index]
