@@ -1,5 +1,3 @@
-"""Training module."""
-
 import typer
 
 from deep_neuronmorpho.engine import (
@@ -25,7 +23,7 @@ def train_model(
 
     dataloaders = setup_dataloaders(
         conf,
-        datasets=["contra_train", "eval_train", "eval_test"],
+        datasets=["contra_train", "eval_train"],
         pin_memory=True,
     )
     # create model and trainer
@@ -37,7 +35,6 @@ def train_model(
         dataloaders=dataloaders,
         device=device,
     )
-    # start training
     trainer.fit(ckpt_file=checkpoint)
 
 
