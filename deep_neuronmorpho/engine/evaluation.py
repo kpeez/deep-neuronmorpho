@@ -1,6 +1,5 @@
 """Evaluate contrastive learning embeddings on benchmark classification task."""
 
-from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -9,16 +8,13 @@ import numpy as np
 import pandas as pd
 import torch
 from dgl.data import DGLDataset
-from numpy.typing import ArrayLike
 from sklearn.base import ClassifierMixin
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import (
-    GridSearchCV,
     RepeatedStratifiedKFold,
     cross_val_score,
 )
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
 from torch import nn
 
 from deep_neuronmorpho.data import NeuronGraphDataset
@@ -26,53 +22,6 @@ from deep_neuronmorpho.models import MACGNN
 from deep_neuronmorpho.utils.model_config import Config
 
 from .trainer_utils import Checkpoint
-
-
-class Classifier(ClassifierMixin):
-    pass
-
-
-def evaluate_embeddings(
-    embeddings: Mapping[str, ArrayLike],
-    targets: Mapping[str, ArrayLike],
-    search: bool = True,
-    random_state: int | None = None,
-) -> float:
-    """Evaluate the quality of the contrastive learning embeddings on benchmark classification task.
-
-    Args:
-        embeddings (Mapping[str, ArrayLike]): Dictionary of embeddings with keys "train" and "test".
-            Each value should be a 2D array-like object (samples, embeddings).
-        targets (Mapping[str, str]): Dictionary of targets with keys "train" and "test".
-            Each value should be a 1D array-like object of categorical string labels.
-        search (bool, optional): Whether to perform a grid search for hyperparameter tuning.
-        Defaults to True.
-        random_state (int, optional): Controls the pseudo random number generation for shuffling the
-        data for probability estimates.
-        Pass an int for reproducible output across multiple function calls. Defaults to None.
-
-    Returns:
-        float: Mean accuracy of the classifier on the test set.
-    """
-    train_embeds, test_embeds = embeddings["train"], embeddings["test"]
-    scaler = StandardScaler().fit(train_embeds)
-    train_embeds_scaled = scaler.transform(train_embeds)
-    test_embeds_scaled = scaler.transform(test_embeds)
-    train_targets, test_targets = targets["train"], targets["test"]
-    label_encoder = LabelEncoder().fit(train_targets)
-    train_labels = label_encoder.transform(train_targets)
-    test_labels = label_encoder.transform(test_targets)
-
-    if search:
-        params = {"C": [0.001, 0.01, 0.1, 1, 10, 100, 1000]}
-        clf = GridSearchCV(SVC(gamma="auto"), params, cv=5, scoring="accuracy", verbose=0)
-
-    else:
-        clf = SVC(gamma="auto")
-
-    clf.fit(train_embeds_scaled, train_labels)
-
-    return clf.score(test_embeds_scaled, test_labels)
 
 
 def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.DataFrame:
@@ -106,24 +55,20 @@ def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.Dat
     neuron_names = [graph.id if graph.id is not None else "N/A" for graph in dataset.graphs]
 
     df_embed.insert(0, "neuron_name", neuron_names)
-    if dataset.num_classes is not None:
+    if dataset.num_classes is not None and dataset.glabel_dict is not None:
         df_embed.insert(1, "target", labels)
-        df_embed.insert(
-            2,
-            "labels",
-            [
-                dataset.glabel_dict[i.item()] if dataset.glabel_dict is not None else None
-                for i in labels
-            ],
+        label_dict = dict(
+            zip(dataset.glabel_dict.values(), dataset.glabel_dict.keys(), strict=True)
         )
+        df_embed.insert(2, "label", [label_dict.get(i.item(), None) for i in labels])
 
     return df_embed
 
 
-def repeated_kfold_evaluation(
-    X: pd.DataFrame,
-    y: Sequence | np.ndarray | pd.Series,
-    model: Classifier,
+def repeated_kfold_eval(
+    X: np.ndarray | pd.DataFrame,
+    y: np.ndarray | pd.Series,
+    model: ClassifierMixin,
     n_splits: int = 5,
     n_repeats: int = 10,
     standardize: bool = True,
@@ -136,7 +81,7 @@ def repeated_kfold_evaluation(
     This function performs repeated k-fold cross-validation and testing on the test set.
 
     Args:
-        X (pd.DataFrame): Feature matrix
+        X (NDArray, pd.DataFrame): Feature matrix. If a DataFrame is provided, it will be converted to a numpy array.
         y (np.array): Target vector
         model (nn.Module): Model to evaluate
         n_splits (int, optional): Number of folds to perform CV on. Defaults to 5.
@@ -146,15 +91,17 @@ def repeated_kfold_evaluation(
     Returns:
         tuple[float, float, float, float]: cv_mean, cv_std, test_mean, test_std
     """
+    if isinstance(X, pd.DataFrame):
+        X = X.values
 
     test_scores = []
     cv_scores = []
-
     rskf = RepeatedStratifiedKFold(
         n_splits=n_splits, n_repeats=n_repeats, random_state=random_state
     )
+    print(rskf)
     for train_index, test_index in rskf.split(X, y):
-        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        X_train, X_test = X[train_index], X[test_index]
         y_train, y_test = y[train_index], y[test_index]
 
         if standardize:
@@ -162,7 +109,7 @@ def repeated_kfold_evaluation(
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
 
-        cv_score = cross_val_score(model, X_train, y_train, cv=5, scoring="f1_micro").mean()
+        cv_score = cross_val_score(model, X_train, y_train, cv=n_splits, scoring="f1_micro").mean()
         cv_scores.append(cv_score)
 
         model.fit(X_train, y_train)
@@ -192,24 +139,26 @@ def get_model_embeddings(
     return df_embeds
 
 
-def evaluate_model_embeddings(
+def evaluate_embeddings(
     df_embeds: pd.DataFrame,
-    label_dict: Mapping[str, str],
-    clf: Classifier,
+    df_label: pd.DataFrame,
+    clf: ClassifierMixin,
     **kwargs: Any,
 ) -> tuple[float, float, float, float]:
     """Evaluate model embeddings on classification task.
 
     Args:
         df_embeds (pd.DataFrame): DataFrame of model embeddings.
-        label_dict (Mapping[str, str]): Dictionary mapping neuron names to labels.
+        df_label (pd.DataFrame): DataFrame of neuron names and labels.
         clf (Classifier): Scikit-learn classifier to use for evaluation.
 
     Returns:
         tuple[float, float, float, float]: cv_mean, cv_std, test_mean, test_std
     """
     df_embeds = df_embeds.copy()
+    label_dict = dict(zip(df_label["neuron_name"], df_label["label"], strict=True))
     df_embeds["label"] = df_embeds["neuron_name"].map(label_dict)
     df_embeds.drop(columns=["neuron_name"], inplace=True)
     labels = df_embeds.pop("label")
-    return repeated_kfold_evaluation(df_embeds, labels, clf, **kwargs)
+
+    return repeated_kfold_eval(df_embeds, labels, clf, **kwargs)
