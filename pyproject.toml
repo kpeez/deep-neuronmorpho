@@ -122,6 +122,8 @@ module = [
   "scipy.*",
   "sklearn.*",
   "dgl.*",
+  "seaborn",
+  "umap",
 ]
 ignore_missing_imports = true
 warn_return_any = false

@@ -1,18 +1,19 @@
 """Trainer class for training a model."""
 
 from collections.abc import Mapping
-from itertools import zip_longest
 from pathlib import Path
 
+import numpy as np
 import torch
 from dgl import DGLGraph
 from dgl.dataloading import GraphDataLoader
-from torch import Tensor, nn
+from sklearn.svm import SVC
+from torch import nn
 
 from deep_neuronmorpho.data import GraphAugmenter
 from deep_neuronmorpho.utils import Config, ProgressBar, TrainLogger
 
-from .evaluation import evaluate_embeddings
+from .evaluation import repeated_kfold_eval
 from .ntxent_loss import NTXEntLoss
 from .trainer_utils import (
     Checkpoint,
@@ -82,12 +83,11 @@ class ContrastiveTrainer:
         self.eval_interval = self.cfg.training.eval_interval
         self.best_eval_acc = 0.0
 
-    def _calculate_loss(self, batch_graphs: DGLGraph, batch_feats: Tensor) -> float:
+    def _calculate_loss(self, batch_graphs: DGLGraph) -> float:
         """Calculate the loss for a batch.
 
         Args:
             batch_graphs (DGLGraph): Batch of graphs.
-            batch_feats (Tensor): Batch of node features.
 
         Returns:
             float: The loss for the batch.
@@ -105,10 +105,14 @@ class ContrastiveTrainer:
         self.model.train()
         total_loss = 0.0
         for raw_batch in ProgressBar(self.dataloaders["contra_train"], desc="Processing batch:"):
-            batch_graphs = raw_batch.to(self.device)
+            if isinstance(raw_batch, (list, tuple)):
+                batch_graphs, _ = raw_batch
+                batch_graphs = batch_graphs.to(self.device)
+            else:
+                batch_graphs = raw_batch.to(self.device)
             batch_feats = batch_graphs.ndata[self.node_attrs]
             batch_feats = batch_feats.to(self.device)
-            loss = self._calculate_loss(batch_graphs, batch_feats)
+            loss = self._calculate_loss(batch_graphs)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -117,40 +121,31 @@ class ContrastiveTrainer:
 
         return train_loss
 
-    def eval_step(self) -> float:
+    def eval_step(self) -> tuple[float, float, float, float]:
         """Evaluate the model on the validation set."""
-        tensor_embeddings: dict[str, list[Tensor]] = {"train": [], "test": []}
-        tensor_labels: dict[str, list[Tensor]] = {"train": [], "test": []}
+        batch_embeds, batch_labels = [], []
         self.model.eval()
         with torch.inference_mode():
-            for raw_train_batch, raw_test_batch in zip_longest(
-                self.dataloaders["eval_train"], self.dataloaders["eval_test"]
-            ):
-                train_batch, train_labels = raw_train_batch
-                train_batch = train_batch.to(self.device)
-                train_batch_feats = train_batch.ndata[self.node_attrs]
-                train_batch_feats = train_batch_feats.to(self.device)
-                tensor_embeddings["train"].append(self.model(train_batch, train_batch_feats))
-                tensor_labels["train"].append(train_labels)
-                if raw_test_batch is not None:
-                    test_batch, test_labels = raw_test_batch
-                    test_batch = test_batch.to(self.device)
-                    test_batch_feats = test_batch.ndata[self.node_attrs]
-                    test_batch_feats = test_batch_feats.to(self.device)
-                    tensor_embeddings["test"].append(self.model(test_batch, test_batch_feats))
-                    tensor_labels["test"].append(test_labels)
+            for raw_batch in self.dataloaders["eval_train"]:
+                batch, labels = raw_batch
+                batch = batch.to(self.device)
+                batch_feats = batch.ndata[self.node_attrs]
+                batch_feats = batch_feats.to(self.device)
+                model_output = self.model(batch, batch_feats)
+                batch_embeds.append(model_output.detach().cpu().numpy())
+                batch_labels.append(labels.detach().cpu().numpy())
 
-        embeddings = {
-            dataset: torch.cat(embed, dim=0).detach().cpu().numpy()
-            for dataset, embed in tensor_embeddings.items()
-        }
-        labels = {
-            dataset: torch.cat(label, dim=0).detach().cpu().numpy()
-            for dataset, label in tensor_labels.items()
-        }
-        eval_acc = evaluate_embeddings(embeddings=embeddings, targets=labels)
+        eval_embeds = np.vstack(batch_embeds)
+        eval_labels = np.concatenate(batch_labels)
 
-        return eval_acc
+        clf = SVC()
+        eval_metrics = repeated_kfold_eval(
+            X=eval_embeds,
+            y=eval_labels,
+            model=clf,
+        )
+
+        return eval_metrics
 
     def fit(self, epochs: int | None = None, ckpt_file: str | Path | None = None) -> None:
         """Train the model for a given number of epochs.
@@ -191,10 +186,10 @@ class ContrastiveTrainer:
                 self.lr_scheduler.step()
 
             if self.eval_interval is not None and epoch % self.eval_interval == 0:
-                val_acc = self.eval_step()
-                self.on_eval_step(val_acc, epoch)
-                if val_acc > self.best_eval_acc:
-                    self.best_eval_acc = val_acc
+                val_cv_acc, _, _, _ = self.eval_step()
+                self.on_eval_step(val_cv_acc, epoch)
+                if val_cv_acc > self.best_eval_acc:
+                    self.best_eval_acc = val_cv_acc
 
             if epoch % self.cfg.training.save_every == 0:
                 self.checkpoint.save(epoch=epoch, info_dict={"train_loss": train_loss})

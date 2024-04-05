@@ -142,6 +142,7 @@ class TrainLogger:
         stop(): Close the summary writer and log a message.
     """
 
+    # TODO: ditch tensorboard and use wandb (or something else) for logging
     def __init__(self, log_dir: Path | str, expt_name: str) -> None:
         self.expt_name = expt_name
         self.log_dir = log_dir
@@ -244,6 +245,7 @@ class TrainLogger:
 
     def log_hyperparams(self, params: dict[str, Any], metrics: dict[str, float]) -> None:
         """Log hyperparameters to tensorboard."""
+        # TODO: fix this, hparams are not being logged
         self.writer.add_hparams(self._flatten_dict(params), metrics, run_name="hyperparams")
 
     def on_early_stop(self, epoch: int) -> None:

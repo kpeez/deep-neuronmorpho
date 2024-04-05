@@ -103,21 +103,22 @@ def add_graph_labels(label_file: str | Path, graphs: Sequence[DGLGraph]) -> tupl
 
     Returns:
         tuple[torch.Tensor, dict]: A tuple containing the graph labels and a dictionary mapping
-        graph labels to integers.
+        graph label encodings to original labels.
     """
     label_data = pd.read_csv(label_file)
     label_encoder = LabelEncoder()
     label_encoder.fit(label_data["label"])
     label_to_int = dict(
-        zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_), strict=False)
+        zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_), strict=True)
     )
+    int_to_label = {v: k for k, v in label_to_int.items()}
     # map neuron names to labels and then to their encoded integers
     neuron_to_label = dict(zip(label_data["neuron_name"], label_data["label"], strict=False))
     # map neuron -> labels -> encoded integers
     _labels = [label_to_int.get(neuron_to_label.get(g.id, None), -1) for g in graphs]
     labels = torch.tensor(_labels, dtype=torch.long)
 
-    return labels, label_to_int
+    return labels, int_to_label
 
 
 def parse_dataset_log(logfile: str | Path, metadata_file: str | Path) -> pd.DataFrame:

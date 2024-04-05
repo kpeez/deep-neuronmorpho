@@ -151,13 +151,15 @@ def setup_dataloaders(
         )
         for dataset in datasets
     }
-
-    dataloaders = {
-        dataset: create_dataloader(graph_dataset, batch_size=1024, shuffle=False, **kwargs)
-        if "eval" in dataset
-        else create_dataloader(graph_dataset, conf.training.batch_size, shuffle=True, **kwargs)
-        for dataset, graph_dataset in graph_datasets.items()
-    }
+    dataloaders = {}
+    for dataset, graph_dataset in graph_datasets.items():
+        dataloaders[dataset] = create_dataloader(
+            graph_dataset=graph_dataset,
+            batch_size=conf.training.batch_size if "eval" not in dataset else 16,
+            shuffle="eval" not in dataset,
+            drop_last="eval" not in dataset,
+            **kwargs,
+        )
 
     return dataloaders
 
