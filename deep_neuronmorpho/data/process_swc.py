@@ -180,6 +180,10 @@ class SWCData:
         self._ntree = self.ntree.resample_tree(resample_dist)
         self._data = self._ntree.to_swc()
 
+    def view(self, ax: plt.Axes | None = None) -> None:
+        """View the raw and sta ndardized swc data."""
+        self._ntree.draw_2D(projection="xy", ax=ax, axon_color="lightblue")
+
     def plot_swc(self) -> None:
         """Plot the raw and standardized swc data.
 
