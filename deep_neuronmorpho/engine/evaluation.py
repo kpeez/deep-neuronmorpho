@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import torch
 from dgl.data import DGLDataset
+from scipy.spatial import distance_matrix
 from sklearn.base import ClassifierMixin
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import (
@@ -161,3 +162,45 @@ def evaluate_embeddings(
     labels = df_embeds.pop("label")
 
     return repeated_kfold_eval(df_embeds, labels, clf, **kwargs)
+
+
+def find_k_neighbors(
+    df: pd.DataFrame,
+    target_sample: str,
+    k: int,
+    closest: bool = True,
+    within_class: bool = False,
+) -> dict[str, float]:
+    """Find k-nearest (or farthest) neighbors of a target sample in a DataFrame.
+
+    Args:
+        df (pd.DataFrame): DataFrame of samples with features.
+        target_sample (str): Name of target sample.
+        k (int): Number of neighbors to find.
+        closest (bool, optional): Find closest neighbors if True, farthest if False. Defaults to True.
+        within_class (bool, optional): Only consider samples from the same class as the target sample. Defaults to False.
+
+    Returns:
+        dict[str, float]: Dictionary of neighbors and their distances to the target sample.
+    """
+    if target_sample not in df["neuron_name"].values:
+        raise ValueError("Target sample not found in DataFrame.")
+
+    drop_cols = ["neuron_name"]
+    if "label" in df.columns:
+        drop_cols.append("label")
+
+    if within_class:
+        cls_label = df.query("neuron_name == @target_sample")["label"].tolist()[0]
+        df = df.query(f"label == '{cls_label}'")
+
+    features = df.drop(columns=drop_cols)
+    dist_matrix = pd.DataFrame(
+        distance_matrix(features.values, features.values),
+        index=df["neuron_name"],
+        columns=df["neuron_name"],
+    )
+    target_distances = dist_matrix[target_sample].sort_values()
+    neighbors = target_distances.iloc[1 : k + 1] if closest else target_distances.iloc[-k:]
+
+    return neighbors.to_dict()
