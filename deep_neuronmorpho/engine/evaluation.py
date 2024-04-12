@@ -7,7 +7,6 @@ import dgl
 import numpy as np
 import pandas as pd
 import torch
-from dgl.data import DGLDataset
 from scipy.spatial import distance_matrix
 from sklearn.base import ClassifierMixin
 from sklearn.metrics import accuracy_score
@@ -25,20 +24,21 @@ from deep_neuronmorpho.utils.model_config import Config
 from .trainer_utils import Checkpoint
 
 
-def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.DataFrame:
+def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFrame:
     """Create a DataFrame of model embeddings from a NeuronGraphDataset.
 
     Useful for visualizing embeddings using methods like UMAP or t-SNE.
 
     Args:
-        dataset (NeuronGraphDataset): NeuronGraphDataset of graphs to get embeddings for.
-        Dataset must contain graphs and labels.
+        dataset_file (NeuronGraphDataset): File to NeuronGraphDataset of graphs to get embeddings for.
         model (nn.Module): Model to get embeddings from.
 
     Returns:
         DataFrame: DataFrame of embeddings with columns "neuron_name", "target", "labels",
         and embedding dimensions.
     """
+
+    dataset = NeuronGraphDataset(name=dataset_file, from_file=True)
     model.eval()
     if dataset.num_classes is None:
         graphs = dataset[:]
@@ -120,21 +120,31 @@ def repeated_kfold_eval(
 
 
 def get_model_embeddings(
-    model_dir: str | Path,
+    ckpt_dir: str | Path,
     epoch: int,
-    dataset: DGLDataset,
+    dataset_file: str | Path,
 ) -> pd.DataFrame:
-    config_file = next(iter(Path(model_dir).glob(("*.yml"))))
-    ckpt_dir = Path(model_dir) / "ckpts"
-    last_epoch = max(int(ckpt.stem.split("epoch_")[-1]) for ckpt in ckpt_dir.glob("*.pt"))
+    """Get model embeddings from a saved model checkpoint.
+
+    Args:
+        model_dir (str | Path): Path to the model directory.
+        epoch (int): Epoch to load model from. If epoch does not exist, the last epoch will be used.
+        dataset_file (str | Path): Path to NeuronGraphDataset to get embeddings for.
+
+    Returns:
+        pd.DataFrame: Model embeddings as a DataFrame.
+    """
+    config_file = next(iter(Path(ckpt_dir).glob(("*.yml"))))
+    ckpt_path = Path(ckpt_dir) / "ckpts"
+    last_epoch = max(int(ckpt.stem.split("epoch_")[-1]) for ckpt in ckpt_path.glob("*.pt"))
     if epoch > last_epoch:
         print(f"Epoch {epoch} does not exist. Using last epoch: {last_epoch} instead.")
         epoch = last_epoch
-    ckpt_file = next(ckpt_dir.glob(f"*{epoch:04d}*.pt"))
+    ckpt_file = next(ckpt_path.glob(f"*{epoch:04d}*.pt"))
     conf = Config.from_yaml(config_file)
     base_model = MACGNN(conf.model)
     model = Checkpoint.load_model(ckpt_file=ckpt_file, model=base_model)
-    df_embeds = create_embedding_df(dataset, model)
+    df_embeds = create_embedding_df(model, dataset_file=dataset_file)
 
     return df_embeds
 
@@ -164,7 +174,7 @@ def evaluate_embeddings(
     return repeated_kfold_eval(df_embeds, labels, clf, **kwargs)
 
 
-def find_k_neighbors(
+def get_similar_neurons(
     df: pd.DataFrame,
     target_sample: str,
     k: int,

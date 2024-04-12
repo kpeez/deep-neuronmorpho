@@ -187,13 +187,15 @@ class NeuronGraphDataset(DGLDataset):
     """A dataset consisting of DGLGraphs representing neuron morphologies.
 
     Args:
-        graphs_path (Path): The path to the SWC file directory.
+        name (str | Path): The name of the dataset.
+        graphs_path (str | Path, optional): The path to the SWC file directory. Defaults to the current directory.
+        dataset_path (Path, optional): The path where the processed dataset will be saved.
+        label_file (Path, optional): The path to the file containing the metadata (graph labels).
         self_loop (bool): Whether to add self-loops to each graph. Defaults to True.
         scaler (GraphScaler): The scaler object to use to standardize the node attributes.
-        dataset_name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
-        dataset_path (Path, optional): The path where the processed dataset will be saved.
         Defaults to the parent directory of the graphs_path.
-        label_file (Path, optional): The path to the file containing the metadata (graph labels).
+        from_file (bool): Whether to load the dataset from a file. If True, use the full path to the
+        dataset file as the name. Defaults to False.
 
     Attributes:
         graphs_path (Path): The path to the SWC file directory.
@@ -212,14 +214,19 @@ class NeuronGraphDataset(DGLDataset):
 
     def __init__(
         self,
-        graphs_path: str | Path,
-        self_loop: bool = True,
-        scaler: GraphScaler | None = None,
-        dataset_name: str = "neuron_graph_dataset",
+        name: str | Path,
+        graphs_path: str | Path | None = None,
         dataset_path: str | Path | None = None,
         label_file: str | Path | None = None,
+        self_loop: bool = True,
+        scaler: GraphScaler | None = None,
+        from_file: bool = False,
     ):
-        self.graphs_path = Path(graphs_path).resolve()
+        if from_file:
+            dataset_path = Path(name).parent
+            name = Path(name).stem
+
+        self.graphs_path = Path(graphs_path).resolve() if graphs_path is not None else Path.cwd()
         self.dataset_path = (
             Path(dataset_path) if dataset_path else Path(self.graphs_path.parent / "dgl_datasets")
         )
@@ -236,7 +243,7 @@ class NeuronGraphDataset(DGLDataset):
         self.logger: EventLogger | None = None
 
         super().__init__(
-            name=dataset_name,
+            name=name,
             raw_dir=self.graphs_path,
             save_dir=self.dataset_path,
             verbose=False,
@@ -419,7 +426,7 @@ if __name__ == "__main__":
             graphs_path=graphs_dir,
             self_loop=self_loop and not no_self_loop,
             scaler=scaler,
-            dataset_name=dataset_name,
+            name=dataset_name,
             dataset_path=dataset_path,
             label_file=label_file,
         )

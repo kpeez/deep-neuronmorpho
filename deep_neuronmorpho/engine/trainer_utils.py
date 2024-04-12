@@ -145,9 +145,7 @@ def setup_dataloaders(
     data_dir = conf.dirs.data
     graph_datasets = {
         dataset: NeuronGraphDataset(
-            graphs_path=data_dir,
-            dataset_name=getattr(conf.datasets, dataset),
-            dataset_path=data_dir,
+            name=Path(f"{data_dir}/{getattr(conf.datasets, dataset)}"), from_file=True
         )
         for dataset in datasets
     }
