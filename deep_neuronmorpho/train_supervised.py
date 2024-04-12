@@ -1,5 +1,7 @@
 """Training module."""
 
+from pathlib import Path
+
 import typer
 
 from deep_neuronmorpho.data import NeuronGraphDataset
@@ -19,15 +21,11 @@ def train_model(
     if conf.training.random_state is not None:
         setup_seed(conf.training.random_state)
     dataset = NeuronGraphDataset(
-        conf.dirs.data,
-        dataset_name=conf.datasets.eval_train,
-        dataset_path=conf.dirs.data,
+        name=Path(f"{conf.datasets.eval_train}/{conf.datasets.train}"), from_file=True
     )
-    # create model and trainer
     # TODO: add support for other models (parse model name from config file)
     model = MACGNN(conf.model)
     trainer = SupervisedTrainer(model=model, config=conf, dataset=dataset, device=device)
-    # start training
     trainer.fit(ckpt_file=checkpoint)
 
 
