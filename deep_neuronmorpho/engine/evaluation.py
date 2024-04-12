@@ -57,11 +57,11 @@ def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFr
 
     df_embed.insert(0, "neuron_name", neuron_names)
     if dataset.num_classes is not None and dataset.glabel_dict is not None:
-        df_embed.insert(1, "target", labels)
         label_dict = dict(
             zip(dataset.glabel_dict.values(), dataset.glabel_dict.keys(), strict=True)
         )
-        df_embed.insert(2, "label", [label_dict.get(i.item(), None) for i in labels])
+        df_embed.insert(1, "label", [label_dict.get(i.item(), None) for i in labels])
+        # df_embed.insert(2, "target", labels)
 
     return df_embed
 
