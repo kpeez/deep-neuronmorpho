@@ -187,15 +187,15 @@ class NeuronGraphDataset(DGLDataset):
     """A dataset consisting of DGLGraphs representing neuron morphologies.
 
     Args:
-        graphs_path (Path): The path to the SWC file directory.
-        name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
+        name (str | Path): The name of the dataset.
+        graphs_path (str | Path, optional): The path to the SWC file directory. Defaults to the current directory.
         dataset_path (Path, optional): The path where the processed dataset will be saved.
         label_file (Path, optional): The path to the file containing the metadata (graph labels).
         self_loop (bool): Whether to add self-loops to each graph. Defaults to True.
         scaler (GraphScaler): The scaler object to use to standardize the node attributes.
         Defaults to the parent directory of the graphs_path.
         from_file (bool): Whether to load the dataset from a file. If True, use the full path to the
-        dataset file as the name.
+        dataset file as the name. Defaults to False.
 
     Attributes:
         graphs_path (Path): The path to the SWC file directory.
@@ -214,7 +214,7 @@ class NeuronGraphDataset(DGLDataset):
 
     def __init__(
         self,
-        name: str = "neuron_graph_dataset",
+        name: str | Path,
         graphs_path: str | Path | None = None,
         dataset_path: str | Path | None = None,
         label_file: str | Path | None = None,
