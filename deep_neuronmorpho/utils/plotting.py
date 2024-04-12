@@ -10,7 +10,7 @@ from matplotlib import gridspec
 from umap import UMAP
 
 from deep_neuronmorpho.data import SWCData
-from deep_neuronmorpho.engine.evaluation import find_k_neighbors
+from deep_neuronmorpho.engine.evaluation import get_similar_neurons
 
 
 def check_labels(df: pd.DataFrame, neuron_labels: Mapping[str, str]) -> pd.DataFrame:
@@ -45,14 +45,26 @@ def get_umap_embeddings(
     return umap_embeds
 
 
-def plot_umap(
+def plot_embeddings(
     df: pd.DataFrame,
     figsize: Sequence[int] = (6, 6),
     by_class: bool = False,
     ax: Any | None = None,
     **kwargs: Any,
 ) -> None:
-    def _plot_single_umap(
+    """Plot UMAP embeddings.
+
+    Args:
+        df (pd.DataFrame): The input dataframe.
+        ax (Any | None): The matplotlib axis to plot on.
+        figsize (tuple[int, int], optional): The figure size. Defaults to (6, 6).
+        **kwargs (Any): Additional keyword arguments.
+
+    Returns:
+        None
+    """
+
+    def _plot_embeds(
         df: pd.DataFrame,
         ax: Any | None,
         figsize: tuple[int, int] = (6, 6),
@@ -75,7 +87,7 @@ def plot_umap(
         )
         ax.legend(title=None)
 
-    def _plot_umap_by_class(
+    def _plot_embeds_by_class(
         df: pd.DataFrame,
         axs: Any,
         figsize: Sequence[int] = figsize,
@@ -99,7 +111,7 @@ def plot_umap(
             axs = [axs] if not isinstance(axs, (list, np.ndarray)) else axs
 
         for lab, ax, color in zip(unique_labels, axs, colors, strict=False):
-            umap_embs = get_umap_embeddings(df.query("label == @lab"), **kwargs)
+            umap_embs = get_umap_embeddings(df.loc[df["label"] == lab, :], **kwargs)
             ax.plot(
                 umap_embs["UMAP 1"], umap_embs["UMAP 2"], "o", color=color, alpha=0.6, label=lab
             )
@@ -109,15 +121,15 @@ def plot_umap(
             ax.axis("off")
 
     if by_class:
-        _plot_umap_by_class(df, axs=ax, figsize=figsize, **kwargs)
+        _plot_embeds_by_class(df, axs=ax, figsize=figsize, **kwargs)
     else:
-        _plot_single_umap(df, ax=ax, **kwargs)
+        _plot_embeds(df, ax=ax, **kwargs)
 
     sns.despine()
     plt.tight_layout()
 
 
-def plot_neuron_neighbors(
+def plot_neighbor_swc(
     df: pd.DataFrame,
     neuron_name: str,
     swc_path: Path | str,
@@ -126,7 +138,7 @@ def plot_neuron_neighbors(
     within_class: bool = False,
 ) -> None:
     # Find neighbors
-    neighbors = find_k_neighbors(
+    neighbors = get_similar_neurons(
         df=df,
         target_sample=neuron_name,
         k=num_neighbors,
