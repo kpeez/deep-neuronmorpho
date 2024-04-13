@@ -9,6 +9,7 @@ import pandas as pd
 import torch
 from scipy.spatial import distance_matrix
 from sklearn.base import ClassifierMixin
+from sklearn.manifold import TSNE
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import (
     RepeatedStratifiedKFold,
@@ -16,6 +17,7 @@ from sklearn.model_selection import (
 )
 from sklearn.preprocessing import StandardScaler
 from torch import nn
+from umap import UMAP
 
 from deep_neuronmorpho.data import NeuronGraphDataset
 from deep_neuronmorpho.models import MACGNN
@@ -61,7 +63,6 @@ def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFr
             zip(dataset.glabel_dict.values(), dataset.glabel_dict.keys(), strict=True)
         )
         df_embed.insert(1, "label", [label_dict.get(i.item(), None) for i in labels])
-        # df_embed.insert(2, "target", labels)
 
     return df_embed
 
@@ -214,3 +215,54 @@ def get_similar_neurons(
     neighbors = target_distances.iloc[1 : k + 1] if closest else target_distances.iloc[-k:]
 
     return neighbors.to_dict()
+
+
+def reduce_dimensionality(
+    df: pd.DataFrame,
+    method: str = "UMAP",
+    n_components: int = 2,
+    random_state: int | None = 42,
+    **kwargs: Any,
+) -> pd.DataFrame:
+    """Reduce the dimensionality of a DataFrame using UMAP or t-SNE.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame containing the data to be reduced.
+        method (str, optional): The dimensionality reduction method to use. Defaults to "UMAP".
+        n_components (int, optional): The number of components in the reduced space. Defaults to 2.
+        random_state (int | None, optional): The random state for reproducibility. Defaults to 42.
+        **kwargs (Any): Additional keyword arguments to be passed to the dimensionality reduction method.
+
+    Returns:
+        pd.DataFrame: The reduced DataFrame with the specified number of components.
+    """
+
+    UMAP_DEFAULTS = {"n_neighbors": 15, "min_dist": 0.1}
+    TSNE_DEFAULTS = {"perplexity": 30}
+
+    if method.lower() == "umap":
+        UMAP_DEFAULTS.update(kwargs)
+        reducer = UMAP(
+            n_components=n_components,
+            random_state=random_state,
+            **UMAP_DEFAULTS,
+        )
+    elif method.lower() == "tsne":
+        TSNE_DEFAULTS.update(kwargs)
+        reducer = TSNE(
+            n_components=n_components,
+            random_state=random_state,
+            **TSNE_DEFAULTS,
+        )
+    else:
+        raise ValueError("Unsupported dimensionality reduction method. Choose 'UMAP' or 'tSNE'.")
+
+    drop_cols = ["neuron_name", "label"] if "label" in df.columns else ["neuron_name"]
+
+    embeddings = reducer.fit_transform(df.drop(columns=drop_cols))
+    df_embeds = pd.DataFrame(embeddings, columns=[f"{method} 1", f"{method} 2"])
+    df_embeds.insert(0, "neuron_name", df["neuron_name"])
+    if "label" in df.columns:
+        df_embeds.insert(1, "label", df["label"])
+
+    return df_embeds
