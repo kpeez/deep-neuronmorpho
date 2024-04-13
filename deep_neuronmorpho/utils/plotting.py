@@ -10,7 +10,7 @@ from matplotlib import gridspec
 from umap import UMAP
 
 from deep_neuronmorpho.data import SWCData
-from deep_neuronmorpho.engine.evaluation import get_similar_neurons
+from deep_neuronmorpho.engine.evaluation import get_similar_neurons, reduce_dimensionality
 
 
 def check_labels(df: pd.DataFrame, neuron_labels: Mapping[str, str]) -> pd.DataFrame:
@@ -73,11 +73,12 @@ def plot_embeddings(
         if not ax:
             _, ax = plt.subplots(figsize=figsize)
 
-        umap_embs = get_umap_embeddings(df, **kwargs)
+        df_embeds = reduce_dimensionality(df, **kwargs)
+        method = kwargs.get("method", "UMAP")
         sns.scatterplot(
-            x="UMAP 1",
-            y="UMAP 2",
-            data=umap_embs,
+            x=f"{method} 1",
+            y=f"{method} 2",
+            data=df_embeds,
             alpha=0.6,
             s=72,
             hue="label",
@@ -111,9 +112,15 @@ def plot_embeddings(
             axs = [axs] if not isinstance(axs, (list, np.ndarray)) else axs
 
         for lab, ax, color in zip(unique_labels, axs, colors, strict=False):
-            umap_embs = get_umap_embeddings(df.loc[df["label"] == lab, :], **kwargs)
+            df_embeds = reduce_dimensionality(df.loc[df["label"] == lab, :], **kwargs)
+            method = kwargs.get("method", "UMAP")
             ax.plot(
-                umap_embs["UMAP 1"], umap_embs["UMAP 2"], "o", color=color, alpha=0.6, label=lab
+                df_embeds[f"{method} 1"],
+                df_embeds[f"{method} 2"],
+                "o",
+                color=color,
+                alpha=0.6,
+                label=lab,
             )
             ax.title.set_text(lab)
 
@@ -137,7 +144,6 @@ def plot_neighbor_swc(
     closest: bool = True,
     within_class: bool = False,
 ) -> None:
-    # Find neighbors
     neighbors = get_similar_neurons(
         df=df,
         target_sample=neuron_name,
