@@ -58,7 +58,7 @@ def plot_embeddings(
         df (pd.DataFrame): The input dataframe.
         ax (Any | None): The matplotlib axis to plot on.
         figsize (tuple[int, int], optional): The figure size. Defaults to (6, 6).
-        **kwargs (Any): Additional keyword arguments.
+        **kwargs (Any): Additional keyword arguments to be passed to the dimensionality reduction method.
 
     Returns:
         None
@@ -74,6 +74,7 @@ def plot_embeddings(
             _, ax = plt.subplots(figsize=figsize)
 
         df_embeds = reduce_dimensionality(df, **kwargs)
+        df_embeds = df_embeds.sort_values("label")
         method = kwargs.get("method", "UMAP")
         sns.scatterplot(
             x=f"{method} 1",
@@ -156,7 +157,6 @@ def plot_neighbor_swc(
         neuron: SWCData(f"{swc_path}/{neuron}.swc", standardize=False, align=False)
         for neuron in neighbors
     }
-
     # # Determine grid dimensions
     cols_for_neighbors = min(3, num_neighbors)  # 3 cols max for neighbors subplot
     # Calculate number of rows needed for neighbors
