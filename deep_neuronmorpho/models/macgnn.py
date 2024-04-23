@@ -117,7 +117,7 @@ class MACGNN(nn.Module):
 
         return gnn_stream(graphs, h, edge_weight)
 
-    def forward(self, graphs: DGLGraph, h_full: Tensor) -> Tensor:
+    def forward(self, graphs: DGLGraph, h_full: Tensor, is_training: bool = True) -> Tensor:
         """Forward pass of the model."""
         edge_weight = graphs.edata["edge_weight"] if self.use_edge_weight else None
         h_streams_list = [
