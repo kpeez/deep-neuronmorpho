@@ -9,7 +9,7 @@ datasets:
   eval_test: "demo-neuromorpho"
 
 model:
-  name: "macgnn_demo"
+  name: "macgnnv2_demo"
   num_gnn_layers: 5
   num_mlp_layers: 2
   hidden_dim: 64
