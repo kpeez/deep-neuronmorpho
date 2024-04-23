@@ -93,9 +93,9 @@ class ContrastiveTrainer:
             float: The loss for the batch.
         """
         aug1_batch = self.augmenter.augment_batch(batch_graphs)
-        aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs])
+        aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs], is_training=True)
         aug2_batch = self.augmenter.augment_batch(batch_graphs)
-        aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs])
+        aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs], is_training=True)
         loss = self.loss_fn(aug1_embeds, aug2_embeds)
 
         return loss
@@ -131,7 +131,7 @@ class ContrastiveTrainer:
                 batch = batch.to(self.device)
                 batch_feats = batch.ndata[self.node_attrs]
                 batch_feats = batch_feats.to(self.device)
-                model_output = self.model(batch, batch_feats)
+                model_output = self.model(batch, batch_feats, is_training=False)
                 batch_embeds.append(model_output.detach().cpu().numpy())
                 batch_labels.append(labels.detach().cpu().numpy())
 

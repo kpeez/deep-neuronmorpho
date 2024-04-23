@@ -24,8 +24,11 @@ from .model_utils import (
 )
 
 
-class MACGNN(nn.Module):
-    """MACGNN model from [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206)."""
+class MACGNNv2(nn.Module):
+    """MACGNN model from [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206).
+
+    Modified to include a projector MLP layer for contrastive learning.
+    """
 
     def __init__(self, args: Model, device: torch.device | None = None) -> None:
         super().__init__()
@@ -93,6 +96,13 @@ class MACGNN(nn.Module):
             num_layers=2,
         )
 
+        self.projector = MLP(
+            input_dim=self.output_dim,
+            output_dim=self.output_dim,
+            hidden_dim=self.output_dim,
+            num_layers=2,
+        )
+
     def process_stream(
         self,
         stream_name: str,
@@ -117,7 +127,7 @@ class MACGNN(nn.Module):
 
         return gnn_stream(graphs, h, edge_weight)
 
-    def forward(self, graphs: DGLGraph, h_full: Tensor, is_training: bool = True) -> Tensor:
+    def forward(self, graphs: DGLGraph, h_full: Tensor, is_training: bool = False) -> Tensor:
         """Forward pass of the model."""
         edge_weight = graphs.edata["edge_weight"] if self.use_edge_weight else None
         h_streams_list = [
@@ -136,4 +146,6 @@ class MACGNN(nn.Module):
                 weights=self.streams_weight,  # only used if stream_aggregation == "wsum"
             )
 
-        return self.graph_embedding(stream_aggregate_graph_rep)
+        g_rep = self.graph_embedding(stream_aggregate_graph_rep)
+
+        return self.projector(g_rep) if is_training else g_rep

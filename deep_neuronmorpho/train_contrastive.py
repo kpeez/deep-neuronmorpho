@@ -1,3 +1,4 @@
+import torch
 import typer
 
 from deep_neuronmorpho.engine import (
@@ -6,7 +7,7 @@ from deep_neuronmorpho.engine import (
     setup_dataloaders,
     setup_seed,
 )
-from deep_neuronmorpho.models import MACGNN
+from deep_neuronmorpho.models import MACGNN, MACGNNv2
 
 app = typer.Typer()
 
@@ -24,11 +25,12 @@ def train_model(
     dataloaders = setup_dataloaders(
         conf,
         datasets=["contra_train", "eval_train"],
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
     )
     # create model and trainer
     # TODO: add support for other models (parse model name from config file)
-    model = MACGNN(conf.model)
+    model = MACGNNv2(conf.model) if "v2" in conf.model.name.lower() else MACGNN(conf.model)
+
     trainer = ContrastiveTrainer(
         model=model,
         config=conf,
