@@ -20,7 +20,7 @@ from torch import nn
 from umap import UMAP
 
 from deep_neuronmorpho.data import NeuronGraphDataset
-from deep_neuronmorpho.models import MACGNN
+from deep_neuronmorpho.models import MACGNN, MACGNNv2
 from deep_neuronmorpho.utils.model_config import Config
 
 from .trainer_utils import Checkpoint
@@ -143,7 +143,7 @@ def get_model_embeddings(
         epoch = last_epoch
     ckpt_file = next(ckpt_path.glob(f"*{epoch:04d}*.pt"))
     conf = Config.from_yaml(config_file)
-    base_model = MACGNN(conf.model)
+    base_model = MACGNNv2(conf.model) if "v2" in conf.model.name.lower() else MACGNN(conf.model)
     model = Checkpoint.load_model(ckpt_file=ckpt_file, model=base_model)
     df_embeds = create_embedding_df(model, dataset_file=dataset_file)
 
