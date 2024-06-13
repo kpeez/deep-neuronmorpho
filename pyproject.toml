@@ -1,12 +1,12 @@
 [project]
 name = "deep_neuronmorpho"
 version = "0.0.1"
+requires-python = ">=3.10"
 description = "Deep learning based approaches for neuron morphology embeddings."
 authors = [{ name = "Kyle Puhger", email = "krpuhger@gmail.com" }]
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
-  "pip",
   "numpy",
   "torch",
   "scikit-learn",
@@ -25,6 +25,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "pip",
   "ruff",
   "mypy",
   "pre-commit",
@@ -34,7 +35,7 @@ dev = [
   "pytest",
   "mkdocs",
   "mkdocs-material",
-  "mkdocstrings",
+  "mkdocstrings[python]",
 ]
 
 [project.urls]
