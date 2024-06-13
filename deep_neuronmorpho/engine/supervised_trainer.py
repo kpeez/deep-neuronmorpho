@@ -55,7 +55,7 @@ class SupervisedTrainer:
         self.optimizer = get_optimizer(
             model=self.model,
             optimizer_name=self.cfg.training.optimizer,
-            lr=self.cfg.training.lr_init,
+            lr=self.cfg.training.lr,
         )
         if (
             self.cfg.training.lr_scheduler is not None
@@ -63,10 +63,10 @@ class SupervisedTrainer:
             and self.cfg.training.lr_decay_rate is not None
         ):
             self.lr_scheduler = get_scheduler(
-                scheduler=self.cfg.training.lr_scheduler,
+                scheduler=self.cfg.training.lr_scheduler.kind,
                 optimizer=self.optimizer,
-                decay_steps=self.cfg.training.lr_decay_steps,
-                decay_rate=self.cfg.training.lr_decay_rate,
+                step_size=self.cfg.training.lr_scheduler.step_size,
+                factor=self.cfg.training.lr_scheduler.factor,
             )
         self.expt_name, expt_dir = setup_experiment_results(self.cfg)
         self.logger = TrainLogger(f"{expt_dir}/logs", expt_name=self.expt_name)
@@ -169,7 +169,6 @@ class SupervisedTrainer:
         self.logger.initialize(
             expt_name=self.expt_name,
             model_arch=self.cfg.model.model_dump(),
-            hparams=self.cfg.training.model_dump(),
             num_epochs=num_epochs,
             device=self.device,
             random_state=self.cfg.training.random_state,
@@ -189,7 +188,8 @@ class SupervisedTrainer:
                 val_loss=val_loss,
                 val_acc=val_acc,
             )
-            self.lr_scheduler.step()
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
 
             if train_loss < self.best_train_loss:
                 self.best_train_loss = train_loss
@@ -208,7 +208,21 @@ class SupervisedTrainer:
             info_dict = {"train_loss": train_loss, "val_loss": val_loss, "val_acc": val_acc}
             self.checkpoint.save(epoch=epoch, info_dict=info_dict)
 
-        self.logger.stop()
+        model_hparams = {
+            "hidden_dim": self.cfg.model.hidden_dim,
+            "output_dim": self.cfg.model.output_dim,
+            "dropout": self.cfg.model.dropout_prob,
+            **self.cfg.training.model_dump(),
+        }
+        self.logger.stop(
+            params=model_hparams,
+            metrics={
+                "metric/best_train_loss": self.best_train_loss,
+                "metric/best_train_acc": self.best_train_acc,
+                "metric/best_val_loss": self.best_val_loss,
+                "metric/best_val_acc": self.best_val_acc,
+            },
+        )
 
     def load_checkpoint(self, ckpt_name: str) -> None:
         """Load model checkpoint."""

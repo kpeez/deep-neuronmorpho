@@ -11,7 +11,7 @@ To view tensorboard on a remote server, you need to set up a tunnel to the serve
 2. On the local machine, run:
 
     ```bash
-    ssh -N -f -L localhost:16006:localhost:6006 <user@remote> 
+    ssh -N -f -L localhost:16006:localhost:6006 <user@remote>
     ```
 
 3. Lastly, navigate to `http://localhost:16006` to view tensorboard.

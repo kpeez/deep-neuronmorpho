@@ -2,6 +2,7 @@
 
 import random
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 import networkx as nx
@@ -49,17 +50,21 @@ def compute_edge_weights(G: nx.DiGraph, path_idx: int, epsilon: float = 1.0) -> 
     return G
 
 
-def compute_graph_attrs(graph_attrs: list[float]) -> list[float]:
+def compute_graph_attrs(graph_attrs: Sequence[float]) -> list[float]:
     """Compute summary statistics for a list of graph attributes.
 
     Args:
-        graph_attrs (list[float]): Graph attribute data.
+        graph_attrs (Sequence[float]): Graph attribute data.
 
     Returns:
         list[float]: Summary statistics of graph attributes. In the following order:
          min, mean, median, max, std, num of observations
 
     """
+    # some graphs don't have attributes but we don't want to break them downstream
+    if not graph_attrs:
+        graph_attrs.extend([0, 0])
+
     res = stats.describe(graph_attrs)
     attr_stats = [
         res.minmax[0],
@@ -87,32 +92,33 @@ def graph_is_broken(graph: DGLGraph) -> bool:
     return len(nan_indices[:, 1].unique()) > 0
 
 
-def add_graph_labels(label_file: str | Path, graphs: list[DGLGraph]) -> tuple[Tensor, dict]:
+def add_graph_labels(label_file: str | Path, graphs: Sequence[DGLGraph]) -> tuple[Tensor, dict]:
     """Add graph labels to the dataset.
 
     Note: The label file should be a CSV file with columns 'neuron_name' and 'label'. Other column names are ignored.
 
     Args:
         label_file (str | Path): Path to the label file.
-        graphs (list[DGLGraph]): List of graphs in the dataset.
+        graphs (Sequence[DGLGraph]): List of graphs in the dataset.
 
     Returns:
         tuple[torch.Tensor, dict]: A tuple containing the graph labels and a dictionary mapping
-        graph labels to integers.
+        graph label encodings to original labels.
     """
     label_data = pd.read_csv(label_file)
     label_encoder = LabelEncoder()
     label_encoder.fit(label_data["label"])
     label_to_int = dict(
-        zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_), strict=False)
+        zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_), strict=True)
     )
+    int_to_label = {v: k for k, v in label_to_int.items()}
     # map neuron names to labels and then to their encoded integers
     neuron_to_label = dict(zip(label_data["neuron_name"], label_data["label"], strict=False))
     # map neuron -> labels -> encoded integers
     _labels = [label_to_int.get(neuron_to_label.get(g.id, None), -1) for g in graphs]
     labels = torch.tensor(_labels, dtype=torch.long)
 
-    return labels, label_to_int
+    return labels, int_to_label
 
 
 def parse_dataset_log(logfile: str | Path, metadata_file: str | Path) -> pd.DataFrame:

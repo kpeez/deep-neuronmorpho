@@ -1,17 +1,19 @@
 """Trainer class for training a model."""
 
-from itertools import zip_longest
+from collections.abc import Mapping
 from pathlib import Path
 
+import numpy as np
 import torch
 from dgl import DGLGraph
 from dgl.dataloading import GraphDataLoader
-from torch import Tensor, nn
+from sklearn.svm import SVC
+from torch import nn
 
 from deep_neuronmorpho.data import GraphAugmenter
 from deep_neuronmorpho.utils import Config, ProgressBar, TrainLogger
 
-from .evaluation import evaluate_embeddings
+from .evaluation import repeated_kfold_eval
 from .ntxent_loss import NTXEntLoss
 from .trainer_utils import (
     Checkpoint,
@@ -27,7 +29,7 @@ class ContrastiveTrainer:
     Args:
         model (nn.Module): The model to train.
         config (ModelConfig): Configuration parameters for the model.
-        dataloaders (dict[str, GraphDataLoader]): Dictionary of dataloaders for the
+        dataloaders (Mapping[str, GraphDataLoader]): Dictionary of dataloaders for the
         contrastive training and classification evaluation datasets.
         device (torch.device): The device (CPU or GPU) to use for training.
 
@@ -42,7 +44,7 @@ class ContrastiveTrainer:
         self,
         model: nn.Module,
         config: Config,
-        dataloaders: dict[str, GraphDataLoader],
+        dataloaders: Mapping[str, GraphDataLoader],
         device: torch.device | str,
         node_attrs: str = "nattrs",
     ):
@@ -58,18 +60,14 @@ class ContrastiveTrainer:
         self.optimizer = get_optimizer(
             model=self.model,
             optimizer_name=self.cfg.training.optimizer,
-            lr=self.cfg.training.lr_init,
+            lr=self.cfg.training.lr,
         )
-        if (
-            self.cfg.training.lr_scheduler is not None
-            and self.cfg.training.lr_decay_steps is not None
-            and self.cfg.training.lr_decay_rate is not None
-        ):
+        if self.cfg.training.lr_scheduler is not None:
             self.lr_scheduler = get_scheduler(
-                scheduler=self.cfg.training.lr_scheduler,
+                scheduler=self.cfg.training.lr_scheduler.kind,
                 optimizer=self.optimizer,
-                decay_steps=self.cfg.training.lr_decay_steps,
-                decay_rate=self.cfg.training.lr_decay_rate,
+                step_size=self.cfg.training.lr_scheduler.step_size,
+                factor=self.cfg.training.lr_scheduler.factor,
             )
         self.logger = TrainLogger(f"{expt_dir}", expt_name=self.expt_name)
         self.checkpoint = Checkpoint(
@@ -85,20 +83,19 @@ class ContrastiveTrainer:
         self.eval_interval = self.cfg.training.eval_interval
         self.best_eval_acc = 0.0
 
-    def _calculate_loss(self, batch_graphs: DGLGraph, batch_feats: Tensor) -> float:
+    def _calculate_loss(self, batch_graphs: DGLGraph) -> float:
         """Calculate the loss for a batch.
 
         Args:
             batch_graphs (DGLGraph): Batch of graphs.
-            batch_feats (Tensor): Batch of node features.
 
         Returns:
             float: The loss for the batch.
         """
         aug1_batch = self.augmenter.augment_batch(batch_graphs)
-        aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs])
+        aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs], is_training=True)
         aug2_batch = self.augmenter.augment_batch(batch_graphs)
-        aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs])
+        aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs], is_training=True)
         loss = self.loss_fn(aug1_embeds, aug2_embeds)
 
         return loss
@@ -108,10 +105,14 @@ class ContrastiveTrainer:
         self.model.train()
         total_loss = 0.0
         for raw_batch in ProgressBar(self.dataloaders["contra_train"], desc="Processing batch:"):
-            batch_graphs = raw_batch.to(self.device)
+            if isinstance(raw_batch, (list, tuple)):
+                batch_graphs, _ = raw_batch
+                batch_graphs = batch_graphs.to(self.device)
+            else:
+                batch_graphs = raw_batch.to(self.device)
             batch_feats = batch_graphs.ndata[self.node_attrs]
             batch_feats = batch_feats.to(self.device)
-            loss = self._calculate_loss(batch_graphs, batch_feats)
+            loss = self._calculate_loss(batch_graphs)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -120,40 +121,31 @@ class ContrastiveTrainer:
 
         return train_loss
 
-    def eval_step(self) -> float:
+    def eval_step(self) -> tuple[float, float, float, float]:
         """Evaluate the model on the validation set."""
-        tensor_embeddings: dict[str, list[Tensor]] = {"train": [], "test": []}
-        tensor_labels: dict[str, list[Tensor]] = {"train": [], "test": []}
+        batch_embeds, batch_labels = [], []
         self.model.eval()
         with torch.inference_mode():
-            for raw_train_batch, raw_test_batch in zip_longest(
-                self.dataloaders["eval_train"], self.dataloaders["eval_test"]
-            ):
-                train_batch, train_labels = raw_train_batch
-                train_batch = train_batch.to(self.device)
-                train_batch_feats = train_batch.ndata[self.node_attrs]
-                train_batch_feats = train_batch_feats.to(self.device)
-                tensor_embeddings["train"].append(self.model(train_batch, train_batch_feats))
-                tensor_labels["train"].append(train_labels)
-                if raw_test_batch is not None:
-                    test_batch, test_labels = raw_test_batch
-                    test_batch = test_batch.to(self.device)
-                    test_batch_feats = test_batch.ndata[self.node_attrs]
-                    test_batch_feats = test_batch_feats.to(self.device)
-                    tensor_embeddings["test"].append(self.model(test_batch, test_batch_feats))
-                    tensor_labels["test"].append(test_labels)
+            for raw_batch in self.dataloaders["eval_train"]:
+                batch, labels = raw_batch
+                batch = batch.to(self.device)
+                batch_feats = batch.ndata[self.node_attrs]
+                batch_feats = batch_feats.to(self.device)
+                model_output = self.model(batch, batch_feats, is_training=False)
+                batch_embeds.append(model_output.detach().cpu().numpy())
+                batch_labels.append(labels.detach().cpu().numpy())
 
-        embeddings = {
-            dataset: torch.cat(embed, dim=0).detach().cpu().numpy()
-            for dataset, embed in tensor_embeddings.items()
-        }
-        labels = {
-            dataset: torch.cat(label, dim=0).detach().cpu().numpy()
-            for dataset, label in tensor_labels.items()
-        }
-        eval_acc = evaluate_embeddings(embeddings=embeddings, targets=labels)
+        eval_embeds = np.vstack(batch_embeds)
+        eval_labels = np.concatenate(batch_labels)
 
-        return eval_acc
+        clf = SVC()
+        eval_metrics = repeated_kfold_eval(
+            X=eval_embeds,
+            y=eval_labels,
+            model=clf,
+        )
+
+        return eval_metrics
 
     def fit(self, epochs: int | None = None, ckpt_file: str | Path | None = None) -> None:
         """Train the model for a given number of epochs.
@@ -178,7 +170,6 @@ class ContrastiveTrainer:
         self.logger.initialize(
             expt_name=self.expt_name,
             model_arch=self.cfg.model.model_dump(),
-            hparams=self.cfg.training.model_dump(),
             num_epochs=num_epochs,
             device=self.device,
             random_state=self.cfg.training.random_state,
@@ -191,13 +182,14 @@ class ContrastiveTrainer:
                 train_loss=train_loss,
                 scheduler=self.lr_scheduler,
             )
-            self.lr_scheduler.step()
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
 
             if self.eval_interval is not None and epoch % self.eval_interval == 0:
-                val_acc = self.eval_step()
-                self.on_eval_step(val_acc, epoch)
-                if val_acc > self.best_eval_acc:
-                    self.best_eval_acc = val_acc
+                val_cv_acc, _, _, _ = self.eval_step()
+                self.on_eval_step(val_cv_acc, epoch)
+                if val_cv_acc > self.best_eval_acc:
+                    self.best_eval_acc = val_cv_acc
 
             if epoch % self.cfg.training.save_every == 0:
                 self.checkpoint.save(epoch=epoch, info_dict={"train_loss": train_loss})
@@ -212,7 +204,19 @@ class ContrastiveTrainer:
                 self.logger.on_early_stop(epoch)
                 break
 
-        self.logger.stop()
+        model_hparams = {
+            "hidden_dim": self.cfg.model.hidden_dim,
+            "output_dim": self.cfg.model.output_dim,
+            "dropout": self.cfg.model.dropout_prob,
+            **self.cfg.training.model_dump(),
+        }
+        self.logger.stop(
+            params=model_hparams,
+            metrics={
+                "metric/best_train_loss": self.best_train_loss,
+                "metric/best_eval_acc": self.best_eval_acc,
+            },
+        )
 
     def load_checkpoint(self, ckpt_name: str) -> None:
         """Load model checkpoint."""

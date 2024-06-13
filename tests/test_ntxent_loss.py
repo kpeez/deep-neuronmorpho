@@ -1,4 +1,5 @@
 """Tests for NTXEntLoss."""
+
 import pytest
 import torch
 

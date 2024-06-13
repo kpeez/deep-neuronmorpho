@@ -1,100 +1,55 @@
 """Evaluate contrastive learning embeddings on benchmark classification task."""
 
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import dgl
 import numpy as np
 import pandas as pd
-from dgl.data import DGLDataset
-from numpy.typing import ArrayLike
+import torch
+from scipy.spatial import distance_matrix
 from sklearn.base import ClassifierMixin
+from sklearn.manifold import TSNE
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import (
-    GridSearchCV,
     RepeatedStratifiedKFold,
     cross_val_score,
 )
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
 from torch import nn
+from umap import UMAP
 
 from deep_neuronmorpho.data import NeuronGraphDataset
-from deep_neuronmorpho.models import MACGNN
+from deep_neuronmorpho.models import MACGNN, MACGNNv2
 from deep_neuronmorpho.utils.model_config import Config
 
 from .trainer_utils import Checkpoint
 
 
-class Classifier(ClassifierMixin):
-    pass
-
-
-def evaluate_embeddings(
-    embeddings: dict[str, ArrayLike],
-    targets: dict[str, ArrayLike],
-    search: bool = True,
-    random_state: int | None = None,
-) -> float:
-    """Evaluate the quality of the contrastive learning embeddings on benchmark classification task.
-
-    Args:
-        embeddings (dict[str, ArrayLike]): Dictionary of embeddings with keys "train" and "test".
-            Each value should be a 2D array-like object (samples, embeddings).
-        targets (dict[str, str]): Dictionary of targets with keys "train" and "test".
-            Each value should be a 1D array-like object of categorical string labels.
-        search (bool, optional): Whether to perform a grid search for hyperparameter tuning.
-        Defaults to True.
-        random_state (int, optional): Controls the pseudo random number generation for shuffling the
-        data for probability estimates.
-        Pass an int for reproducible output across multiple function calls. Defaults to None.
-
-    Returns:
-        float: Mean accuracy of the classifier on the test set.
-    """
-    train_embeds, test_embeds = embeddings["train"], embeddings["test"]
-    scaler = StandardScaler().fit(train_embeds)
-    train_embeds_scaled = scaler.transform(train_embeds)
-    test_embeds_scaled = scaler.transform(test_embeds)
-    train_targets, test_targets = targets["train"], targets["test"]
-    label_encoder = LabelEncoder().fit(train_targets)
-    train_labels = label_encoder.transform(train_targets)
-    test_labels = label_encoder.transform(test_targets)
-
-    if search:
-        params = {"C": [0.001, 0.01, 0.1, 1, 10, 100, 1000]}
-        clf = GridSearchCV(SVC(gamma="auto"), params, cv=5, scoring="accuracy", verbose=0)
-
-    else:
-        clf = SVC(gamma="auto")
-
-    clf.fit(train_embeds_scaled, train_labels)
-
-    return clf.score(test_embeds_scaled, test_labels)
-
-
-def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.DataFrame:
+def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFrame:
     """Create a DataFrame of model embeddings from a NeuronGraphDataset.
 
     Useful for visualizing embeddings using methods like UMAP or t-SNE.
 
     Args:
-        dataset (NeuronGraphDataset): NeuronGraphDataset of graphs to get embeddings for.
-        Dataset must contain graphs and labels.
+        dataset_file (NeuronGraphDataset): File to NeuronGraphDataset of graphs to get embeddings for.
         model (nn.Module): Model to get embeddings from.
 
     Returns:
         DataFrame: DataFrame of embeddings with columns "neuron_name", "target", "labels",
         and embedding dimensions.
     """
+
+    dataset = NeuronGraphDataset(name=dataset_file, from_file=True)
+    model.eval()
     if dataset.num_classes is None:
         graphs = dataset[:]
         labels = np.zeros(len(graphs), dtype=int)
     else:
         graphs, labels = dataset[:]
     batch_graphs = dgl.batch(graphs)
-    embeds = model(batch_graphs, batch_graphs.ndata["nattrs"])
+    with torch.inference_mode():
+        embeds = model(batch_graphs, batch_graphs.ndata["nattrs"])
     df_embed = pd.DataFrame(
         embeds.detach().numpy(),
         columns=[f"dim_{i}" for i in range(embeds.shape[1])],
@@ -103,24 +58,19 @@ def create_embedding_df(dataset: NeuronGraphDataset, model: nn.Module) -> pd.Dat
     neuron_names = [graph.id if graph.id is not None else "N/A" for graph in dataset.graphs]
 
     df_embed.insert(0, "neuron_name", neuron_names)
-    if dataset.num_classes is not None:
-        df_embed.insert(1, "target", labels)
-        df_embed.insert(
-            2,
-            "labels",
-            [
-                dataset.glabel_dict[i.item()] if dataset.glabel_dict is not None else None
-                for i in labels
-            ],
+    if dataset.num_classes is not None and dataset.glabel_dict is not None:
+        label_dict = dict(
+            zip(dataset.glabel_dict.values(), dataset.glabel_dict.keys(), strict=True)
         )
+        df_embed.insert(1, "label", [label_dict.get(i.item(), None) for i in labels])
 
     return df_embed
 
 
-def repeated_kfold_evaluation(
-    X: pd.DataFrame,
-    y: Sequence | np.ndarray | pd.Series,
-    model: Classifier,
+def repeated_kfold_eval(
+    X: np.ndarray | pd.DataFrame,
+    y: np.ndarray | pd.Series,
+    model: ClassifierMixin,
     n_splits: int = 5,
     n_repeats: int = 10,
     standardize: bool = True,
@@ -133,7 +83,7 @@ def repeated_kfold_evaluation(
     This function performs repeated k-fold cross-validation and testing on the test set.
 
     Args:
-        X (pd.DataFrame): Feature matrix
+        X (NDArray, pd.DataFrame): Feature matrix. If a DataFrame is provided, it will be converted to a numpy array.
         y (np.array): Target vector
         model (nn.Module): Model to evaluate
         n_splits (int, optional): Number of folds to perform CV on. Defaults to 5.
@@ -143,15 +93,16 @@ def repeated_kfold_evaluation(
     Returns:
         tuple[float, float, float, float]: cv_mean, cv_std, test_mean, test_std
     """
+    if isinstance(X, pd.DataFrame):
+        X = X.values
 
     test_scores = []
     cv_scores = []
-
     rskf = RepeatedStratifiedKFold(
         n_splits=n_splits, n_repeats=n_repeats, random_state=random_state
     )
     for train_index, test_index in rskf.split(X, y):
-        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        X_train, X_test = X[train_index], X[test_index]
         y_train, y_test = y[train_index], y[test_index]
 
         if standardize:
@@ -159,7 +110,7 @@ def repeated_kfold_evaluation(
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
 
-        cv_score = cross_val_score(model, X_train, y_train, cv=5, scoring="f1_micro").mean()
+        cv_score = cross_val_score(model, X_train, y_train, cv=n_splits, scoring="f1_micro").mean()
         cv_scores.append(cv_score)
 
         model.fit(X_train, y_train)
@@ -170,39 +121,148 @@ def repeated_kfold_evaluation(
 
 
 def get_model_embeddings(
-    model_dir: str | Path,
+    ckpt_dir: str | Path,
     epoch: int,
-    dataset: DGLDataset,
+    dataset_file: str | Path,
 ) -> pd.DataFrame:
-    config_file = next(iter(Path(model_dir).glob(("*.yml"))))
-    ckpt_dir = Path(model_dir) / "ckpts"
-    ckpt_file = next(ckpt_dir.glob(f"*{epoch:04d}*.pt"))
+    """Get model embeddings from a saved model checkpoint.
+
+    Args:
+        model_dir (str | Path): Path to the model directory.
+        epoch (int): Epoch to load model from. If epoch does not exist, the last epoch will be used.
+        dataset_file (str | Path): Path to NeuronGraphDataset to get embeddings for.
+
+    Returns:
+        pd.DataFrame: Model embeddings as a DataFrame.
+    """
+    config_file = next(iter(Path(ckpt_dir).glob(("*.yml"))))
+    ckpt_path = Path(ckpt_dir) / "ckpts"
+    last_epoch = max(int(ckpt.stem.split("epoch_")[-1]) for ckpt in ckpt_path.glob("*.pt"))
+    if epoch > last_epoch:
+        print(f"Epoch {epoch} does not exist. Using last epoch: {last_epoch} instead.")
+        epoch = last_epoch
+    ckpt_file = next(ckpt_path.glob(f"*{epoch:04d}*.pt"))
     conf = Config.from_yaml(config_file)
-    base_model = MACGNN(conf.model)
+    base_model = MACGNNv2(conf.model) if "v2" in conf.model.name.lower() else MACGNN(conf.model)
     model = Checkpoint.load_model(ckpt_file=ckpt_file, model=base_model)
-    df_embeds = create_embedding_df(dataset, model)
+    df_embeds = create_embedding_df(model, dataset_file=dataset_file)
 
     return df_embeds
 
 
-def evaluate_model_embeddings(
+def evaluate_embeddings(
     df_embeds: pd.DataFrame,
-    label_dict: dict[str, str],
-    clf: Classifier,
+    df_label: pd.DataFrame,
+    clf: ClassifierMixin,
     **kwargs: Any,
 ) -> tuple[float, float, float, float]:
     """Evaluate model embeddings on classification task.
 
     Args:
         df_embeds (pd.DataFrame): DataFrame of model embeddings.
-        label_dict (dict[str, str]): Dictionary mapping neuron names to labels.
+        df_label (pd.DataFrame): DataFrame of neuron names and labels.
         clf (Classifier): Scikit-learn classifier to use for evaluation.
 
     Returns:
         tuple[float, float, float, float]: cv_mean, cv_std, test_mean, test_std
     """
     df_embeds = df_embeds.copy()
+    label_dict = dict(zip(df_label["neuron_name"], df_label["label"], strict=True))
     df_embeds["label"] = df_embeds["neuron_name"].map(label_dict)
     df_embeds.drop(columns=["neuron_name"], inplace=True)
     labels = df_embeds.pop("label")
-    return repeated_kfold_evaluation(df_embeds, labels, clf, **kwargs)
+
+    return repeated_kfold_eval(df_embeds, labels, clf, **kwargs)
+
+
+def get_similar_neurons(
+    df: pd.DataFrame,
+    target_sample: str,
+    k: int,
+    closest: bool = True,
+    within_class: bool = False,
+) -> dict[str, float]:
+    """Find k-nearest (or farthest) neighbors of a target sample in a DataFrame.
+
+    Args:
+        df (pd.DataFrame): DataFrame of samples with features.
+        target_sample (str): Name of target sample.
+        k (int): Number of neighbors to find.
+        closest (bool, optional): Find closest neighbors if True, farthest if False. Defaults to True.
+        within_class (bool, optional): Only consider samples from the same class as the target sample. Defaults to False.
+
+    Returns:
+        dict[str, float]: Dictionary of neighbors and their distances to the target sample.
+    """
+    if target_sample not in df["neuron_name"].values:
+        raise ValueError("Target sample not found in DataFrame.")
+
+    drop_cols = ["neuron_name"]
+    if "label" in df.columns:
+        drop_cols.append("label")
+
+    if within_class:
+        cls_label = df.query("neuron_name == @target_sample")["label"].tolist()[0]
+        df = df.query(f"label == '{cls_label}'")
+
+    features = df.drop(columns=drop_cols)
+    dist_matrix = pd.DataFrame(
+        distance_matrix(features.values, features.values),
+        index=df["neuron_name"],
+        columns=df["neuron_name"],
+    )
+    target_distances = dist_matrix[target_sample].sort_values()
+    neighbors = target_distances.iloc[1 : k + 1] if closest else target_distances.iloc[-k:]
+
+    return neighbors.to_dict()
+
+
+def reduce_dimensionality(
+    df: pd.DataFrame,
+    method: str = "UMAP",
+    n_components: int = 2,
+    random_state: int | None = 42,
+    **kwargs: Any,
+) -> pd.DataFrame:
+    """Reduce the dimensionality of a DataFrame using UMAP or t-SNE.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame containing the data to be reduced.
+        method (str, optional): The dimensionality reduction method to use. Defaults to "UMAP".
+        n_components (int, optional): The number of components in the reduced space. Defaults to 2.
+        random_state (int | None, optional): The random state for reproducibility. Defaults to 42.
+        **kwargs (Any): Additional keyword arguments to be passed to the dimensionality reduction method.
+
+    Returns:
+        pd.DataFrame: The reduced DataFrame with the specified number of components.
+    """
+
+    UMAP_DEFAULTS = {"n_neighbors": 15, "min_dist": 0.1}
+    TSNE_DEFAULTS = {"perplexity": 30}
+
+    if method.lower() == "umap":
+        UMAP_DEFAULTS.update(kwargs)
+        reducer = UMAP(
+            n_components=n_components,
+            random_state=random_state,
+            **UMAP_DEFAULTS,
+        )
+    elif method.lower() == "tsne":
+        TSNE_DEFAULTS.update(kwargs)
+        reducer = TSNE(
+            n_components=n_components,
+            random_state=random_state,
+            **TSNE_DEFAULTS,
+        )
+    else:
+        raise ValueError("Unsupported dimensionality reduction method. Choose 'UMAP' or 'tSNE'.")
+
+    drop_cols = ["neuron_name", "label"] if "label" in df.columns else ["neuron_name"]
+
+    embeddings = reducer.fit_transform(df.drop(columns=drop_cols))
+    df_embeds = pd.DataFrame(embeddings, columns=[f"{method} 1", f"{method} 2"])
+    df_embeds.insert(0, "neuron_name", df["neuron_name"])
+    if "label" in df.columns:
+        df_embeds.insert(1, "label", df["label"])
+
+    return df_embeds

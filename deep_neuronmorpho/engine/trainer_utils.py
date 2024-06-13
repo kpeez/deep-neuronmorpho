@@ -2,6 +2,7 @@
 
 import random
 import shutil
+from collections.abc import Sequence
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Any
@@ -16,11 +17,11 @@ from deep_neuronmorpho.data import NeuronGraphDataset
 from deep_neuronmorpho.utils import Config
 
 
-def setup_seed(seed: int = 42) -> None:
+def setup_seed(seed: int) -> None:
     """Set the random seed for reproducibility.
 
     Args:
-        seed (int, optional): The random seed. Defaults to 42.
+        seed (int, optional): The random seed to set.
     """
     np.random.seed(seed)
     random.seed(seed)
@@ -64,23 +65,34 @@ def get_optimizer(
 def get_scheduler(
     scheduler: str,
     optimizer: optim.Optimizer,
-    decay_steps: int,
-    decay_rate: float,
+    step_size: int,
+    factor: float | int,
 ) -> Any:
     """Get learning rate scheduler for the optimizer.
 
     Args:
         scheduler (str): The name of the scheduler to use.
         optimizer (optim.Optimizer): The optimizer to use.
-        decay_steps (int): The number of steps between each decay.
-        decay_rate (float): The decay rate.
+        step_size (int): The step size for the scheduler.
+        factor (float | int): The factor for the scheduler. Typically < 1 for step and > 1 for cosine annealing.
 
     Returns:
         optim.lr_scheduler: The learning rate scheduler.
 
     """
     if scheduler == "step":
-        return optim.lr_scheduler.StepLR(optimizer, step_size=decay_steps, gamma=decay_rate)
+        return optim.lr_scheduler.StepLR(
+            optimizer,
+            step_size=step_size,
+            gamma=factor,
+        )
+    elif scheduler == "cosine":
+        return optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer,
+            T_0=step_size,
+            T_mult=int(factor),
+            eta_min=1e-6,
+        )
     else:
         raise ValueError(f"Scheduler '{scheduler}' not recognized")
 
@@ -89,7 +101,7 @@ def create_dataloader(
     graph_dataset: DGLDataset,
     batch_size: int,
     shuffle: bool = True,
-    drop_last: bool = False,
+    drop_last: bool = True,
     **kwargs: Any,
 ) -> GraphDataLoader:
     """Create dataloaders for training and validation datasets.
@@ -117,13 +129,13 @@ def create_dataloader(
 
 
 def setup_dataloaders(
-    conf: Config, datasets: list[str], **kwargs: Any
+    conf: Config, datasets: Sequence[str], **kwargs: Any
 ) -> dict[str, GraphDataLoader]:
     """Create dataloaders for contrastive training and evaluation datasets.
 
     Args:
         conf (ModelConfig): Model configuration.
-        datasets (list[str]): List of dataset names from model configuration.
+        datasets (Sequence[str]): List of dataset names from model configuration.
         kwargs: Additional keyword arguments to pass to the parent torch.utils.data.DataLoader
         arguments such as num_workers, pin_memory, etc.
 
@@ -133,19 +145,19 @@ def setup_dataloaders(
     data_dir = conf.dirs.data
     graph_datasets = {
         dataset: NeuronGraphDataset(
-            graphs_path=data_dir,
-            dataset_name=getattr(conf.datasets, dataset),
-            dataset_path=data_dir,
+            name=Path(f"{data_dir}/{getattr(conf.datasets, dataset)}"), from_file=True
         )
         for dataset in datasets
     }
-
-    dataloaders = {
-        dataset: create_dataloader(graph_dataset, batch_size=1024, shuffle=False, **kwargs)
-        if "eval" in dataset
-        else create_dataloader(graph_dataset, conf.training.batch_size, shuffle=True, **kwargs)
-        for dataset, graph_dataset in graph_datasets.items()
-    }
+    dataloaders = {}
+    for dataset, graph_dataset in graph_datasets.items():
+        dataloaders[dataset] = create_dataloader(
+            graph_dataset=graph_dataset,
+            batch_size=conf.training.batch_size if "eval" not in dataset else 16,
+            shuffle="eval" not in dataset,
+            drop_last="eval" not in dataset,
+            **kwargs,
+        )
 
     return dataloaders
 

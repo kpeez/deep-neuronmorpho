@@ -1,9 +1,10 @@
 """Tests for data_utils.py."""
+
 import dgl
 import numpy as np
 import torch
 
-from deep_neuronmorpho.data.data_utils import compute_graph_attrs, graph_is_broken
+from deep_neuronmorpho.data.utils import compute_graph_attrs, graph_is_broken
 
 
 def test_compute_graph_attrs() -> None:

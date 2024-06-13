@@ -9,7 +9,7 @@ datasets:
   eval_test: "demo-neuromorpho"
 
 model:
-  name: "macgnn_demo"
+  name: "macgnnv2_demo"
   num_gnn_layers: 5
   num_mlp_layers: 2
   hidden_dim: 64
@@ -27,18 +27,19 @@ model:
 
 # Training configuration
 training:
-  batch_size: 256
+  batch_size: 4
   contra_loss_temp: 0.2
   # eval_interval: None
   save_every: 2
   epochs: 6
   patience: 60
-  lr_init: 0.01
-  random_state: 42 # optional
   optimizer: "adam"
-  lr_scheduler: "step" # ["cosine", "step"]
-  lr_decay_steps: 20
-  lr_decay_rate: 0.6
+  lr: 0.01
+  lr_scheduler: # ["cosine", "step"]
+    kind: "step"
+    step_size: 20
+    factor: 0.6
+  random_state: 42 # optional
 
 # Augmentation info
 augmentation:

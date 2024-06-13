@@ -54,21 +54,12 @@ class TransformerModel(Model):
     pos_dim: int
 
 
-class Training(BaseModel):
-    """Parameters for training the model."""
+class LRScheduler(BaseModel):
+    """Parameters for learning rate scheduler."""
 
-    batch_size: int
-    epochs: int
-    save_every: int
-    optimizer: str
-    lr_init: float
-    lr_scheduler: str | None = None
-    lr_decay_steps: int | None = None
-    lr_decay_rate: float | None = None
-    eval_interval: int | None = None
-    patience: int | None = None
-    contra_loss_temp: float | None = None
-    random_state: int | None = None
+    kind: str
+    step_size: int
+    factor: int | float  # < 1 for step, > 1 for cosine annealing
 
 
 class AugmentationParams(BaseModel):
@@ -84,6 +75,21 @@ class Augmentation(BaseModel):
 
     order: list[str]
     params: AugmentationParams
+
+
+class Training(BaseModel):
+    """Parameters for training the model."""
+
+    batch_size: int
+    epochs: int
+    save_every: int
+    optimizer: str
+    lr: float
+    lr_scheduler: LRScheduler | None = None
+    eval_interval: int | None = None
+    patience: int | None = None
+    contra_loss_temp: float | None = None
+    random_state: int | None = None
 
 
 class Config(BaseModel):

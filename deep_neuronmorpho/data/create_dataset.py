@@ -1,5 +1,7 @@
 """Prepare neuron graphs for conversion to DGL datasets."""
 
+from collections.abc import Sequence
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import dgl
@@ -15,8 +17,8 @@ from torch import Tensor
 
 from deep_neuronmorpho.utils import EventLogger, ProgressBar
 
-from .data_utils import add_graph_labels, compute_edge_weights, compute_graph_attrs, graph_is_broken
 from .process_swc import SWCData
+from .utils import add_graph_labels, compute_edge_weights, compute_graph_attrs, graph_is_broken
 
 
 def create_neuron_graph(swc_file: str | Path) -> nx.DiGraph:
@@ -85,44 +87,37 @@ def create_dgl_graph(neuron_graph: nx.DiGraph) -> DGLGraph | None:
         DGLGraph | None: The resulting DGLGraph object, or None if the graph is broken.
     """
     dgl_graph = dgl.from_networkx(neuron_graph, node_attrs=["nattrs"], edge_attrs=["edge_weight"])
-    if graph_is_broken(dgl_graph):
-        return None
-    else:
-        return dgl_graph
+    return dgl_graph if not graph_is_broken(dgl_graph) else None
 
 
-def dgl_from_swc(swc_files: list[Path], logger: EventLogger | None = None) -> list[DGLGraph]:
+def swc_to_dgl(swc_file: Path | str, logger: EventLogger | None = None) -> DGLGraph | None:
     """Convert a neuron swc file into a DGL graph.
 
     Args:
-        swc_files (list[Path]): List of swc files.
+        swc_file (Path | str): Path to the swc file.
         logger (Logger): Logger object.
 
     Returns:
-        list[DGLGraph]: List of DGL graphs.
+        DGLGraph | None: DGL graph unless graph is broken.
+
     """
-    logger = EventLogger(Path.cwd(), "dgl_from_swc", to_file=False) if logger is None else logger
+    logger = EventLogger(Path.cwd(), "swc_to_dgl", to_file=False) if logger is None else logger
+    swc_file = Path(swc_file)
+    try:
+        neuron_graph = create_neuron_graph(swc_file)
+        dgl_graph = create_dgl_graph(neuron_graph)
+        if dgl_graph is None:
+            logger.message(
+                f"Graph is broken: {swc_file.name} contains NaN node attributes", level="error"
+            )
+        else:
+            dgl_graph.id = swc_file.stem
+            logger.message(f"Processed swc_file: {swc_file.name}")
+        return dgl_graph
 
-    neuron_graphs = []
-    for file in ProgressBar(swc_files, desc="Creating DGLGraph:"):
-        try:
-            neuron_graph = create_neuron_graph(file)
-            dgl_graph = create_dgl_graph(neuron_graph)
-            if dgl_graph is None:
-                logger.message(
-                    f"Graph is broken: {file.name} contains NaN node attributes", level="error"
-                )
-            else:
-                dgl_graph.id = file.stem
-                neuron_graphs.append(dgl_graph)
-                logger.message(f"Processed file: {file.name}")
-
-        except Exception as e:
-            logger.message(f"Error creating DGLGraph for {file}: {e}", level="error")
-
-    logger.message(f"Created {len(neuron_graphs)} DGLGraphs.")
-
-    return neuron_graphs
+    except Exception as e:
+        logger.message(f"Error creating DGLGraph for {swc_file}: {e}", level="error")
+        return None
 
 
 class GraphScaler:
@@ -151,11 +146,11 @@ class GraphScaler:
         self.scale_attrs = scaler_dict[scale_attrs]
         self.fitted = False
 
-    def fit(self, graphs: list[DGLGraph]) -> None:
+    def fit(self, graphs: Sequence[DGLGraph]) -> None:
         """Fit the scalers to the node attributes of the graphs in the dataset.
 
         Args:
-            graphs (list[DGLGraph]): The list of graphs to fit the scalers to.
+            graphs (Sequence[DGLGraph]): The list of graphs to fit the scalers to.
         """
         graph_nattrs = [graph.ndata["nattrs"].cpu() for graph in graphs]
         nattrs = torch.cat(graph_nattrs, dim=0)
@@ -192,13 +187,15 @@ class NeuronGraphDataset(DGLDataset):
     """A dataset consisting of DGLGraphs representing neuron morphologies.
 
     Args:
-        graphs_path (Path): The path to the SWC file directory.
+        name (str | Path): The name of the dataset.
+        graphs_path (str | Path, optional): The path to the SWC file directory. Defaults to the current directory.
+        dataset_path (Path, optional): The path where the processed dataset will be saved.
+        label_file (Path, optional): The path to the file containing the metadata (graph labels).
         self_loop (bool): Whether to add self-loops to each graph. Defaults to True.
         scaler (GraphScaler): The scaler object to use to standardize the node attributes.
-        dataset_name (str, optional): The name of the dataset. Defaults to "neuron_graph_dataset".
-        dataset_path (Path, optional): The path where the processed dataset will be saved.
         Defaults to the parent directory of the graphs_path.
-        label_file (Path, optional): The path to the file containing the metadata (graph labels).
+        from_file (bool): Whether to load the dataset from a file. If True, use the full path to the
+        dataset file as the name. Defaults to False.
 
     Attributes:
         graphs_path (Path): The path to the SWC file directory.
@@ -217,14 +214,19 @@ class NeuronGraphDataset(DGLDataset):
 
     def __init__(
         self,
-        graphs_path: str | Path,
-        self_loop: bool = True,
-        scaler: GraphScaler | None = None,
-        dataset_name: str = "neuron_graph_dataset",
+        name: str | Path,
+        graphs_path: str | Path | None = None,
         dataset_path: str | Path | None = None,
         label_file: str | Path | None = None,
+        self_loop: bool = True,
+        scaler: GraphScaler | None = None,
+        from_file: bool = False,
     ):
-        self.graphs_path = Path(graphs_path).resolve()
+        if from_file:
+            dataset_path = Path(name).parent
+            name = Path(name).stem
+
+        self.graphs_path = Path(graphs_path).resolve() if graphs_path is not None else Path.cwd()
         self.dataset_path = (
             Path(dataset_path) if dataset_path else Path(self.graphs_path.parent / "dgl_datasets")
         )
@@ -241,7 +243,7 @@ class NeuronGraphDataset(DGLDataset):
         self.logger: EventLogger | None = None
 
         super().__init__(
-            name=dataset_name,
+            name=name,
             raw_dir=self.graphs_path,
             save_dir=self.dataset_path,
             verbose=False,
@@ -250,37 +252,46 @@ class NeuronGraphDataset(DGLDataset):
     def process(self) -> None:
         """Process the input data into a list of DGLGraphs."""
         self.logger = EventLogger(self.dataset_path, expt_name=self.name)
-        self.logger.message(f"Creating {self.name} dataset from {self.graphs_path}")
-        self.logger.message(f"Dataset {self.name} has scaler: {self.scaler}")
-        self.logger.message(f"Dataset {self.name} has self-loop: {self.self_loop}")
+        self.logger.message(
+            f"""Creating dataset: {self.name} from {self.graphs_path} \n"""
+            f"""Dataset {self.name} has scaler: {self.scaler} \n"""
+            f"""Dataset {self.name} has self-loop: {self.self_loop}"""
+        )
         swc_files = sorted(self.graphs_path.glob("*.swc"))
-        self.graphs = dgl_from_swc(swc_files=swc_files, logger=self.logger)
-        assert self.graphs, f"No graphs were created from {self.graphs_path}"
+
+        with ProcessPoolExecutor() as executor:
+            futures = [executor.submit(swc_to_dgl, swc_file, self.logger) for swc_file in swc_files]
+            self.logger.message("Loading graphs...")
+            for future in ProgressBar(futures, desc="Loading DGLGraph:"):
+                if future.result() is not None:
+                    self.graphs.append(future.result())
+                    self.logger.message(f"Processed: {future.result().id}")
+                else:
+                    self.logger.message(f"Skipped: {swc_files[futures.index(future)].name}")
 
         if self.scaler is not None:
             self.scaler.fit(self.graphs)
 
-        processed_graphs = []
-        while self.graphs:
-            original_graph = self.graphs.pop(0)
-            graph_id = original_graph.id
+        self.logger.message("Processing graphs...")
+        for i in range(len(self.graphs)):
+            original_graph = self.graphs[i]
             if self.self_loop:
-                graph = dgl.add_self_loop(
+                self.graphs[i] = dgl.add_self_loop(
                     dgl.remove_self_loop(original_graph),
                     edge_feat_names=["edge_weight"],
                     fill_data=1.0,
                 )
-            processed_graph = self.scaler.transform(graph) if self.scaler else graph
-            processed_graph.id = graph_id
-            processed_graphs.append(processed_graph)
-
-        self.graphs = processed_graphs
+            self.graphs[i] = (
+                self.scaler.transform(self.graphs[i]) if self.scaler is not None else original_graph
+            )
+            self.graphs[i].id = original_graph.id
         self.graph_ids = [graph.id for graph in self.graphs]
 
         if self.label_file:
             self.logger.message(f"Adding labels from {self.label_file} to graphs.")
             self.labels, self.glabel_dict = add_graph_labels(self.label_file, self.graphs)
             self.num_classes = len(self.glabel_dict)
+        self.logger.message(f"Processed {len(self.graphs)}/{len(swc_files)} graphs.")
 
     def save(self, filename: str | None = None) -> None:
         """Save the dataset to disk."""
@@ -415,7 +426,7 @@ if __name__ == "__main__":
             graphs_path=graphs_dir,
             self_loop=self_loop and not no_self_loop,
             scaler=scaler,
-            dataset_name=dataset_name,
+            name=dataset_name,
             dataset_path=dataset_path,
             label_file=label_file,
         )
