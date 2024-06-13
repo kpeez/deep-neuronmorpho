@@ -1,12 +1,12 @@
 # model config
 dirs:
-  data: "../datasets/demo-neuromorpho/processed/"
-  results: "../datasets/demo-neuromorpho/expt_results/macgnn/runs/"
+  data: "../datasets/joint_jml_bil_act/processed/"
+  results: "../runs/demo/"
 
 datasets:
-  contra_train: "demo-neuromorpho"
-  eval_train: "demo-neuromorpho"
-  eval_test: "demo-neuromorpho"
+  contra_train: "joint_jml_bil_act-dimfeats17-self_loop"
+  eval_train: "joint_jml_bil_act-dimfeats17-self_loop"
+  eval_test: "joint_jml_bil_act-dimfeats17-self_loop"
 
 model:
   name: "macgnnv2_demo"
@@ -31,7 +31,7 @@ training:
   contra_loss_temp: 0.2
   # eval_interval: None
   save_every: 2
-  epochs: 6
+  epochs: 2
   patience: 60
   optimizer: "adam"
   lr: 0.01
