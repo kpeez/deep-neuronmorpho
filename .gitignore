@@ -1,5 +1,6 @@
 # datasets/docs
 datasets
+runs
 notebooks/*dev*
 notebooks/*info*
 *.csv
