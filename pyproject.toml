@@ -21,6 +21,7 @@ dependencies = [
     "pyarrow",
     "typer",
     "pydantic",
+    "tensorboard",
 ]
 
 [project.optional-dependencies]
