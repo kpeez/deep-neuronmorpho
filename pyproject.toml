@@ -7,20 +7,20 @@ authors = [{ name = "Kyle Puhger", email = "krpuhger@gmail.com" }]
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
-  "numpy",
-  "torch",
-  "scikit-learn",
-  "dgl==1.1.3",
-  "pandas",
-  "seaborn",
-  "matplotlib",
-  "xgboost",
-  "umap-learn",
-  "morphopy",
-  "pyyaml",
-  "pyarrow",
-  "typer",
-  "pydantic",
+    "numpy",
+    "torch",
+    "scikit-learn",
+    "dgl==1.1.3",
+    "pandas",
+    "seaborn",
+    "matplotlib",
+    "xgboost",
+    "umap-learn",
+    "morphopy",
+    "pyyaml",
+    "pyarrow",
+    "typer",
+    "pydantic",
 ]
 
 [project.optional-dependencies]
@@ -74,6 +74,10 @@ fixable = ["ALL"]
 ignore = [
   # too many arguments
   "PLR0913",
+  # too many local variables
+  "PLR0914",
+  # too many statements
+  "PLR0915",
   # magic number
   "PLR2004",
   # line too long
