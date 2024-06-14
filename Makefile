@@ -1,48 +1,79 @@
-.PHONY: install install-cuda check test build clean-build docs docs-test update help
+.PHONY: check_uv install install-dev install-cpu install-dev-cpu check test docs docs-test update help
 
-install: ## Install the poetry environment and install the pre-commit hooks
-	@echo "📦 Creating virtual environment using poetry"
-	@poetry install
-	@poetry run pre-commit install
+DGL_URL := https://data.dgl.ai/wheels/cu121/repo.html
 
-install-cuda: install ## install CUDA-dependent pacakges
-	@echo "📦 Installing CUDA-dependent packages..."
-	@poetry run pip install --upgrade pip
-	@echo "Installing CUDA-enabled version of DGL..."
-	@poetry run pip uninstall dgl -y
-	@poetry run pip install dgl==1.1.3 -f https://data.dgl.ai/wheels/cu118/repo.html
+check_uv: # install `uv` if not installed
+	@if ! command -v uv > /dev/null 2>&1; then \
+		echo "uv is not installed, installing now..."; \
+		curl -LsSf https://astral.sh/uv/install.sh | sh; \
+	fi
 
-check: ## Run code quality tools.
-	@echo "🔒 Checking Poetry lock file consistency with 'pyproject.toml': Running poetry lock --check"
-	@poetry check --lock
-	@echo "⚡️ Linting / Formatting: Running ruff"
-	@poetry run ruff check
-	@echo "🧹 Running pre-commit"
-	@poetry run pre-commit run -a
-	@echo "🔬 Static type checking: Running mypy"
-	@poetry run mypy deep_neuronmorpho
+install: check_uv ## Install the virtual environment and pre-commit hooks
+	@echo "📦 Creating and seeding virtual environment"
+	@uv venv --seed
+	@echo "📦 Installing dependencies"
+	@. .venv/bin/activate && \
+		uv pip compile pyproject.toml -o requirements.txt -f $(DGL_URL) && \
+		uv pip sync requirements.txt -f $(DGL_URL) && \
+		uv pip install -e .
+
+install-dev: check_uv ## Install the virtual environment and pre-commit hooks
+	@echo "📦 Creating and seeding virtual environment"
+	@uv venv --seed
+	@echo "📦 Installing dependencies"
+	@. .venv/bin/activate && \
+		uv pip compile pyproject.toml -o requirements.txt -f $(DGL_URL) && \
+		uv pip compile pyproject.toml -o requirements-dev.txt -f $(DGL_URL) --extra=dev && \
+		uv pip sync requirements-dev.txt -f $(DGL_URL) && \
+		uv pip install -e . && \
+		pre-commit install
+
+install-cpu: check_uv ## Install the virtual environment and pre-commit hooks
+	@echo "📦 Creating and seeding virtual environment"
+	@uv venv --seed
+	@echo "📦 Installing dependencies"
+	@. .venv/bin/activate && \
+		uv pip compile pyproject.toml -o requirements-cpu.txt && \
+		uv pip sync requirements-cpu.txt && \
+		uv pip install -e .
+
+install-dev-cpu: check_uv ## Install the virtual environment and pre-commit hooks
+	@echo "📦 Creating and seeding virtual environment"
+	@uv venv --seed
+	@echo "📦 Installing dependencies"
+	@. .venv/bin/activate && \
+		uv pip compile pyproject.toml -o requirements-cpu.txt && \
+		uv pip compile pyproject.toml -o requirements-dev-cpu.txt --extra=dev && \
+		uv pip sync requirements-dev-cpu.txt && \
+		uv pip install -e . && \
+		pre-commit install; mypy --install-types --non-interactive
+
+check: ## Run code quality tools
+	@. .venv/bin/activate && \
+		echo "⚡️ Linting code: Running ruff" && \
+		ruff check . && \
+		echo "🧹 Checking code: Running pre-commit" && \
+		pre-commit run --all-files && \
+		echo "🔬 Static type checking: Running mypy" && \
+		mypy .
 
 test: ## Test the code with pytest
-	@echo "✅ Testing code: Running pytest"
-	@poetry run pytest --doctest-modules
-
-build: clean-build ## Build wheel file using poetry
-	@echo "🛞 Creating wheel file"
-	@poetry build
-
-clean-build: ## clean build artifacts
-	@rm -rf dist
+	@echo "🧪 Testing code: Running pytest" && \
+		source .venv/bin/activate; pytest --doctest-modules
 
 docs: ## Build and serve the documentation
-	@poetry run mkdocs serve
+	@. .venv/bin/activate && \
+	mkdocs serve
 
-docs-test: ## Test if documentation can be built without warnings or errors
-	@poetry run mkdocs build -s
+docs_test: ## Test if documentation can be built without warnings or errors
+	@echo "⚙️ Testing documentation build"
+	@. .venv/bin/activate && \
+		mkdocs build --strict
 
-update: ## Update the poetry environment and pre-commit hooks
-	@echo "⚙️ Updating poetry environment and pre-commit hooks"
-	@poetry update
-	@poetry run pre-commit autoupdate
+update: ## Update pre-commit hooks
+	@echo "⚙️ Updating environment and pre-commit hooks"
+	@. .venv/bin/activate && \
+		pre-commit autoupdate
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
