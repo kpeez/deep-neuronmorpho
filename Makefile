@@ -1,5 +1,7 @@
 .PHONY: check_uv install install-dev install-cpu install-dev-cpu check test docs docs-test update help
 
+DGL_URL := https://data.dgl.ai/wheels/cu121/repo.html
+
 check_uv: # install `uv` if not installed
 	@if ! command -v uv > /dev/null 2>&1; then \
 		echo "uv is not installed, installing now..."; \
@@ -11,8 +13,8 @@ install: check_uv ## Install the virtual environment and pre-commit hooks
 	@uv venv --seed
 	@echo "📦 Installing dependencies"
 	@. .venv/bin/activate && \
-		uv pip compile pyproject.toml -o requirements.txt && \
-		uv pip sync requirements.txt && \
+		uv pip compile pyproject.toml -o requirements.txt -f $(DGL_URL) && \
+		uv pip sync requirements.txt -f $(DGL_URL) && \
 		uv pip install -e .
 
 install-dev: check_uv ## Install the virtual environment and pre-commit hooks
@@ -20,9 +22,9 @@ install-dev: check_uv ## Install the virtual environment and pre-commit hooks
 	@uv venv --seed
 	@echo "📦 Installing dependencies"
 	@. .venv/bin/activate && \
-		uv pip compile pyproject.toml -o requirements.txt && \
-		uv pip compile pyproject.toml -o requirements-dev.txt --extra=dev && \
-		uv pip sync requirements-dev.txt && \
+		uv pip compile pyproject.toml -o requirements.txt -f $(DGL_URL) && \
+		uv pip compile pyproject.toml -o requirements-dev.txt -f $(DGL_URL) --extra=dev && \
+		uv pip sync requirements-dev.txt -f $(DGL_URL) && \
 		uv pip install -e . && \
 		pre-commit install
 
