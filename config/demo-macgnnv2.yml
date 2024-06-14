@@ -1,7 +1,7 @@
 # model config
 dirs:
   data: "../datasets/joint_jml_bil_act/processed/"
-  results: "../runs/demo/"
+  results: "../runs/demo_run/"
 
 datasets:
   contra_train: "joint_jml_bil_act-dimfeats17-self_loop"
