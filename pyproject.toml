@@ -7,22 +7,22 @@ authors = [{ name = "Kyle Puhger", email = "krpuhger@gmail.com" }]
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
-    "numpy",
-    "torch",
-    "scikit-learn",
-    "dgl==1.1.3",
-    "scipy<1.13",
-    "pandas",
-    "seaborn",
-    "matplotlib",
-    "xgboost",
-    "umap-learn",
-    "morphopy",
-    "pyyaml",
-    "pyarrow",
-    "typer",
-    "pydantic",
-    "tensorboard",
+  "numpy",
+  "torch==2.1.*",
+  "dgl>=2.0,<2.1",
+  "scikit-learn",
+  "scipy<1.13",
+  "pandas",
+  "seaborn",
+  "matplotlib",
+  "xgboost",
+  "umap-learn",
+  "morphopy",
+  "pyyaml",
+  "pyarrow",
+  "typer",
+  "pydantic",
+  "tensorboard",
 ]
 
 [project.optional-dependencies]
