@@ -8,11 +8,14 @@ Deep learning based approaches for neuron morphology embeddings. Contact [Kyle P
 
 ## Installation
 
+> If you do not have a CUDA enabled machine, please use the `requirements-cpu.txt` file to install the necessary dependencies.
+> Note: The GPU version only runs on CUDA 11, not CUDA 12.
+
 This package requires the following dependencies:
 
 - Python ≥ 3.10
-- PyTorch = 2.0.0
-- DGL = 2.0
+- PyTorch >= 2.0.0
+- DGL == 1.1.3 (GPU version ran using CUDA 11.8)
 
 The easiest way to install the packages is to create a new virtual environment and install the appropriate requirements file.
 
