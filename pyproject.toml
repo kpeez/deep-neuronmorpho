@@ -8,8 +8,8 @@ readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
   "numpy",
-  "torch==2.1.*",
-  "dgl>=2.0,<2.1",
+  "torch",
+  "dgl==1.1.3",
   "scikit-learn",
   "scipy<1.13",
   "pandas",
@@ -46,6 +46,9 @@ repository = "https://github.com/kpeez/deep-neuronmorpho"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv.pip]
+extra-index-url = ["https://download.pytorch.org/whl/cu118"]
 
 [tool.ruff]
 line-length = 100

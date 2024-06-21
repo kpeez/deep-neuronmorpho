@@ -1,6 +1,6 @@
 .PHONY: check_uv install install-dev install-cpu install-dev-cpu check test docs docs-test update help
 
-DGL_URL := https://data.dgl.ai/wheels/cu121/repo.html
+DGL_URL := https://data.dgl.ai/wheels/cu118/repo.html
 
 check_uv: # install `uv` if not installed
 	@if ! command -v uv > /dev/null 2>&1; then \
