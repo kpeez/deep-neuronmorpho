@@ -4,9 +4,9 @@ absl-py==2.1.0
     # via tensorboard
 annotated-types==0.7.0
     # via pydantic
-certifi==2024.6.2
+certifi==2022.12.7
     # via requests
-charset-normalizer==3.3.2
+charset-normalizer==2.1.1
     # via requests
 click==8.1.7
     # via typer
@@ -14,21 +14,21 @@ contourpy==1.2.1
     # via matplotlib
 cycler==0.12.1
     # via matplotlib
-dgl==2.0.0+cu121
+dgl==1.1.3
     # via deep-neuronmorpho (pyproject.toml)
-filelock==3.15.1
+filelock==3.13.1
     # via
     #   torch
     #   triton
 fonttools==4.53.0
     # via matplotlib
-fsspec==2024.6.0
+fsspec==2024.2.0
     # via torch
 grpcio==1.64.1
     # via tensorboard
-idna==3.7
+idna==3.4
     # via requests
-jinja2==3.1.4
+jinja2==3.1.3
     # via torch
 joblib==1.4.2
     # via
@@ -62,7 +62,7 @@ morphopy==0.7.2
     # via deep-neuronmorpho (pyproject.toml)
 mpmath==1.3.0
     # via sympy
-networkx==3.3
+networkx==3.2.1
     # via
     #   dgl
     #   morphopy
@@ -71,7 +71,7 @@ numba==0.60.0
     # via
     #   pynndescent
     #   umap-learn
-numpy==1.26.4
+numpy==1.26.3
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   contourpy
@@ -111,15 +111,15 @@ nvidia-cusparse-cu12==12.1.0.106
     # via
     #   nvidia-cusolver-cu12
     #   torch
-nvidia-nccl-cu12==2.18.1
+nvidia-nccl-cu12==2.20.5
     # via torch
-nvidia-nvjitlink-cu12==12.5.40
+nvidia-nvjitlink-cu12==12.1.105
     # via
     #   nvidia-cusolver-cu12
     #   nvidia-cusparse-cu12
 nvidia-nvtx-cu12==12.1.105
     # via torch
-packaging==24.1
+packaging==22.0
     # via
     #   matplotlib
     #   plotly
@@ -128,7 +128,7 @@ pandas==2.2.2
     #   deep-neuronmorpho (pyproject.toml)
     #   morphopy
     #   seaborn
-pillow==10.3.0
+pillow==10.2.0
     # via matplotlib
 plotly==5.22.0
     # via morphopy
@@ -156,10 +156,8 @@ pytz==2024.1
     # via pandas
 pyyaml==6.0.1
     # via deep-neuronmorpho (pyproject.toml)
-requests==2.32.3
-    # via
-    #   dgl
-    #   torchdata
+requests==2.28.1
+    # via dgl
 rich==13.7.1
     # via typer
 scikit-learn==1.5.0
@@ -191,7 +189,7 @@ six==1.16.0
     # via
     #   python-dateutil
     #   tensorboard
-sympy==1.12.1
+sympy==1.12
     # via torch
 tenacity==8.3.0
     # via plotly
@@ -201,21 +199,17 @@ tensorboard-data-server==0.7.2
     # via tensorboard
 threadpoolctl==3.5.0
     # via scikit-learn
-torch==2.1.2
-    # via
-    #   deep-neuronmorpho (pyproject.toml)
-    #   torchdata
-torchdata==0.7.1
-    # via dgl
-tqdm==4.66.4
+torch==2.3.1+cu121
+    # via deep-neuronmorpho (pyproject.toml)
+tqdm==4.64.1
     # via
     #   dgl
     #   umap-learn
-triton==2.1.0
+triton==2.3.1
     # via torch
 typer==0.12.3
     # via deep-neuronmorpho (pyproject.toml)
-typing-extensions==4.12.2
+typing-extensions==4.9.0
     # via
     #   pydantic
     #   pydantic-core
@@ -225,10 +219,8 @@ tzdata==2024.1
     # via pandas
 umap-learn==0.5.6
     # via deep-neuronmorpho (pyproject.toml)
-urllib3==2.2.1
-    # via
-    #   requests
-    #   torchdata
+urllib3==1.26.13
+    # via requests
 werkzeug==3.0.3
     # via tensorboard
 xgboost==2.0.3
