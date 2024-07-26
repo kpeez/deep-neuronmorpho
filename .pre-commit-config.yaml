@@ -1,35 +1,24 @@
-# To use:
-#
-#     pre-commit run -a
-#
-# Or:
-#
-#     pre-commit install  # (runs every time you commit in git)
-#
-# To update this file:
-#
-#     pre-commit autoupdate
-#
-# See https://github.com/pre-commit/pre-commit
-
 repos:
-# Standard hooks
-- repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.6.0
-  hooks:
-  - id: check-added-large-files
-  - id: check-case-conflict
-  - id: check-docstring-first
-  - id: check-merge-conflict
-  - id: check-symlinks
-  - id: check-toml
-  - id: debug-statements
-  - id: mixed-line-ending
-  - id: requirements-txt-fixer
-  - id: trailing-whitespace
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    - id: check-added-large-files
+    - id: check-case-conflict
+    - id: check-docstring-first
+    - id: check-merge-conflict
+    - id: check-symlinks
+    - id: check-toml
+    - id: debug-statements
+    - id: mixed-line-ending
+    - id: requirements-txt-fixer
+    - id: trailing-whitespace
 
-# Ruff, the Ruff linter and formatter
-- repo: https://github.com/charliermarsh/ruff-pre-commit
-  rev: "v0.4.8"
-  hooks:
-    - id: ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: "v0.5.5"
+    hooks:
+      - id: ruff
+        args: [--exit-non-zero-on-fix, --config=pyproject.toml]
+        exclude: deep-neuronmorpho
+      - id: ruff-format
+        args: [--config=pyproject.toml]
+        exclude: deep-neuronmorpho
