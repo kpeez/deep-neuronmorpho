@@ -112,10 +112,10 @@ def plot_embeddings(
         else:
             axs = [axs] if not isinstance(axs, (list, np.ndarray)) else axs
 
-        for lab, ax, color in zip(unique_labels, axs, colors, strict=False):
+        for lab, curr_ax, color in zip(unique_labels, axs, colors, strict=False):
             df_embeds = reduce_dimensionality(df.loc[df["label"] == lab, :], **kwargs)
             method = kwargs.get("method", "UMAP")
-            ax.plot(
+            curr_ax.plot(
                 df_embeds[f"{method} 1"],
                 df_embeds[f"{method} 2"],
                 "o",
@@ -123,10 +123,10 @@ def plot_embeddings(
                 alpha=0.6,
                 label=lab,
             )
-            ax.title.set_text(lab)
+            curr_ax.title.set_text(lab)
 
-        for ax in axs[len(unique_labels) :]:
-            ax.axis("off")
+        for curr_ax in axs[len(unique_labels) :]:
+            curr_ax.axis("off")
 
     if by_class:
         _plot_embeds_by_class(df, axs=ax, figsize=figsize, **kwargs)

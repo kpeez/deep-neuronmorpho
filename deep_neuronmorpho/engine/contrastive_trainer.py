@@ -188,8 +188,7 @@ class ContrastiveTrainer:
             if self.eval_interval is not None and epoch % self.eval_interval == 0:
                 val_cv_acc, _, _, _ = self.eval_step()
                 self.on_eval_step(val_cv_acc, epoch)
-                if val_cv_acc > self.best_eval_acc:
-                    self.best_eval_acc = val_cv_acc
+                self.best_eval_acc = max(val_cv_acc, self.best_eval_acc)
 
             if epoch % self.cfg.training.save_every == 0:
                 self.checkpoint.save(epoch=epoch, info_dict={"train_loss": train_loss})
