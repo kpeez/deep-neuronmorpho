@@ -79,7 +79,7 @@ class SWCData:
             AssertionError: If no dendrites are connected to the soma.
 
         """
-        with open(swc_file, "r") as file:
+        with open(swc_file, "r", encoding="utf-8") as file:
             lines = file.readlines()
         # Find the start of data
         start_idx = 0
@@ -93,7 +93,7 @@ class SWCData:
         )
         int_cols = ["n", "type", "parent"]
         float_cols = ["x", "y", "z", "radius"]
-        col_type = {col: int for col in int_cols} | {col: float for col in float_cols}
+        col_type = dict.fromkeys(int_cols, int) | dict.fromkeys(float_cols, float)
         data = data.astype(col_type)
         # validate swc file
         assert not data.query(
@@ -194,7 +194,7 @@ class SWCData:
         if self._ntree.get_axon_nodes().size == 0:
             raw_ntree = raw_ntree.get_dendritic_tree()
 
-        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+        _fig, axs = plt.subplots(1, 2, figsize=(10, 5))
         raw_ntree.draw_2D(projection="xy", ax=axs[0], axon_color="lightblue")
         self._ntree.draw_2D(projection="xy", ax=axs[1], axon_color="lightblue")
         axs[0].set_title(f"Raw: {self.swc_file.stem}")
@@ -209,7 +209,7 @@ class SWCData:
         if file_path.suffix != ".swc":
             file_path = file_path.with_name(f"{file_path.name}.swc")
         print(f"Saving SWC data to {file_path}")
-        with open(file_path, "w") as file:
+        with open(file_path, "w", encoding="utf-8") as file:
             header = " ".join(self._data.columns)
             file.write(f"# {header}\n")
         self._data.to_csv(file_path, mode="a", index=False, sep=" ", header=False, **kwargs)

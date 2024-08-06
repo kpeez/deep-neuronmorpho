@@ -105,7 +105,7 @@ class Config(BaseModel):
     @classmethod
     def from_yaml(cls, config_file: str | Path) -> "Config":
         """Load a configuration from a YAML file."""
-        with open(config_file, "r") as f:
+        with open(config_file, "r", encoding="utf-8") as f:
             config_dict = yaml.safe_load(f)
         config_dict["config_file"] = config_file
 
