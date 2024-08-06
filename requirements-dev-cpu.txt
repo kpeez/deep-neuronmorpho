@@ -20,7 +20,7 @@ asttokens==2.4.1
     # via stack-data
 async-lru==2.0.4
     # via jupyterlab
-attrs==23.2.0
+attrs==24.2.0
     # via
     #   jsonschema
     #   referencing
@@ -32,12 +32,12 @@ beautifulsoup4==4.12.3
     # via nbconvert
 bleach==6.1.0
     # via nbconvert
-certifi==2024.6.2
+certifi==2024.7.4
     # via
     #   httpcore
     #   httpx
     #   requests
-cffi==1.16.0
+cffi==1.17.0
     # via argon2-cffi-bindings
 cfgv==3.4.0
     # via pre-commit
@@ -58,7 +58,7 @@ contourpy==1.2.1
     # via matplotlib
 cycler==0.12.1
     # via matplotlib
-debugpy==1.8.1
+debugpy==1.8.5
     # via ipykernel
 decorator==5.1.1
     # via ipython
@@ -70,23 +70,23 @@ distlib==0.3.8
     # via virtualenv
 executing==2.0.1
     # via stack-data
-fastjsonschema==2.19.1
+fastjsonschema==2.20.0
     # via nbformat
-filelock==3.15.1
+filelock==3.15.4
     # via
     #   torch
     #   virtualenv
-fonttools==4.53.0
+fonttools==4.53.1
     # via matplotlib
 fqdn==1.5.1
     # via jsonschema
-fsspec==2024.6.0
+fsspec==2024.6.1
     # via torch
 ghp-import==2.1.0
     # via mkdocs
-griffe==0.45.3
+griffe==0.48.0
     # via mkdocstrings-python
-grpcio==1.64.1
+grpcio==1.65.4
     # via tensorboard
 h11==0.14.0
     # via httpcore
@@ -94,7 +94,7 @@ httpcore==1.0.5
     # via httpx
 httpx==0.27.0
     # via jupyterlab
-identify==2.5.36
+identify==2.6.0
     # via pre-commit
 idna==3.7
     # via
@@ -104,11 +104,11 @@ idna==3.7
     #   requests
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.29.4
+ipykernel==6.29.5
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   jupyterlab
-ipython==8.25.0
+ipython==8.26.0
     # via ipykernel
 isoduration==20.11.0
     # via jsonschema
@@ -132,7 +132,7 @@ json5==0.9.25
     # via jupyterlab-server
 jsonpointer==3.0.0
     # via jsonschema
-jsonschema==4.22.0
+jsonschema==4.23.0
     # via
     #   jupyter-events
     #   jupyterlab-server
@@ -157,7 +157,7 @@ jupyter-events==0.10.0
     # via jupyter-server
 jupyter-lsp==2.2.5
     # via jupyterlab
-jupyter-server==2.14.1
+jupyter-server==2.14.2
     # via
     #   jupyter-lsp
     #   jupyterlab
@@ -166,17 +166,17 @@ jupyter-server==2.14.1
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.2.2
+jupyterlab==4.2.4
     # via notebook
 jupyterlab-pygments==0.3.0
     # via nbconvert
-jupyterlab-server==2.27.2
+jupyterlab-server==2.27.3
     # via
     #   jupyterlab
     #   notebook
 kiwisolver==1.4.5
     # via matplotlib
-llvmlite==0.42.0
+llvmlite==0.43.0
     # via
     #   numba
     #   pynndescent
@@ -228,21 +228,21 @@ mkdocs-autorefs==1.0.1
     # via mkdocstrings
 mkdocs-get-deps==0.2.0
     # via mkdocs
-mkdocs-material==9.5.26
+mkdocs-material==9.5.31
     # via deep-neuronmorpho (pyproject.toml)
 mkdocs-material-extensions==1.3.1
     # via mkdocs-material
-mkdocstrings==0.25.1
+mkdocstrings==0.25.2
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   mkdocstrings-python
-mkdocstrings-python==1.10.3
+mkdocstrings-python==1.10.7
     # via mkdocstrings
 morphopy==0.7.2
     # via deep-neuronmorpho (pyproject.toml)
 mpmath==1.3.0
     # via sympy
-mypy==1.10.0
+mypy==1.11.1
     # via deep-neuronmorpho (pyproject.toml)
 mypy-extensions==1.0.0
     # via mypy
@@ -270,11 +270,11 @@ notebook-shim==0.2.4
     # via
     #   jupyterlab
     #   notebook
-numba==0.59.1
+numba==0.60.0
     # via
     #   pynndescent
     #   umap-learn
-numpy==1.26.4
+numpy==2.0.1
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   contourpy
@@ -322,9 +322,9 @@ pathspec==0.12.1
     # via mkdocs
 pexpect==4.9.0
     # via ipython
-pillow==10.3.0
+pillow==10.4.0
     # via matplotlib
-pip==24.0
+pip==24.2
     # via deep-neuronmorpho (pyproject.toml)
 platformdirs==4.2.2
     # via
@@ -332,19 +332,19 @@ platformdirs==4.2.2
     #   mkdocs-get-deps
     #   mkdocstrings
     #   virtualenv
-plotly==5.22.0
+plotly==5.23.0
     # via morphopy
 pluggy==1.5.0
     # via pytest
-pre-commit==3.7.1
+pre-commit==3.8.0
     # via deep-neuronmorpho (pyproject.toml)
 prometheus-client==0.20.0
     # via jupyter-server
 prompt-toolkit==3.0.47
     # via ipython
-protobuf==4.25.3
+protobuf==4.25.4
     # via tensorboard
-psutil==5.9.8
+psutil==6.0.0
     # via
     #   dgl
     #   ipykernel
@@ -352,15 +352,15 @@ ptyprocess==0.7.0
     # via
     #   pexpect
     #   terminado
-pure-eval==0.2.2
+pure-eval==0.2.3
     # via stack-data
-pyarrow==16.1.0
+pyarrow==17.0.0
     # via deep-neuronmorpho (pyproject.toml)
 pycparser==2.22
     # via cffi
-pydantic==2.7.4
+pydantic==2.8.2
     # via deep-neuronmorpho (pyproject.toml)
-pydantic-core==2.18.4
+pydantic-core==2.20.1
     # via pydantic
 pygments==2.18.0
     # via
@@ -368,15 +368,15 @@ pygments==2.18.0
     #   mkdocs-material
     #   nbconvert
     #   rich
-pymdown-extensions==10.8.1
+pymdown-extensions==10.9
     # via
     #   mkdocs-material
     #   mkdocstrings
-pynndescent==0.5.12
+pynndescent==0.5.13
     # via umap-learn
 pyparsing==3.1.2
     # via matplotlib
-pytest==8.2.2
+pytest==8.3.2
     # via deep-neuronmorpho (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via
@@ -400,7 +400,7 @@ pyyaml==6.0.1
     #   pyyaml-env-tag
 pyyaml-env-tag==0.1
     # via mkdocs
-pyzmq==26.0.3
+pyzmq==26.1.0
     # via
     #   ipykernel
     #   jupyter-client
@@ -410,7 +410,7 @@ referencing==0.35.1
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-regex==2024.5.15
+regex==2024.7.24
     # via mkdocs-material
 requests==2.32.3
     # via
@@ -428,19 +428,19 @@ rfc3986-validator==0.1.1
     #   jupyter-events
 rich==13.7.1
     # via typer
-rpds-py==0.18.1
+rpds-py==0.20.0
     # via
     #   jsonschema
     #   referencing
-ruff==0.4.8
+ruff==0.5.6
     # via deep-neuronmorpho (pyproject.toml)
-scikit-learn==1.5.0
+scikit-learn==1.5.1
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   morphopy
     #   pynndescent
     #   umap-learn
-scipy==1.12.0
+scipy==1.6.1
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   dgl
@@ -455,11 +455,11 @@ seaborn==0.13.2
     #   morphopy
 send2trash==1.8.3
     # via jupyter-server
-setuptools==70.0.0
+setuptools==72.1.0
     # via
     #   jupyterlab
     #   tensorboard
-shapely==2.0.4
+shapely==2.0.5
     # via morphopy
 shellingham==1.5.4
     # via typer
@@ -478,9 +478,9 @@ soupsieve==2.5
     # via beautifulsoup4
 stack-data==0.6.3
     # via ipython
-sympy==1.12.1
+sympy==1.13.1
     # via torch
-tenacity==8.3.0
+tenacity==9.0.0
     # via plotly
 tensorboard==2.17.0
     # via deep-neuronmorpho (pyproject.toml)
@@ -498,7 +498,7 @@ torch==2.1.2
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   torchdata
-torchdata==0.7.1
+torchdata==0.8.0
     # via dgl
 tornado==6.4.1
     # via
@@ -508,7 +508,7 @@ tornado==6.4.1
     #   jupyterlab
     #   notebook
     #   terminado
-tqdm==4.66.4
+tqdm==4.66.5
     # via
     #   dgl
     #   umap-learn
@@ -546,11 +546,11 @@ umap-learn==0.5.6
     # via deep-neuronmorpho (pyproject.toml)
 uri-template==1.3.0
     # via jsonschema
-urllib3==2.2.1
+urllib3==2.2.2
     # via
     #   requests
     #   torchdata
-virtualenv==20.26.2
+virtualenv==20.26.3
     # via pre-commit
 watchdog==4.0.1
     # via mkdocs
@@ -566,5 +566,5 @@ websocket-client==1.8.0
     # via jupyter-server
 werkzeug==3.0.3
     # via tensorboard
-xgboost==2.0.3
+xgboost==2.1.1
     # via deep-neuronmorpho (pyproject.toml)
