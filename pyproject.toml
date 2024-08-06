@@ -74,12 +74,16 @@ select = [
 ]
 fixable = ["ALL"]
 ignore = [
+  # too many branches
+  "PLR0912",
   # too many arguments
   "PLR0913",
   # too many local variables
   "PLR0914",
   # too many statements
   "PLR0915",
+  # too many positional arguments
+  "PLR0917",
   # magic number
   "PLR2004",
   # line too long
