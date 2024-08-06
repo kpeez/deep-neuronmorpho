@@ -191,12 +191,9 @@ class SupervisedTrainer:
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
-            if train_loss < self.best_train_loss:
-                self.best_train_loss = train_loss
-            if train_acc > self.best_train_acc:
-                self.best_train_acc = train_acc
-            if val_loss < self.best_val_loss:
-                self.best_val_loss = val_loss
+            self.best_train_loss = min(train_loss, self.best_train_loss)
+            self.best_train_acc = max(train_acc, self.best_train_acc)
+            self.best_val_loss = min(val_loss, self.best_val_loss)
             if val_acc > self.best_val_acc:
                 self.best_val_acc = val_acc
                 bad_epochs = 0
