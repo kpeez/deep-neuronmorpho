@@ -12,7 +12,6 @@ check_uv: # install `uv` if not installed
 install: check_uv ## Install the virtual environment and  pre-commit hooks
 	@echo "📦 Creating virtual environment"
 	@uv sync --all-extras -f $(DGL_URL)
-	@uv pip compile pyproject.toml -o requirements.txt -f $(DGL_URL)
 	@echo "🛠️ Installing developer tools..."
 	@uvx pre-commit install
 	@. .venv/bin/activate && mypy --install-types --non-interactive
@@ -28,7 +27,7 @@ check: ## Run code quality tools
 	@echo "🧹 Checking code: Running pre-commit"
 	@uvx pre-commit run --all-files
 	@echo "🔬 Static type checking: Running mypy"
-	@uvx mypy .
+	@. .venv/bin/activate && mypy .
 
 test: ## Test the code with pytest
 	@echo "✅ Testing code: Running pytest"
