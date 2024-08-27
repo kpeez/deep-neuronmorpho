@@ -47,9 +47,6 @@ repository = "https://github.com/kpeez/deep-neuronmorpho"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.uv.pip]
-extra-index-url = ["https://download.pytorch.org/whl/cu118"]
-
 [tool.ruff]
 line-length = 100
 target-version = "py310"
