@@ -12,8 +12,8 @@ __all__ = [
     "Config",
     "ContrastiveLogData",
     "EventLogger",
-    "TrainLogger",
-    "ProgressBar",
     "ExperimentResults",
+    "ProgressBar",
     "SupervisedLogData",
+    "TrainLogger",
 ]

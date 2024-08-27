@@ -4,7 +4,7 @@ absl-py==2.1.0
     # via tensorboard
 annotated-types==0.7.0
     # via pydantic
-certifi==2024.6.2
+certifi==2024.7.4
     # via requests
 charset-normalizer==3.3.2
     # via requests
@@ -16,15 +16,15 @@ cycler==0.12.1
     # via matplotlib
 dgl==2.0.0
     # via deep-neuronmorpho (pyproject.toml)
-filelock==3.15.1
+filelock==3.15.4
     # via torch
-fonttools==4.53.0
+fonttools==4.53.1
     # via matplotlib
-fsspec==2024.6.0
+fsspec==2024.6.1
     # via torch
-grpcio==1.64.1
+grpcio==1.66.0
     # via tensorboard
-idna==3.7
+idna==3.8
     # via requests
 jinja2==3.1.4
     # via torch
@@ -34,11 +34,11 @@ joblib==1.4.2
     #   scikit-learn
 kiwisolver==1.4.5
     # via matplotlib
-llvmlite==0.42.0
+llvmlite==0.43.0
     # via
     #   numba
     #   pynndescent
-markdown==3.6
+markdown==3.7
     # via tensorboard
 markdown-it-py==3.0.0
     # via rich
@@ -46,7 +46,7 @@ markupsafe==2.1.5
     # via
     #   jinja2
     #   werkzeug
-matplotlib==3.9.0
+matplotlib==3.9.2
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   matplotlib-scalebar
@@ -65,7 +65,7 @@ networkx==3.3
     #   dgl
     #   morphopy
     #   torch
-numba==0.59.1
+numba==0.60.0
     # via
     #   pynndescent
     #   umap-learn
@@ -90,30 +90,31 @@ packaging==24.1
     # via
     #   matplotlib
     #   plotly
+    #   tensorboard
 pandas==2.2.2
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   morphopy
     #   seaborn
-pillow==10.3.0
+pillow==10.4.0
     # via matplotlib
-plotly==5.22.0
+plotly==5.23.0
     # via morphopy
-protobuf==4.25.3
+protobuf==5.27.3
     # via tensorboard
-psutil==5.9.8
+psutil==6.0.0
     # via dgl
-pyarrow==16.1.0
+pyarrow==17.0.0
     # via deep-neuronmorpho (pyproject.toml)
-pydantic==2.7.4
+pydantic==2.8.2
     # via deep-neuronmorpho (pyproject.toml)
-pydantic-core==2.18.4
+pydantic-core==2.20.1
     # via pydantic
 pygments==2.18.0
     # via rich
-pynndescent==0.5.12
+pynndescent==0.5.13
     # via umap-learn
-pyparsing==3.1.2
+pyparsing==3.1.4
     # via matplotlib
 python-dateutil==2.9.0.post0
     # via
@@ -121,15 +122,15 @@ python-dateutil==2.9.0.post0
     #   pandas
 pytz==2024.1
     # via pandas
-pyyaml==6.0.1
+pyyaml==6.0.2
     # via deep-neuronmorpho (pyproject.toml)
 requests==2.32.3
     # via
     #   dgl
     #   torchdata
-rich==13.7.1
+rich==13.8.0
     # via typer
-scikit-learn==1.5.0
+scikit-learn==1.5.1
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   morphopy
@@ -148,9 +149,9 @@ seaborn==0.13.2
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   morphopy
-setuptools==70.0.0
+setuptools==73.0.1
     # via tensorboard
-shapely==2.0.4
+shapely==2.0.6
     # via morphopy
 shellingham==1.5.4
     # via typer
@@ -158,11 +159,11 @@ six==1.16.0
     # via
     #   python-dateutil
     #   tensorboard
-sympy==1.12.1
+sympy==1.13.2
     # via torch
-tenacity==8.3.0
+tenacity==9.0.0
     # via plotly
-tensorboard==2.17.0
+tensorboard==2.17.1
     # via deep-neuronmorpho (pyproject.toml)
 tensorboard-data-server==0.7.2
     # via tensorboard
@@ -172,13 +173,13 @@ torch==2.1.2
     # via
     #   deep-neuronmorpho (pyproject.toml)
     #   torchdata
-torchdata==0.7.1
+torchdata==0.8.0
     # via dgl
-tqdm==4.66.4
+tqdm==4.66.5
     # via
     #   dgl
     #   umap-learn
-typer==0.12.3
+typer==0.12.5
     # via deep-neuronmorpho (pyproject.toml)
 typing-extensions==4.12.2
     # via
@@ -190,11 +191,11 @@ tzdata==2024.1
     # via pandas
 umap-learn==0.5.6
     # via deep-neuronmorpho (pyproject.toml)
-urllib3==2.2.1
+urllib3==2.2.2
     # via
     #   requests
     #   torchdata
-werkzeug==3.0.3
+werkzeug==3.0.4
     # via tensorboard
-xgboost==2.0.3
+xgboost==2.1.1
     # via deep-neuronmorpho (pyproject.toml)
