@@ -26,13 +26,6 @@ source .venv/bin/activate
 pip install -r requirements.txt # replace w/ the relevant requirements file
 ```
 
-This package can also be installed from the Makefile using one of the following commands:
-
-- `make install` for a CUDA enabled machine
-- `make install-dev` for development on a CUDA enabled machine
-- `make install-cpu` for a CPU only machine
-- `make install-dev-cpu` for development on a CPU only machine
-
 ## Development
 
 - When making contributions to this project, ensure you have the development requirements installed. You can install the package for development purposes from the Makefile using the `make install` command.
