@@ -4,8 +4,6 @@
 
 Deep learning based approaches for neuron morphology embeddings. Contact [Kyle Puhger](https://github.com/kpeez) for questions.
 
-- **Github repository**: <https://github.com/kpeez/deep-neuronmorpho/>
-
 ## Installation
 
 > If you do not have a CUDA enabled machine, please use the `requirements-cpu.txt` file to install the necessary dependencies.
@@ -13,16 +11,14 @@ Deep learning based approaches for neuron morphology embeddings. Contact [Kyle P
 
 This package requires the following dependencies:
 
-- Python ≥ 3.10
-- PyTorch >= 2.0.0
-- DGL == 1.1.3 (GPU version ran using CUDA 11.8)
+- `python == 3.11`
+- `torch == 2.1.0`
+- `DGL == 2.0.0`
 
 The easiest way to install the packages is to create a new virtual environment and install the appropriate requirements file.
 
-- `requirements.txt` contains the base requirements for a CUDA enabled machine.
-- `requirements-dev.txt` contains the requirements for development on a CUDA enabled machine.
+- `requirements.txt` contains requirements for a CUDA enabled machine.
 - `requirements-cpu.txt` contains the base requirements for a CPU only machine.
-- `requirements-dev-cpu.txt` contains the requirements for development on a CPU only machine.
 
 ```bash
 python -m venv .venv
@@ -39,5 +35,6 @@ This package can also be installed from the Makefile using one of the following 
 
 ## Development
 
-- When making contributions to this project, ensure you have the development requirements installed.
-- Run the `make check` and `make test` commands to ensure the code is formatted correctly and all tests pass.
+- When making contributions to this project, ensure you have the development requirements installed. You can install the package for development purposes from the Makefile using the `make install` command.
+- Before submitting your contributions, run the `make check` and `make test` commands to ensure the code is formatted correctly and all tests pass. If you have made changes to the code, please add tests to cover the new functionality.
+- If you have made changes to the documentation, please run the `make docs` command to ensure the documentation builds correctly.
