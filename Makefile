@@ -15,7 +15,7 @@ install: check_uv ## Install the virtual environment and  pre-commit hooks
 	@. .venv/bin/activate && mypy --install-types --non-interactive
 
 requirements: check_uv
-	@echo "Making requirements.txt and requirements-cpu.txt"
+	@echo "Exporting dependencies to requirements.txt..."
 	@uv export --no-dev >> requirements.txt
 
 check: ## Run code quality tools
