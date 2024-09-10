@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
+import pytorch_lightning as pl
 import torch
 from dgl import DGLGraph
 from dgl.dataloading import GraphDataLoader
@@ -21,6 +22,66 @@ from .trainer_utils import (
     get_scheduler,
     setup_experiment_results,
 )
+
+
+class LightningContrastiveTrainer(pl.LightningModule):
+    def __init__(self, model: nn.Module, config: Config, node_attrs: str = "nattrs"):
+        super().__init__()
+        self.model = model
+        self.cfg = config
+        self.node_attrs = node_attrs
+        self.loss_fn = NTXEntLoss(self.cfg.training.contra_loss_temp)
+        self.augmenter = GraphAugmenter(self.cfg.augmentation)
+        self.best_train_loss = float("inf")
+        self.best_eval_acc = 0.0
+
+    def _calculate_loss(self, batch_graphs):
+        aug1_batch = self.augmenter.augment_batch(batch_graphs)
+        aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs], is_training=True)
+        aug2_batch = self.augmenter.augment_batch(batch_graphs)
+        aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs], is_training=True)
+        loss = self.loss_fn(aug1_embeds, aug2_embeds)
+        return loss
+
+    def training_step(self, batch, batch_idx):
+        if isinstance(batch, (list, tuple)):
+            batch_graphs, _ = batch
+        else:
+            batch_graphs = batch
+        loss = self._calculate_loss(batch_graphs)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        batch, labels = batch
+        batch_feats = batch.ndata[self.node_attrs]
+        model_output = self.model(batch, batch_feats, is_training=False)
+        return model_output, labels
+
+    def validation_epoch_end(self, outputs):
+        all_embeds = torch.cat([x[0] for x in outputs])
+        all_labels = torch.cat([x[1] for x in outputs])
+
+        eval_embeds = all_embeds.cpu().numpy()
+        eval_labels = all_labels.cpu().numpy()
+
+        clf = SVC()
+        eval_metrics = repeated_kfold_eval(X=eval_embeds, y=eval_labels, model=clf)
+
+        val_cv_acc = eval_metrics[0]  # Assuming this is the accuracy
+        self.log("val_cv_acc", val_cv_acc, prog_bar=True)
+        self.best_eval_acc = max(val_cv_acc, self.best_eval_acc)
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.cfg.training.lr)
+        if self.cfg.training.lr_scheduler is not None:
+            scheduler = torch.optim.lr_scheduler.StepLR(
+                optimizer,
+                step_size=self.cfg.training.lr_scheduler.step_size,
+                gamma=self.cfg.training.lr_scheduler.factor,
+            )
+            return [optimizer], [scheduler]
+        return optimizer
 
 
 class ContrastiveTrainer:
