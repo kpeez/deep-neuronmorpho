@@ -1,7 +1,5 @@
 .PHONY: check_uv install install-dev install-cpu install-dev-cpu check test docs docs-test update help
 
-DGL_URL := https://data.dgl.ai/wheels/cu118/repo.html
-
 check_uv: # install `uv` if not installed
 	@if ! command -v uv > /dev/null 2>&1; then \
 		echo "uv is not installed, installing now..."; \
@@ -11,7 +9,7 @@ check_uv: # install `uv` if not installed
 
 install: check_uv ## Install the virtual environment and  pre-commit hooks
 	@echo "📦 Creating virtual environment"
-	@uv sync --all-extras -f $(DGL_URL)
+	@uv sync --all-extras
 	@echo "🛠️ Installing developer tools..."
 	@uv run pre-commit install
 	@. .venv/bin/activate && mypy --install-types --non-interactive
