@@ -16,8 +16,7 @@ install: check_uv ## Install the virtual environment and  pre-commit hooks
 
 requirements: check_uv
 	@echo "Making requirements.txt and requirements-cpu.txt"
-	@uv pip compile pyproject.toml -o requirements.txt -f $(DGL_URL) --python-platform=linux
-	@uv pip compile pyproject.toml -o requirements-cpu.txt --python-platform=macos
+	@uv export --no-dev >> requirements.txt
 
 check: ## Run code quality tools
 	@echo "⚡️ Linting code: Running ruff"
@@ -40,7 +39,6 @@ docs-test: ## Test if documentation can be built without warnings or errors
 
 update: ## Update pre-commit hooks
 	@echo "⚙️ Updating dependencies and pre-commit hooks"
-	@uv lock --upgrade
 	@uv run pre-commit autoupdate
 
 help:
