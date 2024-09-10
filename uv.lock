@@ -386,8 +386,8 @@ name = "deep-neuronmorpho"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
-    { name = "dgl", version = "2.3.0", source = { registry = "https://data.dgl.ai/wheels/torch-2.3/repo.html" }, marker = "sys_platform == 'darwin'" },
-    { name = "dgl", version = "2.3.0+cu121", source = { registry = "https://data.dgl.ai/wheels/torch-2.3/cu121/repo.html" }, marker = "sys_platform == 'linux'" },
+    { name = "dgl", version = "2.2.1", source = { registry = "https://data.dgl.ai/wheels/repo.html" }, marker = "sys_platform == 'darwin'" },
+    { name = "dgl", version = "2.2.1+cu121", source = { registry = "https://data.dgl.ai/wheels/repo.html" }, marker = "sys_platform == 'linux'" },
     { name = "matplotlib" },
     { name = "morphopy" },
     { name = "numpy" },
@@ -421,8 +421,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dgl", marker = "sys_platform == 'darwin'", specifier = "==2.3.0" },
-    { name = "dgl", marker = "sys_platform == 'linux'", specifier = "==2.3.0+cu121" },
+    { name = "dgl", marker = "sys_platform == 'darwin'", specifier = "==2.2.1" },
+    { name = "dgl", marker = "sys_platform == 'linux'", specifier = "==2.2.1+cu121" },
     { name = "matplotlib" },
     { name = "mkdocs", marker = "extra == 'dev'" },
     { name = "mkdocs-material", marker = "extra == 'dev'" },
@@ -461,8 +461,8 @@ wheels = [
 
 [[package]]
 name = "dgl"
-version = "2.3.0"
-source = { registry = "https://data.dgl.ai/wheels/torch-2.3/repo.html" }
+version = "2.2.1"
+source = { registry = "https://data.dgl.ai/wheels/repo.html" }
 resolution-markers = [
     "python_full_version < '3.12' and sys_platform == 'darwin'",
     "python_full_version == '3.12.*' and sys_platform == 'darwin'",
@@ -478,11 +478,17 @@ dependencies = [
     { name = "torchdata", marker = "sys_platform == 'darwin'" },
     { name = "tqdm", marker = "sys_platform == 'darwin'" },
 ]
+wheels = [
+    { url = "https://data.dgl.ai/wheels/dgl-2.2.1-cp311-cp311-macosx_11_0_arm64.whl" },
+    { url = "https://data.dgl.ai/wheels/dgl-2.2.1-cp311-cp311-macosx_11_0_x86_64.whl" },
+    { url = "https://data.dgl.ai/wheels/dgl-2.2.1-cp312-cp312-macosx_11_0_x86_64.whl" },
+    { url = "https://data.dgl.ai/wheels/dgl-2.2.1-cp312-cp312-macosx_12_0_arm64.whl" },
+]
 
 [[package]]
 name = "dgl"
-version = "2.3.0+cu121"
-source = { registry = "https://data.dgl.ai/wheels/torch-2.3/cu121/repo.html" }
+version = "2.2.1+cu121"
+source = { registry = "https://data.dgl.ai/wheels/repo.html" }
 resolution-markers = [
     "python_full_version < '3.12' and sys_platform == 'linux'",
     "python_full_version == '3.12.*' and sys_platform == 'linux'",
@@ -497,10 +503,6 @@ dependencies = [
     { name = "scipy", marker = "sys_platform == 'linux'" },
     { name = "torchdata", marker = "sys_platform == 'linux'" },
     { name = "tqdm", marker = "sys_platform == 'linux'" },
-]
-wheels = [
-    { url = "https://data.dgl.ai/wheels/torch-2.3/cu121/dgl-2.3.0%2Bcu121-cp311-cp311-manylinux1_x86_64.whl" },
-    { url = "https://data.dgl.ai/wheels/torch-2.3/cu121/dgl-2.3.0%2Bcu121-cp312-cp312-manylinux1_x86_64.whl" },
 ]
 
 [[package]]
