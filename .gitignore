@@ -23,7 +23,6 @@ notebooks/*info*
 .ruff_cache
 dist
 build
-*.lock
 *.whl
 *.pytest_cache
 __pycache__

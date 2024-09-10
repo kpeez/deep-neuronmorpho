@@ -32,7 +32,7 @@ def aggregate_tensor(
         NotImplementedError: If the aggregation method is not implemented.
     """
 
-    def wsum(tensor_data: Tensor, weights: Tensor, dim: int = -1) -> Tensor:
+    def wsum(tensor_data: Tensor, weights: Tensor | None, dim: int = -1) -> Tensor:
         if weights is None:
             raise ValueError("weights cannot be None for weighted sum aggregation.")
 
