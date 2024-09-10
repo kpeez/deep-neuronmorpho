@@ -387,7 +387,7 @@ version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "dgl", version = "2.2.1", source = { registry = "https://data.dgl.ai/wheels/repo.html" }, marker = "sys_platform == 'darwin'" },
-    { name = "dgl", version = "2.2.1+cu121", source = { registry = "https://data.dgl.ai/wheels/repo.html" }, marker = "sys_platform == 'linux'" },
+    { name = "dgl", version = "2.2.1+cu121", source = { registry = "https://data.dgl.ai/wheels/torch-2.3/cu121/repo.html" }, marker = "sys_platform == 'linux'" },
     { name = "matplotlib" },
     { name = "morphopy" },
     { name = "numpy" },
@@ -488,7 +488,7 @@ wheels = [
 [[package]]
 name = "dgl"
 version = "2.2.1+cu121"
-source = { registry = "https://data.dgl.ai/wheels/repo.html" }
+source = { registry = "https://data.dgl.ai/wheels/torch-2.3/cu121/repo.html" }
 resolution-markers = [
     "python_full_version < '3.12' and sys_platform == 'linux'",
     "python_full_version == '3.12.*' and sys_platform == 'linux'",
@@ -503,6 +503,10 @@ dependencies = [
     { name = "scipy", marker = "sys_platform == 'linux'" },
     { name = "torchdata", marker = "sys_platform == 'linux'" },
     { name = "tqdm", marker = "sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://data.dgl.ai/wheels/torch-2.3/cu121/dgl-2.2.1%2Bcu121-cp311-cp311-manylinux1_x86_64.whl" },
+    { url = "https://data.dgl.ai/wheels/torch-2.3/cu121/dgl-2.2.1%2Bcu121-cp312-cp312-manylinux1_x86_64.whl" },
 ]
 
 [[package]]
