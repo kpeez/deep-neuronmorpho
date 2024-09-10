@@ -8,9 +8,9 @@ readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
   "numpy",
-  "torch==2.4.*",
-  "dgl==2.4.0; sys_platform == 'darwin'",
-  "dgl==2.4.0+cu124; sys_platform == 'linux'",
+  "torch==2.3.*",
+  "dgl==2.3.0; sys_platform == 'darwin'",
+  "dgl==2.3.0+cu121; sys_platform == 'linux'",
   "scipy==1.12",
   "scikit-learn",
   "pandas",
@@ -49,8 +49,8 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 find-links = [
-  "https://data.dgl.ai/wheels/torch-2.4/repo.html",
-  "https://data.dgl.ai/wheels/torch-2.4/cu124/repo.html"
+  "https://data.dgl.ai/wheels/torch-2.3/repo.html",
+  "https://data.dgl.ai/wheels/torch-2.3/cu121/repo.html"
 ]
 
 [tool.ruff]
