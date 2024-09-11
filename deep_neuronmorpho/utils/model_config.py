@@ -10,7 +10,7 @@ class Dirs(BaseModel):
     """Paths to directories for storing data and experiment results."""
 
     data: str
-    results: str
+    logging: str
 
 
 class Datasets(BaseModel):
@@ -90,6 +90,7 @@ class Training(BaseModel):
     patience: int | None = None
     contra_loss_temp: float | None = None
     random_state: int | None = None
+    logging_steps: int = 100
 
 
 class Config(BaseModel):
