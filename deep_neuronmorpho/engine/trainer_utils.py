@@ -3,18 +3,24 @@
 import random
 import shutil
 from collections.abc import Sequence
-from datetime import datetime as dt
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pytorch_lightning as pl
 import torch
 from dgl.data import DGLDataset
 from dgl.dataloading import GraphDataLoader
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn, optim
 
 from deep_neuronmorpho.data import NeuronGraphDataset
+from deep_neuronmorpho.models import MACGNN, MACGNNv2
 from deep_neuronmorpho.utils import Config
+from deep_neuronmorpho.utils.model_config import Model
+
+from .ntxent_loss import NTXEntLoss
 
 
 def setup_seed(seed: int) -> None:
@@ -31,7 +37,7 @@ def setup_seed(seed: int) -> None:
         torch.backends.cudnn.deterministic = True
 
 
-def get_optimizer(
+def create_optimizer(
     model: nn.Module,
     optimizer_name: str,
     lr: float,
@@ -62,17 +68,17 @@ def get_optimizer(
         return torch.optim.Adam(model.parameters(), lr=lr, **kwargs)
 
 
-def get_scheduler(
-    scheduler: str,
+def create_scheduler(
     optimizer: optim.Optimizer,
+    kind: str,
     step_size: int,
     factor: float | int,
 ) -> Any:
     """Get learning rate scheduler for the optimizer.
 
     Args:
-        scheduler (str): The name of the scheduler to use.
         optimizer (optim.Optimizer): The optimizer to use.
+        kind (str): The name of the scheduler to use.
         step_size (int): The step size for the scheduler.
         factor (float | int): The factor for the scheduler. Typically < 1 for step and > 1 for cosine annealing.
 
@@ -80,13 +86,13 @@ def get_scheduler(
         optim.lr_scheduler: The learning rate scheduler.
 
     """
-    if scheduler == "step":
+    if kind == "step":
         return optim.lr_scheduler.StepLR(
             optimizer,
             step_size=step_size,
             gamma=factor,
         )
-    elif scheduler == "cosine":
+    elif kind == "cosine":
         return optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer,
             T_0=step_size,
@@ -94,7 +100,7 @@ def get_scheduler(
             eta_min=1e-6,
         )
     else:
-        raise ValueError(f"Scheduler '{scheduler}' not recognized")
+        raise ValueError(f"Scheduler '{kind}' not recognized")
 
 
 def create_dataloader(
@@ -134,7 +140,7 @@ def setup_dataloaders(
     """Create dataloaders for contrastive training and evaluation datasets.
 
     Args:
-        conf (ModelConfig): Model configuration.
+        conf (Config): Model configuration.
         datasets (Sequence[str]): List of dataset names from model configuration.
         kwargs: Additional keyword arguments to pass to the parent torch.utils.data.DataLoader
         arguments such as num_workers, pin_memory, etc.
@@ -156,26 +162,81 @@ def setup_dataloaders(
             batch_size=conf.training.batch_size if "eval" not in dataset else 16,
             shuffle="eval" not in dataset,
             drop_last="eval" not in dataset,
+            persistent_workers="eval" in dataset,
             **kwargs,
         )
 
     return dataloaders
 
 
-def setup_common_utilities(config_file: str, gpu: int | None = None) -> tuple[Config, str]:
-    """Set up common utilities for model training.
+def setup_logging(conf: Config) -> tuple[TensorBoardLogger, Path]:
+    run_number = len(list(Path(conf.dirs.logging).glob(f"{conf.model.name}/run-*"))) + 1
+    expt_id = f"run-{run_number:03d}-{conf.datasets.contra_train.split('-')[0]}"
+    logger = TensorBoardLogger(save_dir=conf.dirs.logging, name=conf.model.name, version=expt_id)
+    run_dir = Path(logger.log_dir)
+    ckpts_dir = run_dir / "ckpts"
+    ckpts_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(conf.config_file, run_dir / f"{expt_id}_config.yaml")
+    return logger, ckpts_dir
 
-    Args:
-        config_file (str): Path to the configuration file.
-        gpu (int | None, optional): Index of the GPU to use. Defaults to None.
 
-    Returns:
-        tuple[Config, str]: The configuration object and the device to use.
-    """
-    conf = Config.from_yaml(config_file=config_file)
-    device = f"cuda:{gpu}" if torch.cuda.is_available() and gpu is not None else "cpu"
+def setup_callbacks(conf: Config, ckpts_dir: Path, expt_id: str) -> list:
+    model_checkpoint = ModelCheckpoint(
+        dirpath=ckpts_dir,
+        filename=f"{expt_id}-{{step:07d}}-{{train_loss:.2f}}",
+        save_top_k=3,
+        save_last=True,
+        every_n_train_steps=1 * conf.training.logging_steps,
+        monitor="train_loss",
+        mode="min",
+    )
+    early_stopping = (
+        EarlyStopping(
+            monitor="train_loss",
+            patience=conf.training.patience,
+            mode="min",
+        )
+        if conf.training.patience
+        else None
+    )
+    callbacks = [model_checkpoint, early_stopping] if early_stopping else [model_checkpoint]
+    return callbacks
 
-    return conf, device
+
+def create_trainer(
+    conf: Config,
+    logger: TensorBoardLogger,
+    callbacks: list[pl.Callback],
+    **kwargs,
+) -> pl.Trainer:
+    return pl.Trainer(
+        max_steps=conf.training.max_steps,
+        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        devices="auto",
+        deterministic=True,
+        logger=logger,
+        val_check_interval=conf.training.eval_interval,
+        num_sanity_val_steps=0,
+        log_every_n_steps=conf.training.logging_steps,
+        callbacks=callbacks,
+        **kwargs,
+    )
+
+
+def create_model(name: str, conf: Model) -> torch.nn.Module:
+    model_loaders = {
+        "macgnnv2": MACGNNv2,
+        "macgnn": MACGNN,
+    }
+
+    return model_loaders[name.lower()](conf)
+
+
+def create_loss_fn(name: str, **kwargs):
+    LOSSES = {
+        "ntxent": NTXEntLoss,
+    }
+    return LOSSES[name.lower()](**kwargs)
 
 
 class Checkpoint:
@@ -254,103 +315,3 @@ class Checkpoint:
         model.load_state_dict(ckpt["model"])
 
         return model
-
-
-def generate_experiment_name() -> str:
-    """Generate a random experiment name."""
-    colors = [
-        "red",
-        "scarlet",
-        "ruby",
-        "coral",
-        "pink",
-        "orange",
-        "peach",
-        "apricot",
-        "amber",
-        "gold",
-        "lemon",
-        "honey",
-        "green",
-        "jade",
-        "teal",
-        "mint",
-        "blue",
-        "azure",
-        "aqua",
-        "indigo",
-        "navy",
-        "violet",
-        "iris",
-        "beige",
-        "topaz",
-        "silver",
-        "slate",
-        "gray",
-        "onyx",
-        "pearl",
-    ]
-    animals = [
-        "albatross",
-        "crow",
-        "eagle",
-        "falcon",
-        "hawk",
-        "heron",
-        "owl",
-        "pelican",
-        "raven",
-        "sparrow",
-        "cheetah",
-        "jaguar",
-        "leopard",
-        "lion",
-        "panther",
-        "tiger",
-        "dolphin",
-        "manta",
-        "marlin",
-        "orca",
-        "seahorse",
-        "shark",
-        "trout",
-        "bonobo",
-        "gorilla",
-        "cobra",
-        "viper",
-        "badger",
-        "boar",
-        "elephant",
-        "hippo",
-        "lynx",
-        "pig",
-        "wolf",
-        "dragon",
-    ]
-    return f"{random.choice(colors)}_{random.choice(animals)}"
-
-
-def setup_experiment_results(cfg: Config) -> tuple[str, str]:
-    """Set up the experiment name and results directory.
-
-    Args:
-        cfg (Config): Configuration object with `dirs.expt_results` and `model.name` attributes.
-
-    Returns:
-        tuple[str, str]: The experiment name and results directory.
-    """
-    expt_id = generate_experiment_name()
-    prev_expts = list(Path(cfg.dirs.results).glob(f"*{expt_id}*"))
-    while prev_expts:
-        expt_id = generate_experiment_name()
-        prev_expts = list(Path(cfg.dirs.results).glob(f"*{expt_id}*"))
-
-    expt_name = f"{cfg.model.name}-{expt_id}"
-    timestamp = dt.now().strftime("%Y_%m_%d_%Hh_%Mm")
-    expt_dir = Path(cfg.dirs.results) / f"{timestamp}-{expt_name}"
-    result_dir = Path(expt_dir / "ckpts")
-    if result_dir.exists() is False:
-        result_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(cfg.config_file, expt_dir / f"{expt_name}.yml")
-
-    return expt_name, str(expt_dir)
