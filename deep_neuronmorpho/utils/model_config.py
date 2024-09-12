@@ -80,15 +80,16 @@ class Augmentation(BaseModel):
 class Training(BaseModel):
     """Parameters for training the model."""
 
-    batch_size: int
     max_steps: int | None = None
+    batch_size: int
+    loss_fn: str
+    loss_temp: float | None = None
+    eval_interval: int | None = None
     save_every: int
     optimizer: str
     lr: float
     lr_scheduler: LRScheduler | None = None
-    eval_interval: int | None = None
     patience: int | None = None
-    contra_loss_temp: float | None = None
     random_state: int | None = None
     logging_steps: int = 100
 
