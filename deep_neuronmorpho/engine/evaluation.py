@@ -10,10 +10,9 @@ import torch
 from scipy.spatial import distance_matrix
 from sklearn.base import ClassifierMixin
 from sklearn.manifold import TSNE
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import f1_score
 from sklearn.model_selection import (
     RepeatedStratifiedKFold,
-    cross_val_score,
 )
 from sklearn.preprocessing import StandardScaler
 from torch import nn
@@ -75,7 +74,7 @@ def repeated_kfold_eval(
     n_repeats: int = 10,
     standardize: bool = True,
     random_state: int | None = None,
-) -> tuple[float, float, float, float]:
+) -> tuple[float, float]:
     """Perform repeated k-fold cross-validation and testing.
 
     For small datasets, it is important to perform repeated k-fold cross-validation to get a more reliable estimate of the model's performance.
@@ -91,13 +90,12 @@ def repeated_kfold_eval(
         random_state (int | None, optional): Set random seed. Defaults to None.
 
     Returns:
-        tuple[float, float, float, float]: cv_mean, cv_std, test_mean, test_std
+        tuple[float, float]: cv_mean, cv_std
     """
     if isinstance(X, pd.DataFrame):
         X = X.values
 
-    test_scores = []
-    cv_scores = []
+    scores = []
     rskf = RepeatedStratifiedKFold(
         n_splits=n_splits, n_repeats=n_repeats, random_state=random_state
     )
@@ -110,14 +108,12 @@ def repeated_kfold_eval(
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
 
-        cv_score = cross_val_score(model, X_train, y_train, cv=n_splits, scoring="f1_micro").mean()
-        cv_scores.append(cv_score)
-
         model.fit(X_train, y_train)
-        test_score = accuracy_score(y_test, model.predict(X_test))
-        test_scores.append(test_score)
+        y_pred = model.predict(X_test)
+        score = f1_score(y_test, y_pred, average="micro")
+        scores.append(score)
 
-    return np.mean(cv_scores), np.std(cv_scores), np.mean(test_scores), np.std(test_scores)
+    return np.mean(scores), np.std(scores)
 
 
 def get_model_embeddings(
@@ -135,7 +131,7 @@ def get_model_embeddings(
     Returns:
         pd.DataFrame: Model embeddings as a DataFrame.
     """
-    config_file = next(iter(Path(ckpt_dir).glob(("*.yml"))))
+    config_file = next(iter(Path(ckpt_dir).glob(("*.yaml"))))
     ckpt_path = Path(ckpt_dir) / "ckpts"
     last_epoch = max(int(ckpt.stem.split("epoch_")[-1]) for ckpt in ckpt_path.glob("*.pt"))
     if epoch > last_epoch:
