@@ -81,7 +81,7 @@ class Training(BaseModel):
     """Parameters for training the model."""
 
     batch_size: int
-    epochs: int
+    max_steps: int | None = None
     save_every: int
     optimizer: str
     lr: float

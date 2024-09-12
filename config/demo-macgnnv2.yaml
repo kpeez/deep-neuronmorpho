@@ -27,11 +27,11 @@ model:
 
 # Training configuration
 training:
+  max_steps: 10
   batch_size: 64
   contra_loss_temp: 0.2
   eval_interval: 1
   save_every: 1
-  epochs: 1
   patience: 60
   optimizer: "adam"
   lr: 0.01
