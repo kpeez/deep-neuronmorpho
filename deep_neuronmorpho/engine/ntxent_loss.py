@@ -9,7 +9,7 @@ class NTXEntLoss:
     """A PyTorch implementation of the NT-Xent loss function for contrastive learning.
 
     Args:
-        temperature (float, optional): Parameter to use for scaling the cosine similarity matrix.
+        temp (float, optional): Parameter to use for scaling the cosine similarity matrix.
         Defaults to 1.0.
 
     Inputs:
@@ -26,15 +26,15 @@ class NTXEntLoss:
 
     Example:
         ```
-        ntx_loss = NTXEntLoss(temperature=0.5)
+        ntx_loss = NTXEntLoss(temp=0.5)
         embeddings = torch.randn(32, 128)
         augmented_embeddings = torch.randn(32, 128)
         loss = ntx_loss(embeddings, augmented_embeddings)
         ```
     """
 
-    def __init__(self, temperature: float = 1.0) -> None:
-        self.temperature = temperature
+    def __init__(self, temp: float = 1.0) -> None:
+        self.temp = temp
         self.mask: Tensor | None = None
 
     def __call__(self, embed_a: Tensor, embed_b: Tensor) -> Tensor:
@@ -46,7 +46,7 @@ class NTXEntLoss:
             self.mask = ~torch.eye(n_samples, device=embeddings.device, dtype=torch.bool)
         # Compute cosine similarity matrix
         sim = F.cosine_similarity(embeddings.unsqueeze(1), embeddings.unsqueeze(0), dim=-1)
-        sim_exp = torch.exp(sim / self.temperature)
+        sim_exp = torch.exp(sim / self.temp)
         # Remove diagonal elements (self-similarity)
         neg = sim_exp.masked_select(self.mask).view(n_samples, -1).sum(dim=-1)
         # Positive pair similarities for each pair, both (i,j) and (j,i)
