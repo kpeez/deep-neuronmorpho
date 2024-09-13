@@ -162,7 +162,7 @@ def setup_dataloaders(
             batch_size=conf.training.batch_size if "eval" not in dataset else 16,
             shuffle="eval" not in dataset,
             drop_last="eval" not in dataset,
-            persistent_workers="eval" in dataset,
+            persistent_workers=True,
             **kwargs,
         )
 
