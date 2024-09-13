@@ -197,13 +197,12 @@ def log_hyperparameters(logger: TensorBoardLogger, conf: Config) -> None:
         "loss_temp": conf.training.loss_temp,
     }
     if conf.training.lr_scheduler:
-        hparams.update(
-            {
-                "lr_scheduler": conf.training.lr_scheduler.kind,
-                "lr_decay_steps": conf.training.lr_scheduler.step_size,
-                "lr_decay_rate": conf.training.lr_scheduler.factor,
-            }
-        )
+        lr_hparams = {
+            "lr_scheduler": conf.training.lr_scheduler.kind,
+            "lr_decay_steps": conf.training.lr_scheduler.step_size,
+            "lr_decay_rate": conf.training.lr_scheduler.factor,
+        }
+        hparams.update(lr_hparams)
     logger.log_hyperparams(hparams)
 
 
