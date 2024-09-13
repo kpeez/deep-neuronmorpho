@@ -170,8 +170,9 @@ def setup_dataloaders(
 
 
 def setup_logging(conf: Config) -> tuple[TensorBoardLogger, Path]:
-    run_number = len(list(Path(conf.dirs.logging).glob(f"{conf.model.name}/run-*"))) + 1
-    expt_id = f"run-{run_number:03d}-{conf.datasets.contra_train.split('-')[0]}"
+    runs = sorted(Path(conf.dirs.logging).glob(f"{conf.model.name}/run-*"))
+    run_number = int(runs[-1].name.split("-")[1]) + 1
+    expt_id = f"run-{run_number:03d}-{conf.model.name}-{conf.datasets.contra_train.split('-')[0]}"
     logger = TensorBoardLogger(save_dir=conf.dirs.logging, name=conf.model.name, version=expt_id)
     run_dir = Path(logger.log_dir)
     ckpts_dir = run_dir / "ckpts"
