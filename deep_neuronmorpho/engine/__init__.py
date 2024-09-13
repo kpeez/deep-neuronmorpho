@@ -1,7 +1,6 @@
-from .contrastive_trainer import ContrastiveGraphModule
+from .lightning_modules import ContrastiveGraphModule
 from .ntxent_loss import NTXEntLoss
 from .trainer_utils import (
-    # Checkpoint,
     create_loss_fn,
     create_model,
     create_optimizer,

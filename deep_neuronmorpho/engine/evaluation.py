@@ -125,7 +125,7 @@ def get_model_embeddings(ckpt_file: str | Path, dataset_file: str | Path) -> pd.
         pd.DataFrame: Model embeddings as a DataFrame.
     """
     # ruff: noqa
-    from .contrastive_trainer import ContrastiveGraphModule
+    from .lightning_modules import ContrastiveGraphModule
 
     loaded_model = ContrastiveGraphModule.load_from_checkpoint(ckpt_file)
     model = loaded_model.model
