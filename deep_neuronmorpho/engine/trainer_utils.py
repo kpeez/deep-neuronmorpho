@@ -207,10 +207,10 @@ def log_hyperparameters(logger: TensorBoardLogger, conf: Config) -> None:
     logger.log_hyperparams(hparams)
 
 
-def setup_callbacks(conf: Config, ckpts_dir: Path, expt_id: str) -> list:
+def setup_callbacks(conf: Config, ckpts_dir: Path) -> list:
     model_checkpoint = ModelCheckpoint(
         dirpath=ckpts_dir,
-        filename=f"{expt_id}-{{step:07d}}-{{train_loss:.2f}}",
+        filename="{step:07d}-{train_loss:.2f}",
         every_n_train_steps=conf.training.logging_steps,
         save_last=True,
         save_top_k=-1,

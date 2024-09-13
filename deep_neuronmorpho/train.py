@@ -28,7 +28,7 @@ def train_model(config_file: str, checkpoint: str | None = None) -> None:
         pl.seed_everything(conf.training.random_state, workers=True)
     logger, ckpts_dir = setup_logging(conf)
     log_hyperparameters(logger, conf)  # Add this line
-    callbacks = setup_callbacks(conf, ckpts_dir, logger.version)
+    callbacks = setup_callbacks(conf, ckpts_dir)
     dataloaders = setup_dataloaders(
         conf,
         datasets=["contra_train", "eval_train"],
