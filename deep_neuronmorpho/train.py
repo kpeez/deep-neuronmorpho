@@ -1,3 +1,5 @@
+import warnings
+
 import pytorch_lightning as pl
 import torch
 import typer
@@ -7,11 +9,14 @@ from deep_neuronmorpho.engine import (
     create_loss_fn,
     create_model,
     create_trainer,
+    log_hyperparameters,
     setup_callbacks,
     setup_dataloaders,
     setup_logging,
 )
 from deep_neuronmorpho.utils import Config
+
+warnings.filterwarnings("ignore", category=UserWarning, module="torchdata")
 
 app = typer.Typer()
 
@@ -22,6 +27,7 @@ def train_model(config_file: str, checkpoint: str | None = None) -> None:
     if conf.training.random_state is not None:
         pl.seed_everything(conf.training.random_state, workers=True)
     logger, ckpts_dir = setup_logging(conf)
+    log_hyperparameters(logger, conf)  # Add this line
     callbacks = setup_callbacks(conf, ckpts_dir, logger.version)
     dataloaders = setup_dataloaders(
         conf,
