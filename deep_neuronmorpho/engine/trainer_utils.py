@@ -180,15 +180,40 @@ def setup_logging(conf: Config) -> tuple[TensorBoardLogger, Path]:
     return logger, ckpts_dir
 
 
+def log_hyperparameters(logger: TensorBoardLogger, conf: Config) -> None:
+    """Log hyperparameters to TensorBoard.
+
+    Args:
+        logger (TensorBoardLogger): The TensorBoard logger.
+        conf (Config): The configuration object.
+    """
+    hparams = {
+        "model_name": conf.model.name,
+        "optimizer": conf.training.optimizer,
+        "learning_rate": conf.training.lr,
+        "batch_size": conf.training.batch_size,
+        "max_steps": conf.training.max_steps,
+        "loss_function": conf.training.loss_fn,
+        "loss_temp": conf.training.loss_temp,
+    }
+    if conf.training.lr_scheduler:
+        hparams.update(
+            {
+                "lr_scheduler": conf.training.lr_scheduler.kind,
+                "lr_decay_steps": conf.training.lr_scheduler.step_size,
+                "lr_decay_rate": conf.training.lr_scheduler.factor,
+            }
+        )
+    logger.log_hyperparams(hparams)
+
+
 def setup_callbacks(conf: Config, ckpts_dir: Path, expt_id: str) -> list:
     model_checkpoint = ModelCheckpoint(
         dirpath=ckpts_dir,
         filename=f"{expt_id}-{{step:07d}}-{{train_loss:.2f}}",
-        save_top_k=3,
+        every_n_train_steps=conf.training.logging_steps,
         save_last=True,
-        every_n_train_steps=1 * conf.training.logging_steps,
-        monitor="train_loss",
-        mode="min",
+        save_top_k=-1,
     )
     early_stopping = (
         EarlyStopping(

@@ -7,6 +7,7 @@ from .trainer_utils import (
     create_optimizer,
     create_scheduler,
     create_trainer,
+    log_hyperparameters,
     setup_callbacks,
     setup_dataloaders,
     setup_logging,
