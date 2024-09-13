@@ -20,8 +20,6 @@ from umap import UMAP
 
 from deep_neuronmorpho.data import NeuronGraphDataset
 
-from .contrastive_trainer import ContrastiveGraphModule
-
 
 def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFrame:
     """Create a DataFrame of model embeddings from a NeuronGraphDataset.
@@ -126,6 +124,9 @@ def get_model_embeddings(ckpt_file: str | Path, dataset_file: str | Path) -> pd.
     Returns:
         pd.DataFrame: Model embeddings as a DataFrame.
     """
+    # ruff: noqa
+    from .lightning_modules import ContrastiveGraphModule
+
     loaded_model = ContrastiveGraphModule.load_from_checkpoint(ckpt_file)
     model = loaded_model.model
     df_embeds = create_embedding_df(model, dataset_file=dataset_file)
