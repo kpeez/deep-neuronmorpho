@@ -1,5 +1,3 @@
-import warnings
-
 import pytorch_lightning as pl
 import torch
 import typer
@@ -16,10 +14,6 @@ from deep_neuronmorpho.engine import (
 )
 from deep_neuronmorpho.utils import Config
 
-warnings.filterwarnings("ignore", category=UserWarning, module="torchdata")
-
-app = typer.Typer()
-
 
 def train_model(config_file: str, checkpoint: str | None = None) -> None:
     """Train a model using a configuration file."""
@@ -27,7 +21,8 @@ def train_model(config_file: str, checkpoint: str | None = None) -> None:
     if conf.training.random_state is not None:
         pl.seed_everything(conf.training.random_state, workers=True)
     logger, ckpts_dir = setup_logging(conf)
-    log_hyperparameters(logger, conf)  # Add this line
+
+    log_hyperparameters(logger, conf)
     callbacks = setup_callbacks(conf, ckpts_dir)
     dataloaders = setup_dataloaders(
         conf,
@@ -36,10 +31,8 @@ def train_model(config_file: str, checkpoint: str | None = None) -> None:
         num_workers=9,
     )
     model = create_model(conf.model.name, conf.model)
-    # TODO: make parsing loss args more flexible
     loss_fn = create_loss_fn(conf.training.loss_fn, temp=conf.training.loss_temp)
     contrastive_model = ContrastiveGraphModule(model, conf, loss_fn=loss_fn)
-    callbacks = setup_callbacks(conf, ckpts_dir, logger.version)
     trainer = create_trainer(conf, logger, callbacks)
 
     trainer.fit(
@@ -50,16 +43,17 @@ def train_model(config_file: str, checkpoint: str | None = None) -> None:
     )
 
 
-@app.command()
-def cli_train_model(
-    config_file: str = typer.Argument(..., help="The configuration file."),
-    checkpoint: str = typer.Option(
-        None, "--checkpoint", "-c", help="The checkpoint file to load from."
-    ),
-) -> None:
-    """CLI for training a model using a configuration file."""
-    train_model(config_file, checkpoint)
-
-
 if __name__ == "__main__":
+    app = typer.Typer()
+
+    @app.command()
+    def cli_train_model(
+        config_file: str = typer.Argument(..., help="The configuration file."),
+        checkpoint: str = typer.Option(
+            None, "--checkpoint", "-c", help="The checkpoint file to load from."
+        ),
+    ) -> None:
+        """CLI for training a model using a configuration file."""
+        train_model(config_file, checkpoint)
+
     app()
