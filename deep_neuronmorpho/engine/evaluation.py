@@ -19,10 +19,8 @@ from torch import nn
 from umap import UMAP
 
 from deep_neuronmorpho.data import NeuronGraphDataset
-from deep_neuronmorpho.models import MACGNN, MACGNNv2
-from deep_neuronmorpho.utils.model_config import Config
 
-from .trainer_utils import Checkpoint
+from .contrastive_trainer import ContrastiveGraphModule
 
 
 def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFrame:
@@ -47,6 +45,7 @@ def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFr
     else:
         graphs, labels = dataset[:]
     batch_graphs = dgl.batch(graphs)
+    model.eval()
     with torch.inference_mode():
         embeds = model(batch_graphs, batch_graphs.ndata["nattrs"])
     df_embed = pd.DataFrame(
@@ -87,6 +86,7 @@ def repeated_kfold_eval(
         model (nn.Module): Model to evaluate
         n_splits (int, optional): Number of folds to perform CV on. Defaults to 5.
         n_repeats (int, optional): Number of times to repeat k-fold CV. Defaults to 10.
+        standardize (bool, optional): Whether to standardize the data. Defaults to True.
         random_state (int | None, optional): Set random seed. Defaults to None.
 
     Returns:
@@ -116,31 +116,18 @@ def repeated_kfold_eval(
     return np.mean(scores), np.std(scores)
 
 
-def get_model_embeddings(
-    ckpt_dir: str | Path,
-    epoch: int,
-    dataset_file: str | Path,
-) -> pd.DataFrame:
+def get_model_embeddings(ckpt_file: str | Path, dataset_file: str | Path) -> pd.DataFrame:
     """Get model embeddings from a saved model checkpoint.
 
     Args:
-        model_dir (str | Path): Path to the model directory.
-        epoch (int): Epoch to load model from. If epoch does not exist, the last epoch will be used.
+        ckpt_file (str | Path): Path to the model checkpoint file.
         dataset_file (str | Path): Path to NeuronGraphDataset to get embeddings for.
 
     Returns:
         pd.DataFrame: Model embeddings as a DataFrame.
     """
-    config_file = next(iter(Path(ckpt_dir).glob(("*.yaml"))))
-    ckpt_path = Path(ckpt_dir) / "ckpts"
-    last_epoch = max(int(ckpt.stem.split("epoch_")[-1]) for ckpt in ckpt_path.glob("*.pt"))
-    if epoch > last_epoch:
-        print(f"Epoch {epoch} does not exist. Using last epoch: {last_epoch} instead.")
-        epoch = last_epoch
-    ckpt_file = next(ckpt_path.glob(f"*{epoch:04d}*.pt"))
-    conf = Config.from_yaml(config_file)
-    base_model = MACGNNv2(conf.model) if "v2" in conf.model.name.lower() else MACGNN(conf.model)
-    model = Checkpoint.load_model(ckpt_file=ckpt_file, model=base_model)
+    loaded_model = ContrastiveGraphModule.load_from_checkpoint(ckpt_file)
+    model = loaded_model.model
     df_embeds = create_embedding_df(model, dataset_file=dataset_file)
 
     return df_embeds
