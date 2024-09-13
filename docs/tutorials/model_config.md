@@ -4,8 +4,8 @@ For training models, a model configuration file is required. The configuration f
 
 ```yaml
 dirs:
-  graph_data: "path_to_graph_data_dir"
-  expt_results: "path_to_expt_results_dir"
+  data: "path_to_graph_data_dir"
+  logging: "path_to_expt_results_dir"
 
 datasets:
   contra_train: "contrastive_training_dataset"
@@ -31,18 +31,20 @@ model:
 
 # Training configuration
 training:
+  max_steps: 10
   batch_size: 64
-  contra_loss_temp: 0.2
-  dual_aug_loss: False
+  loss_fn: "ntxent"
+  loss_temp: 0.2
   eval_interval: 1
-  max_epochs: 400
   patience: 60
   optimizer: "adam"
-  lr_init: 0.01
-  lr_scheduler: "step" # ["cosine", "step"]
-  lr_decay_steps: 20
-  lr_decay_rate: 0.6
-  random_seed: 42 # optional
+  lr: 0.01
+  lr_scheduler: # ["cosine", "step"]
+    kind: "step"
+    step_size: 20
+    factor: 0.6
+  random_state: 42 # optional
+  logging_steps: 1
 
 # Augmentation info
 augmentation:
