@@ -10,7 +10,7 @@ class Dirs(BaseModel):
     """Paths to directories for storing data and experiment results."""
 
     data: str
-    results: str
+    logging: str
 
 
 class Datasets(BaseModel):
@@ -80,16 +80,17 @@ class Augmentation(BaseModel):
 class Training(BaseModel):
     """Parameters for training the model."""
 
+    max_steps: int | None = None
     batch_size: int
-    epochs: int
-    save_every: int
+    loss_fn: str
+    loss_temp: float | None = None
+    eval_interval: int | None = None
     optimizer: str
     lr: float
     lr_scheduler: LRScheduler | None = None
-    eval_interval: int | None = None
     patience: int | None = None
-    contra_loss_temp: float | None = None
     random_state: int | None = None
+    logging_steps: int = 100
 
 
 class Config(BaseModel):

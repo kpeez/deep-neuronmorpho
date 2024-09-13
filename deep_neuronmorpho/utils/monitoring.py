@@ -2,7 +2,7 @@
 
 import logging
 import re
-from collections.abc import Collection, Mapping
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import datetime as dt
 from logging import Logger
@@ -12,9 +12,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from typing_extensions import TypeAlias
 
 
 class ProgressBar:
@@ -120,147 +118,6 @@ class EventLogger:
             raise ValueError(f"Unknown logging level: {level}")
 
 
-class TrainLogger:
-    """
-    A class to handle logging and checkpoint management for the ContrastiveTrainer.
-
-    Args:
-        expt_name (str): The name of the experiment.
-        expt_dir (str): The directory where experiment logs and checkpoints will be saved.
-        config (Config): The configuration object containing training parameters.
-        device (torch.device): The device (CPU or GPU) used for training.
-        model (nn.Module): The model being trained.
-        optimizer (torch.optim.Optimizer): The optimizer used for training.
-        lr_scheduler (torch.optim.lr_scheduler._LRScheduler): The learning rate scheduler.
-
-    Methods:
-        initialize(): Initialize the logger and summary writer.
-        on_train_step(): Log the training loss for a given step.
-        on_eval_step(): Log the evaluation accuracy for a given step.
-        on_resume_training(): Log a message when resuming training from a checkpoint.
-        on_early_stop(): Log a message when early stopping is triggered.
-        stop(): Close the summary writer and log a message.
-    """
-
-    # TODO: ditch tensorboard and use wandb (or something else) for logging
-    def __init__(self, log_dir: Path | str, expt_name: str) -> None:
-        self.expt_name = expt_name
-        self.log_dir = log_dir
-        self.logger = EventLogger(log_dir, expt_name=self.expt_name)
-        self.writer = SummaryWriter(log_dir)
-
-    def _flatten_dict(
-        self,
-        d: Mapping[str, Any],
-        parent_key: str = "",
-        sep: str = ".",
-    ) -> dict[str, Any]:
-        """Flattens a nested dictionary and converts values to supported types (str, int, float, bool)."""
-        items: list[tuple[str, Any]] = []
-        for k, v in d.items():
-            new_key = f"{parent_key}{sep}{k}" if parent_key else k
-            if isinstance(v, dict):
-                items.extend(self._flatten_dict(v, new_key, sep=sep).items())
-            else:
-                new_v = str(v) if not isinstance(v, (str, int, float, bool)) else v
-                items.append((new_key, new_v))
-
-        return dict(items)
-
-    def initialize(
-        self,
-        model_arch: dict[str, Any],
-        expt_name: str,
-        device: str | Any,
-        num_epochs: int,
-        random_state: int | None = None,
-    ) -> None:
-        """
-        Initializes the logger and summary writer.
-        """
-
-        self.logger.message(
-            f"| Training {expt_name} on '{device}' "
-            f"| For {num_epochs} epochs \n"
-            f"| With random_state: {random_state}. "
-        )
-        model_arch_text = "\n".join(str(model_arch).split(" "))
-        self.writer.add_text("Model Architecture", f"<pre>{model_arch_text}</pre>")
-
-    def on_train_step(
-        self,
-        epoch: int,
-        train_loss: float,
-        train_acc: float | None = None,
-        scheduler: Any | None = None,
-    ) -> None:
-        """
-        Logs the training loss for a given step.
-
-        Args:
-            train_loss (float): The training loss for the current step.
-            train_acc (float): The training accuracy for the current step.
-            epoch (int): The current epoch.
-            step (int): The current step.
-            train_loss (float): The training loss for the current step.
-        """
-        log_msg = f"Epoch {epoch}: Train Loss: {train_loss:.4f}"
-        self.writer.add_scalar("loss/train_loss", train_loss, epoch, new_style=True)
-        if train_acc is not None:
-            self.writer.add_scalar("acc/train_acc", train_acc, epoch, new_style=True)
-            log_msg += f" | Train Acc: {train_acc:.4f}"
-        if scheduler is not None:
-            self.writer.add_scalar("lr", scheduler.get_last_lr()[0], epoch, new_style=True)
-        self.logger.message(log_msg)
-
-    def on_eval_step(
-        self,
-        epoch: int,
-        val_loss: float,
-        val_acc: float | None = None,
-    ) -> None:
-        """
-        Logs the evaluation accuracy for a given step.
-
-        Args:
-            epoch (int): The current epoch.
-            eval_acc (float): The evaluation accuracy for the current step.
-        """
-        log_msg = f"Epoch {epoch}: Val loss: {val_loss:.4f}"
-        self.writer.add_scalar("loss/val_loss", val_loss, epoch, new_style=True)
-        if val_acc is not None:
-            log_msg += f" | Val acc: {val_acc:.4f}"
-            self.writer.add_scalar("acc/val_acc", val_acc, epoch, new_style=True)
-        self.logger.message(log_msg)
-
-    def on_resume_training(self, ckpt_file: Path | str, epoch: int) -> None:
-        """
-        Logs a message when resuming training from a checkpoint.
-
-        Args:
-            ckpt_file (str): The name of the checkpoint file.
-            epoch (int): The epoch from which training is being resumed.
-        """
-        self.logger.message(f"Resuming training from epoch {epoch} using checkpoint: {ckpt_file}")
-
-    def log_hyperparams(self, params: dict[str, Any], metrics: dict[str, float]) -> None:
-        """Log hyperparameters to tensorboard."""
-        # TODO: fix this, hparams are not being logged
-        self.writer.add_hparams(self._flatten_dict(params), metrics, run_name="hyperparams")
-
-    def on_early_stop(self, epoch: int) -> None:
-        """Logs a message when early stopping is triggered."""
-        self.logger.message(f"Early stopping triggered at epoch {epoch}")
-
-    def stop(self, params: dict[str, Any], metrics: dict[str, float]) -> None:
-        """
-        Closes the summary writer and logs a message.
-        """
-        self.log_hyperparams(params, metrics)
-        self.writer.close()
-        self.logger.message("Training completed.")
-
-
 def extract_data(
     content: str,
     pattern: str,
@@ -305,7 +162,7 @@ def plot_series(
 
 
 @dataclass
-class ContrastiveLogData:
+class LogData:
     """Parses the log file to extract training losses and evaluation accuracies.
 
     Also provides a method (`plot_results()`) to visualize the extracted data.
@@ -386,97 +243,10 @@ class ContrastiveLogData:
 
 
 @dataclass
-class SupervisedLogData:
-    """Parses the log file to extract losses and evaluation accuracies.
-
-    Also provides a method (`plot_results()`) to visualize the extracted data.
-
-    Attributes:
-        file (Path): The path to the log file.
-        train_loss (pd.Series): Training loss values.
-        val_loss (pd.Series): Validation loss values.
-        train_acc (pd.Series): Training accuracy values.
-        val_acc (pd.Series): Validation accuracy values.
-        expt_name (str): The name of the model.
-    """
-
-    file: Path
-    train_loss: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
-    val_loss: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
-    train_acc: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
-    val_acc: pd.Series = field(default_factory=lambda: pd.Series(dtype=float))
-    _expt_name: str | None = field(init=False, default=None)
-
-    def __post_init__(self) -> None:
-        """Initialize object."""
-        self.file = Path(self.file)
-        if not self.file.exists() or self.file.stat().st_size == 0:
-            raise ValueError(f"{self.file} is missing or empty.")
-        self._loss_pattern = r"Epoch (\d+)/(?:\d+): Train Loss: (\d+\.\d+) \| Val Loss: (\d+\.\d+)"
-        self._acc_pattern = r"Epoch (\d+)/(?:\d+): Train acc: (\d+\.\d+) \| Val acc: (\d+\.\d+)"
-
-        self._parse_log_file()
-
-    def __repr__(self) -> str:
-        """String representation of the logfile."""
-        train_loss_last = self.train_loss.iat[-1] if not self.train_loss.empty else "N/A"
-        val_loss_last = self.val_loss.iat[-1] if not self.val_loss.empty else "N/A"
-        train_acc_last = self.train_acc.iat[-1] if not self.train_acc.empty else "N/A"
-        val_acc_last = self.val_acc.iat[-1] if not self.val_acc.empty else "N/A"
-
-        return f"""{self.__class__.__name__}(file={self.file!r},
-        expt_name={self.expt_name!r},
-        last_train_loss={train_loss_last}, last_val_loss={val_loss_last},
-        last_train_acc= {train_acc_last}, last_val_acc={val_acc_last})
-        """
-
-    def _parse_log_file(self) -> None:
-        with self.file.open("r") as f:
-            content = f.read()
-        self.train_loss, self.val_loss = extract_data(
-            content=content, pattern=self._loss_pattern, num_values=2
-        )
-        self.train_acc, self.val_acc = extract_data(
-            content=content, pattern=self._acc_pattern, num_values=2
-        )
-
-    @property
-    def expt_name(self) -> str:
-        """Get model name from the log file name."""
-        if self._expt_name is None:
-            pattern = r"(?<=\d{4}_\d{2}_\d{2}_\d{2}h_\d{2}m-).+(?=.log)"
-            match = re.search(pattern, self.file.name)
-            self._expt_name = match.group() if match else "N/A"
-
-        return self._expt_name
-
-    @property
-    def total_epochs(self) -> int:
-        """Get the total number of epochs model was trained for."""
-        return len(self.train_loss)
-
-    def plot_results(self) -> None:
-        """Plot training and validation loss and accuracy."""
-        fig, axs = plt.subplots(nrows=2, figsize=(10, 6))
-        plot_series(self.train_loss, "", "Loss", ax=axs[0], label="Train loss")
-        plot_series(self.val_loss, "", "Loss", ax=axs[0], label="Validation loss")
-        plot_series(self.train_acc, "", "Accuracy", ax=axs[1], label="Train acc.")
-        plot_series(self.val_acc, "", "Accuracy", ax=axs[1], label="Validation acc.")
-        axs[0].legend()
-        axs[1].legend()
-        fig.suptitle(f"Training results: {self.expt_name}", fontsize=18)
-        plt.tight_layout()
-
-
-LogData: TypeAlias = ContrastiveLogData | SupervisedLogData
-
-
-@dataclass
 class ExperimentResults:
     """Dataclass for loading log data from several runs of a contrastive learning experiment."""
 
     expt_dir: str | Path
-    supervised: bool = False
 
     def __post_init__(self) -> None:
         """Load all log files from the experiment directory."""
@@ -488,10 +258,7 @@ class ExperimentResults:
             for f in (d / "logs").glob("*.log")
         ]
 
-        self.log_data: list[LogData] = [
-            SupervisedLogData(file) if self.supervised else ContrastiveLogData(file)
-            for file in log_files
-        ]
+        self.log_data: list[LogData] = [LogData(file) for file in log_files]
 
         self.expts = {log.expt_name: log for log in self.log_data}
         self.expt_names = list(self.expts.keys())

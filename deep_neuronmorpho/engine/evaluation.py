@@ -10,20 +10,17 @@ import torch
 from scipy.spatial import distance_matrix
 from sklearn.base import ClassifierMixin
 from sklearn.manifold import TSNE
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import f1_score
 from sklearn.model_selection import (
     RepeatedStratifiedKFold,
-    cross_val_score,
 )
 from sklearn.preprocessing import StandardScaler
 from torch import nn
 from umap import UMAP
 
 from deep_neuronmorpho.data import NeuronGraphDataset
-from deep_neuronmorpho.models import MACGNN, MACGNNv2
-from deep_neuronmorpho.utils.model_config import Config
 
-from .trainer_utils import Checkpoint
+from .contrastive_trainer import ContrastiveGraphModule
 
 
 def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFrame:
@@ -48,6 +45,7 @@ def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFr
     else:
         graphs, labels = dataset[:]
     batch_graphs = dgl.batch(graphs)
+    model.eval()
     with torch.inference_mode():
         embeds = model(batch_graphs, batch_graphs.ndata["nattrs"])
     df_embed = pd.DataFrame(
@@ -75,7 +73,7 @@ def repeated_kfold_eval(
     n_repeats: int = 10,
     standardize: bool = True,
     random_state: int | None = None,
-) -> tuple[float, float, float, float]:
+) -> tuple[float, float]:
     """Perform repeated k-fold cross-validation and testing.
 
     For small datasets, it is important to perform repeated k-fold cross-validation to get a more reliable estimate of the model's performance.
@@ -88,16 +86,16 @@ def repeated_kfold_eval(
         model (nn.Module): Model to evaluate
         n_splits (int, optional): Number of folds to perform CV on. Defaults to 5.
         n_repeats (int, optional): Number of times to repeat k-fold CV. Defaults to 10.
+        standardize (bool, optional): Whether to standardize the data. Defaults to True.
         random_state (int | None, optional): Set random seed. Defaults to None.
 
     Returns:
-        tuple[float, float, float, float]: cv_mean, cv_std, test_mean, test_std
+        tuple[float, float]: cv_mean, cv_std
     """
     if isinstance(X, pd.DataFrame):
         X = X.values
 
-    test_scores = []
-    cv_scores = []
+    scores = []
     rskf = RepeatedStratifiedKFold(
         n_splits=n_splits, n_repeats=n_repeats, random_state=random_state
     )
@@ -110,41 +108,26 @@ def repeated_kfold_eval(
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
 
-        cv_score = cross_val_score(model, X_train, y_train, cv=n_splits, scoring="f1_micro").mean()
-        cv_scores.append(cv_score)
-
         model.fit(X_train, y_train)
-        test_score = accuracy_score(y_test, model.predict(X_test))
-        test_scores.append(test_score)
+        y_pred = model.predict(X_test)
+        score = f1_score(y_test, y_pred, average="micro")
+        scores.append(score)
 
-    return np.mean(cv_scores), np.std(cv_scores), np.mean(test_scores), np.std(test_scores)
+    return np.mean(scores), np.std(scores)
 
 
-def get_model_embeddings(
-    ckpt_dir: str | Path,
-    epoch: int,
-    dataset_file: str | Path,
-) -> pd.DataFrame:
+def get_model_embeddings(ckpt_file: str | Path, dataset_file: str | Path) -> pd.DataFrame:
     """Get model embeddings from a saved model checkpoint.
 
     Args:
-        model_dir (str | Path): Path to the model directory.
-        epoch (int): Epoch to load model from. If epoch does not exist, the last epoch will be used.
+        ckpt_file (str | Path): Path to the model checkpoint file.
         dataset_file (str | Path): Path to NeuronGraphDataset to get embeddings for.
 
     Returns:
         pd.DataFrame: Model embeddings as a DataFrame.
     """
-    config_file = next(iter(Path(ckpt_dir).glob(("*.yml"))))
-    ckpt_path = Path(ckpt_dir) / "ckpts"
-    last_epoch = max(int(ckpt.stem.split("epoch_")[-1]) for ckpt in ckpt_path.glob("*.pt"))
-    if epoch > last_epoch:
-        print(f"Epoch {epoch} does not exist. Using last epoch: {last_epoch} instead.")
-        epoch = last_epoch
-    ckpt_file = next(ckpt_path.glob(f"*{epoch:04d}*.pt"))
-    conf = Config.from_yaml(config_file)
-    base_model = MACGNNv2(conf.model) if "v2" in conf.model.name.lower() else MACGNN(conf.model)
-    model = Checkpoint.load_model(ckpt_file=ckpt_file, model=base_model)
+    loaded_model = ContrastiveGraphModule.load_from_checkpoint(ckpt_file)
+    model = loaded_model.model
     df_embeds = create_embedding_df(model, dataset_file=dataset_file)
 
     return df_embeds

@@ -1,15 +1,15 @@
 # model config
 dirs:
-  data: "../datasets/joint_jml_bil_act/processed/"
-  results: "../runs/demo_run/"
+  data: "../datasets/allen_cell_types/processed/"
+  logging: "../runs/demo_runs/macgnnv2_demo"
 
 datasets:
-  contra_train: "joint_jml_bil_act-dimfeats17-self_loop"
-  eval_train: "joint_jml_bil_act-dimfeats17-self_loop"
-  eval_test: "joint_jml_bil_act-dimfeats17-self_loop"
+  contra_train: "allen_cell_types-dimfeats17-self_loop"
+  eval_train: "allen_cell_types-dimfeats17-self_loop"
+  eval_test: "allen_cell_types-dimfeats17-self_loop"
 
 model:
-  name: "macgnnv2_demo"
+  name: "macgnnv2"
   num_gnn_layers: 5
   num_mlp_layers: 2
   hidden_dim: 64
@@ -27,11 +27,11 @@ model:
 
 # Training configuration
 training:
-  batch_size: 4
-  contra_loss_temp: 0.2
-  # eval_interval: None
-  save_every: 2
-  epochs: 2
+  max_steps: 10
+  batch_size: 64
+  loss_fn: "ntxent"
+  loss_temp: 0.2
+  eval_interval: 1
   patience: 60
   optimizer: "adam"
   lr: 0.01
@@ -40,6 +40,7 @@ training:
     step_size: 20
     factor: 0.6
   random_state: 42 # optional
+  logging_steps: 1
 
 # Augmentation info
 augmentation:
