@@ -85,7 +85,6 @@ class Training(BaseModel):
     loss_fn: str
     loss_temp: float | None = None
     eval_interval: int | None = None
-    save_every: int
     optimizer: str
     lr: float
     lr_scheduler: LRScheduler | None = None
