@@ -99,9 +99,9 @@ class SWCData:
         mask = data["type"] != 1
         data.loc[mask, "parent"] = data.loc[mask, "parent"].abs()
         # validate swc file
-        assert not data.query(
-            "parent == 1 and (type == 3 or type == 4)"
-        ).empty, "Bad SWC file: No dendrites connected to soma!"
+        assert not data.query("parent == 1 and (type == 3 or type == 4)").empty, (
+            "Bad SWC file: No dendrites connected to soma!"
+        )
 
         return data
 
@@ -300,7 +300,7 @@ if __name__ == "__main__":
                     resample_dist=resample_dist,
                 )
                 if resample_dist is not None:
-                    output_file = f"{output_file}-resampled_{int(round(resample_dist))}um"
+                    output_file = f"{output_file}-resampled_{round(resample_dist)}um"
 
                 if drop_axon:
                     swc_data.remove_axon()
