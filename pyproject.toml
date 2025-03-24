@@ -27,15 +27,16 @@ dependencies = [
   "typer",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-  "pip",
   "ruff",
-  "mypy",
   "pre-commit",
   "notebook",
   "pandas-stubs",
   "pytest",
+]
+
+docs = [
   "mkdocs",
   "mkdocs-material",
   "mkdocstrings[python]",
