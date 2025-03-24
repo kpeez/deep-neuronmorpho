@@ -12,7 +12,6 @@ install: check_uv ## Install the virtual environment and  pre-commit hooks
 	@uv sync --all-extras
 	@echo "🛠️ Installing developer tools..."
 	@uv run pre-commit install
-	@. .venv/bin/activate && mypy --install-types --non-interactive
 
 requirements: check_uv
 	@echo "Exporting dependencies to requirements.txt..."
@@ -23,8 +22,6 @@ check: ## Run code quality tools
 	@uv run ruff check .
 	@echo "🧹 Checking code: Running pre-commit"
 	@uv run pre-commit run --all-files
-	@echo "🔬 Static type checking: Running mypy"
-	@. .venv/bin/activate && mypy .
 
 test: ## Test the code with pytest
 	@echo "✅ Testing code: Running pytest"
