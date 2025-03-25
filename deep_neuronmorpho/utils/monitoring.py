@@ -39,7 +39,7 @@ class ProgressBar:
         self,
         iterable: Collection,
         desc: str = "",
-        percent_increment: int = 5,
+        percent_increment: int = 1,
         bar_format: str = (
             "{desc}[{n_fmt}/{total_fmt}]{percentage:3.0f}%|{bar}{postfix} [{elapsed}<{remaining}]"
         ),

@@ -1,15 +1,23 @@
 """Process SWC files."""
 
+import logging
+import pickle
+from datetime import datetime as dt
 from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
 import pandas as pd
 from morphopy.neurontree import NeuronTree as nt
 from morphopy.neurontree.utils import get_standardized_swc
 from sklearn.decomposition import PCA
+from typer import Argument, Option, Typer
 
 from deep_neuronmorpho.utils import ProgressBar
+
+app = Typer()
 
 
 class SWCData:
@@ -47,7 +55,7 @@ class SWCData:
         self._ntree = nt.NeuronTree(self._data)
 
         if resample_dist is not None:
-            self.resample(resample_dist)
+            self.resample_distance(resample_dist)
 
         if standardize:
             self._data = self.standardize_swc(self._data, align=align)
@@ -99,9 +107,9 @@ class SWCData:
         mask = data["type"] != 1
         data.loc[mask, "parent"] = data.loc[mask, "parent"].abs()
         # validate swc file
-        assert not data.query(
-            "parent == 1 and (type == 3 or type == 4)"
-        ).empty, "Bad SWC file: No dendrites connected to soma!"
+        assert not data.query("parent == 1 and (type == 3 or type == 4)").empty, (
+            "Bad SWC file: No dendrites connected to soma!"
+        )
 
         return data
 
@@ -149,28 +157,13 @@ class SWCData:
 
         This updates both the `data` and `ntree` attributes to contain a neuron without axon nodes.
         """
-
-        def _map_parent_id(parent_id: int, mapping: dict) -> int:
-            """Map the parent ID, keeping -1 as is."""
-            return mapping[parent_id] if parent_id != -1 else -1
-
         self._ntree = self.ntree.get_dendritic_tree()
         self._data = self._ntree.to_swc()
-        sample_to_idx = dict(zip(self._data["n"], self._data.index + 1, strict=True))
-        self._data["n"] = self._data["n"].map(sample_to_idx).astype(int)
-        self._data["parent"] = (
-            self._data["parent"].apply(lambda x: _map_parent_id(x, sample_to_idx)).astype(int)
-        )
-        assert len(self._data["type"].unique()) > 1, "Neuron only contained axon nodes."
         # reset soma to origin
         soma_coords = self._data[["x", "y", "z"]].iloc[0]
         self._data[["x", "y", "z"]] -= soma_coords
-        self._ntree = nt.NeuronTree(self._data)
 
-    def resample(
-        self,
-        resample_dist: float,
-    ) -> None:
+    def resample_distance(self, resample_dist: float) -> None:
         """Resample the swc data to a given distance.
 
         Calls MorphoPy's `resample_tree()` method to resample the swc data to a given distance.
@@ -184,7 +177,7 @@ class SWCData:
         self._data = self._ntree.to_swc()
 
     def view(self, ax: plt.Axes | None = None) -> None:
-        """View the raw and sta ndardized swc data."""
+        """View the raw and standardized swc data."""
         self._ntree.draw_2D(projection="xy", ax=ax, axon_color="lightblue")
 
     def plot_swc(self) -> None:
@@ -217,100 +210,198 @@ class SWCData:
             file.write(f"# {header}\n")
         self._data.to_csv(file_path, mode="a", index=False, sep=" ", header=False, **kwargs)
 
+    def to_graph_dict(self) -> dict[str, np.ndarray | dict[int, set[int]]]:
+        """Convert SWC data to graph dictionary format using NeuronTree's network structure.
+
+        Returns:
+            dict containing:
+                - 'features': Numpy array of node features [N x 3] (x, y, z coordinates only)
+                - 'neighbors': dict mapping node IDs to their connected neighbors
+        """
+        # Get node attributes from NeuronTree
+        positions = self._ntree.get_node_attributes("pos")
+        types = self._ntree.get_node_attributes("type")
+        # Get list of nodes
+        nodes = list(self._ntree.nodes())
+        nodes.sort()
+        # features array w/ position (x, y, z) and node type
+        features = np.zeros((len(nodes), 4))
+        # use undirected graph for neighbor lookup
+        adj = nx.to_numpy_array(self._ntree.get_graph().to_undirected())
+        neighbors = {}
+        for i, node in enumerate(nodes):
+            features[i, :3] = positions[node]
+            features[i, 3] = types[node]
+            neighbors[i] = set(np.where(adj[i] == 1)[0])
+
+        return {"features": features, "neighbors": neighbors}
+
+    def save_pickle(self, file_name: str | Path) -> None:
+        """Save neuron as a pickle file.
+
+        Note: Only position and node type are included as features. The radius is typically not accurate
+        and is therefore not included. The node type is used for downstream processing.
+
+        The saved file contains:
+            - features: Tensor of node position features [N x 4] (x, y, z coordinates and node type)
+            - neighbors: dict mapping node IDs to their neighbors
+
+        Args:
+            file_name (str | Path): Path to save the .pt file (without extension)
+        """
+        file_path = Path(file_name)
+        if file_path.suffix != ".pkl":
+            file_path = file_path.with_name(f"{file_path.name}.pkl")
+
+        graph_dict = self.to_graph_dict()
+        with open(file_path, "wb") as f:
+            pickle.dump(graph_dict, f)
+
     def __repr__(self) -> str:
         return f"SWCData(swc_file={self.swc_file}, standardize={self._data is not self._raw_data})"
 
 
-if __name__ == "__main__":
-    from typing import Optional
+@app.command()
+def main(
+    swc_folder: str = Argument(
+        ...,
+        help="Path to folder containing swc files.",
+    ),
+    standardize: bool = Option(
+        True,
+        help="Standardize the data by aligning to principal axes and centering at the origin. Use --no-standardize to skip.",
+        is_flag=True,
+    ),
+    align: bool = Option(
+        True,
+        help="Use PCA to align the data. Default is True. Use --no-align to skip.",
+        is_flag=True,
+    ),
+    resample_dist: float | None = Option(
+        None,
+        "-r",
+        "--resample",
+        help="Resample the data so each node is `resample_dist` apart. Default is None (no resampling).",
+    ),
+    drop_axon: bool = Option(
+        True,
+        "-d",
+        "--drop-axon",
+        help="Remove axon nodes from the reconstruction.",
+        is_flag=True,
+    ),
+    export_dir: str | None = Option(
+        None,
+        "-e",
+        "--export-dir",
+        help="Path to directory to save processed SWC files. Default is `swc_folder`/output.",
+    ),
+    format: str = Option(
+        "pkl",
+        "-f",
+        "--format",
+        help="Output format: 'swc' for SWC files or 'pkl' for pickle files. If 'pkl', then the node features and a neighbor mapping is saved.  If 'swc', then a new .swc file is created.",
+    ),
+) -> None:
+    """Process SWC file.
 
-    from typer import Argument, Option, Typer
+    This function takes an SWC file and processes it by loading, standardizing (optional),
+    and downsampling (optional) the data. The processed data is then saved to a CSV file.
 
-    app = Typer()
+    Args:
+        swc_folder (str): Path to the SWC file.
+        standardize (bool, optional): Flag indicating whether to standardize the data. Defaults to True.
+        resample_dist (float, optional): Value to downsample the data. Default is 1.0 (no downsampling).
+    """
 
-    @app.command()
-    def main(
-        swc_folder: str = Argument(
-            ...,
-            help="Path to folder containing swc files.",
-        ),
-        standardize: bool = Option(
-            True,
-            help="Standardize the data by aligning to principal axes and centering at the origin. Use --no-standardize to skip.",
-        ),
-        no_standardize: bool = Option(
-            False,
-            "--no-standardize",
-            help="Do not standardize the data.",
-            is_flag=True,
-        ),
-        align: bool = Option(
-            True,
-            help="Use PCA to align the data. Default is True. Use --no-align to skip.",
-        ),
-        no_align: bool = Option(
-            False,
-            "--no-align",
-            help="Do not use PCA to align the data.",
-            is_flag=True,
-        ),
-        resample_dist: Optional[float] = Option(
-            None,
-            "-r",
-            "--resample",
-            help="Resample the data so each node is `resample_dist` apart. Default is 1.0 (no resampling).",
-        ),
-        drop_axon: bool = Option(
-            False,
-            "-d",
-            "--drop-axon",
-            help="Remove axon nodes from the reconstruction.",
-            is_flag=True,
-        ),
-        export_dir: Optional[str] = Option(
-            None,
-            "-e",
-            "--export-dir",
-            help="Path to directory to save processed SWC files. Default is `swc_folder`/interim.",
-        ),
-    ) -> None:
-        """Process SWC file.
+    # create output directories
+    swc_folder_path = Path(swc_folder)
+    output_dir = Path(export_dir) if export_dir else swc_folder_path.parents[0] / "output"
+    output_dir.mkdir(exist_ok=True)
+    cells_dir = output_dir / "cells"
+    cells_dir.mkdir(exist_ok=True)
+    # setup logging
+    log_file = output_dir / f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-swc_processing.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.FileHandler(log_file),  # Log everything to file
+        ],
+    )
+    console = logging.StreamHandler()
+    console.setLevel(logging.ERROR)
+    console.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    logging.getLogger().addHandler(console)
 
-        This function takes an SWC file and processes it by loading, standardizing (optional),
-        and downsampling (optional) the data. The processed data is then saved to a CSV file.
+    # Log run parameters
+    logging.info("PROCESSING PARAMETERS:")
+    logging.info(f"Input folder: {swc_folder_path}")
+    logging.info(f"Output directory: {output_dir}")
+    logging.info(f"File format: {format}")
+    logging.info(f"Standardize data: {standardize}")
+    logging.info(f"PCA alignment: {align}")
+    logging.info(f"Resample distance: {resample_dist}")
+    logging.info(f"Remove axon: {drop_axon}")
 
-        Args:
-            swc_folder (str): Path to the SWC file.
-            standardize (bool, optional): Flag indicating whether to standardize the data. Defaults to True.
-            resample_dist (float, optional): Value to downsample the data. Default is 1.0 (no downsampling).
-        """
-        swc_files = Path(swc_folder)
-        output_dir = Path(export_dir) if export_dir else Path(swc_files.parents[0] / "interim")
-        if not output_dir.exists():
-            output_dir.mkdir(exist_ok=True)
-        swc_files_list = list(swc_files.glob("*.swc"))
+    swc_files_list = list(swc_folder_path.glob("*.swc"))
+    if not swc_files_list:
+        logging.error(f"No .swc files found in {swc_folder_path}")
+        return
 
-        for swc_file in ProgressBar(swc_files_list, desc="Processing neurons: "):
-            try:
-                output_file = f"{output_dir}/{swc_file.stem}"
-                swc_data = SWCData(
-                    swc_file,
-                    standardize=standardize and not no_standardize,
-                    align=align and not no_align,
-                    resample_dist=resample_dist,
+    logging.info(f"Found {len(swc_files_list)} SWC files to process")
+
+    # Process files
+    failed_files = []
+
+    for swc_file in ProgressBar(swc_files_list, desc="Processing neurons: "):
+        try:
+            output_stem = cells_dir / swc_file.stem
+            swc_data = SWCData(
+                swc_file,
+                standardize=standardize,
+                align=align,
+                resample_dist=resample_dist,
+            )
+
+            if resample_dist is not None and format.lower() == ".swc":
+                output_stem = output_stem.with_name(
+                    f"{output_stem.name}-resampled_{round(resample_dist)}um"
                 )
-                if resample_dist is not None:
-                    output_file = f"{output_file}-resampled_{int(round(resample_dist))}um"
 
-                if drop_axon:
-                    swc_data.remove_axon()
+            if drop_axon and format.lower() == ".swc":
+                swc_data.remove_axon()
+                output_stem = output_stem.with_name(f"{output_stem.name}-no_axon")
 
-                swc_data.save_swc(output_file)
-                print(f"Processed: {swc_file.stem}")
-            except Exception as e:
-                print(f"Error processing {swc_file}. {e}")
+            if format.lower() in {"pickle", "pkl"}:
+                swc_data.save_pickle(output_stem)
+                logging.info(f"Processed: {swc_file.name} → {output_stem.name}.pkl")
+            else:
+                swc_data.save_swc(output_stem)
+                logging.info(f"Processed: {swc_file.name} → {output_stem.name}.swc")
 
-        num_processed = len(list(output_dir.glob("*.swc")))
-        print(f"Processed {num_processed}/{len(swc_files_list)} SWC files. Saved to {output_dir}")
+        except Exception as e:
+            logging.error(f"Error processing {swc_file.name}: {e}")
+            failed_files.append((swc_file.name, str(e)))
 
+    # Print summary
+    extension = ".pkl" if format.lower() in {"pickle", "pkl"} else ".swc"
+    num_processed = len(list(cells_dir.glob(f"*{extension}")))
+
+    summary = [
+        f"\nProcessing complete: {num_processed}/{len(swc_files_list)} files processed",
+        f"Cell files saved to: {cells_dir}",
+        f"Log file saved to: {log_file}",
+    ]
+
+    if failed_files:
+        summary.append(f"\nFailed files ({len(failed_files)}):")
+        for file, error in failed_files:
+            summary.append(f"- {file}: {error}")
+
+    logging.info("\n".join(summary))
+    logging.info("Processing complete")
+
+
+if __name__ == "__main__":
     app()

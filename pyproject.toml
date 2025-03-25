@@ -25,17 +25,20 @@ dependencies = [
   "pyarrow",
   "pydantic",
   "typer",
+  "dgl==2.2.1",
+  "torchdata==0.7.1",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-  "pip",
   "ruff",
-  "mypy",
   "pre-commit",
   "notebook",
   "pandas-stubs",
   "pytest",
+]
+
+docs = [
   "mkdocs",
   "mkdocs-material",
   "mkdocstrings[python]",
@@ -43,6 +46,9 @@ dev = [
 
 [project.urls]
 repository = "https://github.com/kpeez/deep-neuronmorpho"
+
+[project.scripts]
+process-swc = "deep_neuronmorpho.data.process_swc:app"
 
 [build-system]
 requires = ["hatchling"]

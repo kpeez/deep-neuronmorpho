@@ -6,34 +6,20 @@ import yaml
 from pydantic import BaseModel
 
 
-class Dirs(BaseModel):
-    """Paths to directories for storing data and experiment results."""
-
-    data: str
-    logging: str
-
-
-class Datasets(BaseModel):
+class DatasetConfig(BaseModel):
     """Paths to datasets for training, validation, and testing."""
 
-    contra_train: str | None = None
-    eval_train: str
-    eval_test: str | None = None
+    dataset_root: str
+    train: str
+    evaluation: str | None = None
 
 
-class Model(BaseModel):
-    """Model architecture and hyperparameters."""
-
-    name: str
-    hidden_dim: int
-    output_dim: int
-    dropout_prob: float
-
-
-class GNNModel(Model):
+class GNNModel(BaseModel):
     """Model architecture and hyperparameters for GNN model."""
 
     num_gnn_layers: int
+    hidden_dim: int
+    output_dim: int
     num_mlp_layers: int | None
     use_edge_weight: bool | None
     learn_eps: bool | None
@@ -42,52 +28,49 @@ class GNNModel(Model):
     gnn_layer_aggregation: str
     attrs_streams: dict[str, list[int]] | None
     stream_aggregation: str | None
+    dropout_prob: float | None = None
 
 
-class TransformerModel(Model):
-    """Model architecture and hyperparameters for Transformer model."""
+class GraphDINOConfig(BaseModel):
+    """Model architecture and hyperparameters for GraphDINO model."""
 
     num_classes: int
-    num_heads: int
+    dim: int
     depth: int
-    num_encoder_layers: int
+    n_head: int
     pos_dim: int
+    move_avg: float
+    center_avg: float
+    teacher_temp: float
 
 
-class LRScheduler(BaseModel):
-    """Parameters for learning rate scheduler."""
+class OptimizerConfig(BaseModel):
+    """Optimizer configuration including learning rate and scheduler parameters."""
 
-    kind: str
-    step_size: int
-    factor: int | float  # < 1 for step, > 1 for cosine annealing
-
-
-class AugmentationParams(BaseModel):
-    """Parameters for data augmentation."""
-
-    perturb: dict[str, float | int] | None = None
-    rotate: dict[str, float | int] | None = {}
-    drop_branches: dict[str, float | int] | None = None
+    name: str
+    lr: float
+    scheduler: dict[str, str | int | float] | None = None  # kind, step_size, factor
 
 
 class Augmentation(BaseModel):
     """Data augmentation methods and parameters."""
 
     order: list[str]
-    params: AugmentationParams
+    perturb: dict[str, float | int] | None = None
+    rotate: dict[str, float | int] | None = {}
+    drop_branches: dict[str, float | int] | None = None
 
 
 class Training(BaseModel):
     """Parameters for training the model."""
 
+    logging_dir: str
     max_steps: int | None = None
     batch_size: int
     loss_fn: str
     loss_temp: float | None = None
     eval_interval: int | None = None
-    optimizer: str
-    lr: float
-    lr_scheduler: LRScheduler | None = None
+    optimizer: OptimizerConfig
     patience: int | None = None
     random_state: int | None = None
     logging_steps: int = 100
@@ -97,9 +80,8 @@ class Config(BaseModel):
     """Main configuration class."""
 
     config_file: str | Path
-    dirs: Dirs
-    datasets: Datasets
-    model: GNNModel | TransformerModel
+    datasets: DatasetConfig
+    model: GNNModel | GraphDINOConfig
     training: Training
     augmentation: Augmentation | None = None
 
