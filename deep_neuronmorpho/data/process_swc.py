@@ -1,15 +1,21 @@
 """Process SWC files."""
 
+import pickle
 from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
 import pandas as pd
 from morphopy.neurontree import NeuronTree as nt
 from morphopy.neurontree.utils import get_standardized_swc
 from sklearn.decomposition import PCA
+from typer import Argument, Option, Typer
 
 from deep_neuronmorpho.utils import ProgressBar
+
+app = Typer()
 
 
 class SWCData:
@@ -149,28 +155,13 @@ class SWCData:
 
         This updates both the `data` and `ntree` attributes to contain a neuron without axon nodes.
         """
-
-        def _map_parent_id(parent_id: int, mapping: dict) -> int:
-            """Map the parent ID, keeping -1 as is."""
-            return mapping[parent_id] if parent_id != -1 else -1
-
         self._ntree = self.ntree.get_dendritic_tree()
         self._data = self._ntree.to_swc()
-        sample_to_idx = dict(zip(self._data["n"], self._data.index + 1, strict=True))
-        self._data["n"] = self._data["n"].map(sample_to_idx).astype(int)
-        self._data["parent"] = (
-            self._data["parent"].apply(lambda x: _map_parent_id(x, sample_to_idx)).astype(int)
-        )
-        assert len(self._data["type"].unique()) > 1, "Neuron only contained axon nodes."
         # reset soma to origin
         soma_coords = self._data[["x", "y", "z"]].iloc[0]
         self._data[["x", "y", "z"]] -= soma_coords
-        self._ntree = nt.NeuronTree(self._data)
 
-    def resample(
-        self,
-        resample_dist: float,
-    ) -> None:
+    def resample(self, resample_dist: float) -> None:
         """Resample the swc data to a given distance.
 
         Calls MorphoPy's `resample_tree()` method to resample the swc data to a given distance.
@@ -183,8 +174,92 @@ class SWCData:
         self._ntree = self.ntree.resample_tree(resample_dist)
         self._data = self._ntree.to_swc()
 
+    def resample_to_fixed_size(self, n_nodes: int = 1000) -> None:
+        """Resample the neuron to a fixed number of nodes.
+
+        This method first resamples with a distance that will approximately yield the
+        desired number of nodes, then prunes or adds nodes as needed to reach exactly n_nodes.
+
+        Args:
+            n_nodes (int): Target number of nodes. Default is 1000.
+        """
+        # Get current node count
+        current_nodes = len(self._data)
+
+        # Skip if already correct size
+        if current_nodes == n_nodes:
+            return
+
+        # If too small, first resample to smaller distance to increase node count
+        if current_nodes < n_nodes:
+            # Estimate appropriate resampling distance
+            # This is a heuristic - we assume reducing distance by factor of current/target
+            # will roughly increase nodes by same factor
+            _current_edges = len(self._ntree.edges())
+            target_dist = 0.5  # Start with small distance to get more nodes than needed
+
+            while current_nodes < n_nodes:
+                self._ntree = self._ntree.resample_tree(target_dist)
+                self._data = self._ntree.to_swc()
+                current_nodes = len(self._data)
+                target_dist *= 0.75  # Decrease distance to get more nodes
+
+                # Safety check to avoid infinite loop
+                if target_dist < 0.01:
+                    break
+
+        # If too many nodes, subsample
+        if current_nodes > n_nodes:
+            # Preserve important nodes like soma, branch points and tips
+            soma_id = self._ntree.get_root()
+            branch_points = self._ntree.get_branchpoints()
+            tips = self._ntree.get_tips()
+
+            # Get nodes to keep
+            protected = np.concatenate([[soma_id], branch_points, tips])
+            protected = protected[protected < current_nodes]  # Ensure we don't exceed dimensions
+
+            # If protected nodes are more than n_nodes, keep all branch points and some tips
+            if len(protected) > n_nodes:
+                protected = np.concatenate([[soma_id], branch_points])
+                remaining = n_nodes - len(protected)
+                if remaining > 0:
+                    tips_to_keep = tips[:remaining]
+                    protected = np.concatenate([protected, tips_to_keep])
+                protected = protected[:n_nodes]  # Final safety check
+
+            # Select nodes to keep
+            remaining = n_nodes - len(protected)
+
+            if remaining > 0:
+                # Select nodes that are not protected, prioritizing by path distance
+                path_lengths = self._ntree.get_path_length()
+                nodes = np.array(list(self._ntree.nodes()))
+                unprotected = np.setdiff1d(nodes, protected)
+
+                # Sort unprotected nodes by path length
+                path_lengths = {k: path_lengths[k] for k in unprotected}
+                sorted_nodes = sorted(path_lengths.items(), key=lambda x: x[1])
+
+                # Select evenly distributed nodes by path length
+                indices = np.linspace(0, len(sorted_nodes) - 1, remaining, dtype=int)
+                additional_nodes = [sorted_nodes[i][0] for i in indices]
+
+                # Combine protected and additional nodes
+                keep_nodes = np.concatenate([protected, additional_nodes])
+            else:
+                keep_nodes = protected
+
+            # Create new neuron with only the selected nodes
+            G = self._ntree.get_graph().subgraph(keep_nodes)
+            self._ntree = nt.NeuronTree(graph=G)
+            self._data = self._ntree.to_swc()
+
+        # Final update to ensure the neuron has exactly n_nodes
+        assert len(self._data) == n_nodes, f"Failed to resample to exactly {n_nodes} nodes"
+
     def view(self, ax: plt.Axes | None = None) -> None:
-        """View the raw and sta ndardized swc data."""
+        """View the raw and standardized swc data."""
         self._ntree.draw_2D(projection="xy", ax=ax, axon_color="lightblue")
 
     def plot_swc(self) -> None:
@@ -217,16 +292,56 @@ class SWCData:
             file.write(f"# {header}\n")
         self._data.to_csv(file_path, mode="a", index=False, sep=" ", header=False, **kwargs)
 
+    def to_graph_dict(self) -> dict[str, np.ndarray | dict[int, set[int]]]:
+        """Convert SWC data to graph dictionary format using NeuronTree's network structure.
+
+        Returns:
+            dict containing:
+                - 'features': Numpy array of node features [N x 3] (x, y, z coordinates only)
+                - 'neighbors': dict mapping node IDs to their connected neighbors
+        """
+        # Get node attributes from NeuronTree
+        positions = self._ntree.get_node_attributes("pos")
+        types = self._ntree.get_node_attributes("type")
+        # Get list of nodes
+        nodes = list(self._ntree.nodes())
+        nodes.sort()
+        # features array w/ position (x, y, z) and node type
+        features = np.zeros((len(nodes), 4))
+        # use undirected graph for neighbor lookup
+        adj = nx.to_numpy_array(self._ntree.get_graph().to_undirected())
+        neighbors = {}
+        for i, node in enumerate(nodes):
+            features[i, :3] = positions[node]
+            features[i, 3] = types[node]
+            neighbors[i] = set(np.where(adj[i] == 1)[0])
+
+        return {"features": features, "neighbors": neighbors}
+
+    def save_pickle(self, file_name: str | Path) -> None:
+        """Save neuron as a pickle file.
+
+        Note: Only position and node type are included as features. The radius is typically not accurate
+        and is therefore not included. The node type is used for downstream processing.
+
+        The saved file contains:
+            - features: Tensor of node position features [N x 4] (x, y, z coordinates and node type)
+            - neighbors: dict mapping node IDs to their neighbors
+
+        Args:
+            file_name (str | Path): Path to save the .pt file (without extension)
+        """
+        file_path = Path(file_name)
+        if file_path.suffix != ".pkl":
+            file_path = file_path.with_name(f"{file_path.name}.pkl")
+
+        graph_dict = self.to_graph_dict()
+        with open(file_path, "wb") as f:
+            pickle.dump(graph_dict, f)
+        print(f"Saved graph to {file_path}")
+
     def __repr__(self) -> str:
         return f"SWCData(swc_file={self.swc_file}, standardize={self._data is not self._raw_data})"
-
-
-if __name__ == "__main__":
-    from typing import Optional
-
-    from typer import Argument, Option, Typer
-
-    app = Typer()
 
     @app.command()
     def main(
@@ -254,24 +369,36 @@ if __name__ == "__main__":
             help="Do not use PCA to align the data.",
             is_flag=True,
         ),
-        resample_dist: Optional[float] = Option(
+        resample_dist: float | None = Option(
             None,
             "-r",
             "--resample",
-            help="Resample the data so each node is `resample_dist` apart. Default is 1.0 (no resampling).",
+            help="Resample the data so each node is `resample_dist` apart. Default is None (no resampling).",
+        ),
+        fixed_nodes: int | None = Option(
+            None,
+            "-n",
+            "--num-nodes",
+            help="Resample the data to have exactly this many nodes. Takes precedence over resample_dist.",
         ),
         drop_axon: bool = Option(
-            False,
+            True,
             "-d",
             "--drop-axon",
             help="Remove axon nodes from the reconstruction.",
             is_flag=True,
         ),
-        export_dir: Optional[str] = Option(
+        export_dir: str | None = Option(
             None,
             "-e",
             "--export-dir",
             help="Path to directory to save processed SWC files. Default is `swc_folder`/interim.",
+        ),
+        format: str = Option(
+            "swc",
+            "-f",
+            "--format",
+            help="Output format: 'swc' for SWC files or 'pt' for PyTorch files.",
         ),
     ) -> None:
         """Process SWC file.
@@ -297,20 +424,33 @@ if __name__ == "__main__":
                     swc_file,
                     standardize=standardize and not no_standardize,
                     align=align and not no_align,
-                    resample_dist=resample_dist,
+                    resample_dist=resample_dist if fixed_nodes is None else None,
                 )
-                if resample_dist is not None:
+
+                if resample_dist is not None and fixed_nodes is None:
                     output_file = f"{output_file}-resampled_{round(resample_dist)}um"
+
+                if fixed_nodes is not None:
+                    swc_data.resample_to_fixed_size(fixed_nodes)
+                    output_file = f"{output_file}-fixed_{fixed_nodes}nodes"
 
                 if drop_axon:
                     swc_data.remove_axon()
+                    output_file += "-no_axon"
 
-                swc_data.save_swc(output_file)
+                if format.lower() == "pickle":
+                    swc_data.save_pickle(output_file)
+                else:
+                    swc_data.save_swc(output_file)
+
                 print(f"Processed: {swc_file.stem}")
             except Exception as e:
                 print(f"Error processing {swc_file}. {e}")
 
-        num_processed = len(list(output_dir.glob("*.swc")))
-        print(f"Processed {num_processed}/{len(swc_files_list)} SWC files. Saved to {output_dir}")
+        extension = ".pkl" if format.lower() == "pickle" else ".swc"
+        num_processed = len(list(output_dir.glob(f"*{extension}")))
+        print(f"Processed {num_processed}/{len(swc_files_list)} files. Saved to {output_dir}")
 
+
+if __name__ == "__main__":
     app()
