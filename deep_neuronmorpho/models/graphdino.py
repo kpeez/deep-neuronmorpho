@@ -32,7 +32,11 @@ class GraphAttention(nn.Module):
     """
 
     def __init__(
-        self, dim: int, num_heads: int = 8, bias: bool = False, use_exp: bool = True
+        self,
+        dim: int,
+        num_heads: int = 8,
+        bias: bool = False,
+        use_exp: bool = True,
     ) -> nn.Module:
         super().__init__()
         self.dim = dim
@@ -54,7 +58,7 @@ class GraphAttention(nn.Module):
         return (a * b) + (c * d)
 
     def forward(self, x, adj):
-        B, N, C = x.shape  # (batch x num_nodes x feat_dim)
+        B, N, _C = x.shape  # (batch x num_nodes x feat_dim)
         qkv = self.qkv_projection(x).view(B, N, 3, self.num_heads, self.dim).permute(0, 3, 1, 2, 4)
         query, key, value = qkv.unbind(dim=3)  # (batch x num_heads x num_nodes x dim)
 
