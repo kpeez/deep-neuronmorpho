@@ -2,12 +2,12 @@ version = 1
 revision = 1
 requires-python = ">=3.11"
 resolution-markers = [
+    "python_full_version >= '3.12' and sys_platform == 'linux'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux'",
+    "python_full_version < '3.12' and sys_platform == 'linux'",
+    "python_full_version < '3.12' and sys_platform != 'darwin' and sys_platform != 'linux'",
     "python_full_version >= '3.12' and sys_platform == 'darwin'",
     "python_full_version < '3.12' and sys_platform == 'darwin'",
-    "python_full_version >= '3.12' and sys_platform == 'linux'",
-    "python_full_version < '3.12' and sys_platform == 'linux'",
-    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux'",
-    "python_full_version < '3.12' and sys_platform != 'darwin' and sys_platform != 'linux'",
 ]
 
 [[package]]
@@ -502,7 +502,7 @@ version = "0.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "dgl", version = "2.2.1", source = { registry = "https://data.dgl.ai/wheels/repo.html" }, marker = "sys_platform == 'darwin'" },
-    { name = "dgl", version = "2.2.1+cu121", source = { registry = "https://data.dgl.ai/wheels/torch-2.3/cu121/repo.html" }, marker = "sys_platform == 'linux'" },
+    { name = "dgl", version = "2.2.1+cu121", source = { registry = "https://data.dgl.ai/wheels/torch-2.3/cu121/repo.html" }, marker = "sys_platform != 'darwin'" },
     { name = "matplotlib" },
     { name = "morphopy" },
     { name = "numpy" },
@@ -516,6 +516,7 @@ dependencies = [
     { name = "seaborn" },
     { name = "tensorboard" },
     { name = "torch" },
+    { name = "torchdata" },
     { name = "typer" },
     { name = "umap-learn" },
     { name = "xgboost" },
@@ -537,6 +538,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dgl", specifier = "==2.2.1" },
     { name = "dgl", marker = "sys_platform == 'darwin'", specifier = "==2.2.1" },
     { name = "dgl", marker = "sys_platform == 'linux'", specifier = "==2.2.1+cu121" },
     { name = "matplotlib" },
@@ -552,6 +554,7 @@ requires-dist = [
     { name = "seaborn" },
     { name = "tensorboard" },
     { name = "torch", specifier = "==2.3.0" },
+    { name = "torchdata", specifier = "==0.7.1" },
     { name = "typer" },
     { name = "umap-learn" },
     { name = "xgboost" },
@@ -611,17 +614,19 @@ version = "2.2.1+cu121"
 source = { registry = "https://data.dgl.ai/wheels/torch-2.3/cu121/repo.html" }
 resolution-markers = [
     "python_full_version >= '3.12' and sys_platform == 'linux'",
+    "python_full_version >= '3.12' and sys_platform != 'darwin' and sys_platform != 'linux'",
     "python_full_version < '3.12' and sys_platform == 'linux'",
+    "python_full_version < '3.12' and sys_platform != 'darwin' and sys_platform != 'linux'",
 ]
 dependencies = [
-    { name = "networkx", marker = "sys_platform == 'linux'" },
-    { name = "numpy", marker = "sys_platform == 'linux'" },
-    { name = "pandas", marker = "sys_platform == 'linux'" },
-    { name = "psutil", marker = "sys_platform == 'linux'" },
-    { name = "requests", marker = "sys_platform == 'linux'" },
-    { name = "scipy", marker = "sys_platform == 'linux'" },
-    { name = "torchdata", marker = "sys_platform == 'linux'" },
-    { name = "tqdm", marker = "sys_platform == 'linux'" },
+    { name = "networkx", marker = "sys_platform != 'darwin'" },
+    { name = "numpy", marker = "sys_platform != 'darwin'" },
+    { name = "pandas", marker = "sys_platform != 'darwin'" },
+    { name = "psutil", marker = "sys_platform != 'darwin'" },
+    { name = "requests", marker = "sys_platform != 'darwin'" },
+    { name = "scipy", marker = "sys_platform != 'darwin'" },
+    { name = "torchdata", marker = "sys_platform != 'darwin'" },
+    { name = "tqdm", marker = "sys_platform != 'darwin'" },
 ]
 wheels = [
     { url = "https://data.dgl.ai/wheels/torch-2.3/cu121/dgl-2.2.1%2Bcu121-cp311-cp311-manylinux1_x86_64.whl" },
@@ -3149,15 +3154,19 @@ wheels = [
 
 [[package]]
 name = "torchdata"
-version = "0.11.0"
+version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "requests", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "torch", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
-    { name = "urllib3", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "requests" },
+    { name = "torch" },
+    { name = "urllib3" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/95/d4/af694ef718aedbe95a72760ab9ff7a6a7a44ace2d7f70c27bfeb67c5c503/torchdata-0.11.0-py3-none-any.whl", hash = "sha256:52b940fbbe0e00fb21cabddf528449d1bec5bfb0d0823b7487b15f951658ee33", size = 61968 },
+    { url = "https://files.pythonhosted.org/packages/ad/9a/8b3c64a141b58228419110858acdd5eae7a1b54db9dd8f22a2af956ac53d/torchdata-0.7.1-cp311-cp311-macosx_10_13_x86_64.whl", hash = "sha256:91a78c677a3e4e2447d888587f7ea0b4ddde81ca95adf709ba0d3dc9a4e9542d", size = 1801812 },
+    { url = "https://files.pythonhosted.org/packages/35/b2/7ed3a80ae0673b940f2af14281dc02dee0f667c6094e6dcd399fa35249a7/torchdata-0.7.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:fa325d628aa6125c6b46b6fa27c94150ca9276edbba1042d3eb3cd9c1039b5a9", size = 4815618 },
+    { url = "https://files.pythonhosted.org/packages/c1/8d/b17138a9ad7e47dd602587dbcc142bd98374e0c16c0806c2026d8db54242/torchdata-0.7.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d256535648dfb94d1226f233768c6798d1841edfdbf0a09b2115e6cbbda614f9", size = 4657579 },
+    { url = "https://files.pythonhosted.org/packages/da/8d/e0413f91944f931cb5c685cbd6330ad450f9d5466c466822d25761ca772d/torchdata-0.7.1-cp311-cp311-win_amd64.whl", hash = "sha256:7460a5fa298e7cd5cef98e8e6455d481e5c73d39a462a89a38918389c8153e20", size = 1330404 },
+    { url = "https://files.pythonhosted.org/packages/e2/c8/34eda2bd6beb8a11c06cf905db74092bdbc3dec51a48f4f22cc474866a0a/torchdata-0.7.1-py3-none-any.whl", hash = "sha256:9f9476a26987d90fa3f87cb09ec82b78ce6031ddcaa91851c9fa9f732a987ab8", size = 184418 },
 ]
 
 [[package]]
@@ -3219,7 +3228,7 @@ name = "triton"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "filelock", marker = "sys_platform == 'linux'" },
+    { name = "filelock", marker = "python_full_version < '3.12' and sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3c/00/84e0006f2025260fa111ddfc66194bd1af731b3ee18e2fd611a00f290b5e/triton-2.3.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3c3d9607f85103afdb279938fc1dd2a66e4f5999a58eb48a346bd42738f986dd", size = 168079300 },
