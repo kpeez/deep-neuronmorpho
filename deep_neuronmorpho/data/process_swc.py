@@ -352,21 +352,11 @@ class SWCData:
         standardize: bool = Option(
             True,
             help="Standardize the data by aligning to principal axes and centering at the origin. Use --no-standardize to skip.",
-        ),
-        no_standardize: bool = Option(
-            False,
-            "--no-standardize",
-            help="Do not standardize the data.",
             is_flag=True,
         ),
         align: bool = Option(
             True,
             help="Use PCA to align the data. Default is True. Use --no-align to skip.",
-        ),
-        no_align: bool = Option(
-            False,
-            "--no-align",
-            help="Do not use PCA to align the data.",
             is_flag=True,
         ),
         resample_dist: float | None = Option(
@@ -422,8 +412,8 @@ class SWCData:
                 output_file = f"{output_dir}/{swc_file.stem}"
                 swc_data = SWCData(
                     swc_file,
-                    standardize=standardize and not no_standardize,
-                    align=align and not no_align,
+                    standardize=standardize,
+                    align=align,
                     resample_dist=resample_dist if fixed_nodes is None else None,
                 )
 
