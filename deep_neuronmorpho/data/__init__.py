@@ -1,3 +1,3 @@
+from deep_neuronmorpho.data.augmentation import augment_graph
 from deep_neuronmorpho.data.create_dataset import GraphScaler, NeuronGraphDataset
-from deep_neuronmorpho.data.graph_augmentation import GraphAugmenter
 from deep_neuronmorpho.data.process_swc import SWCData

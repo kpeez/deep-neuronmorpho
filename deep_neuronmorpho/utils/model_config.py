@@ -53,12 +53,49 @@ class OptimizerConfig(BaseModel):
 
 
 class Augmentation(BaseModel):
-    """Data augmentation methods and parameters."""
+    """Data augmentation methods and parameters.
 
-    order: list[str]
-    perturb: dict[str, float | int] | None = None
-    rotate: dict[str, float | int] | None = {}
-    drop_branches: dict[str, float | int] | None = None
+    Example:
+    ```yaml
+    augmentation:
+      perturb:
+        jitter: 0.1
+      rotate: {}
+      drop_branches:
+        prop: 0.2
+        deg_power: 1.0
+    ```
+    The order of augmentations is determined by the order in the dictionary.
+    """
+
+    augmentations: dict[str, dict[str, float | int] | dict] = {}
+
+    def get_augmentation_list(self) -> list[str]:
+        """Return the list of augmentation names in the order they should be applied."""
+        return list(self.augmentations.keys())
+
+    def get_augmentation_params(self) -> dict:
+        """Return all augmentation parameters."""
+        return self.augmentations
+
+    def model_post_init(self, __context):
+        """Validate augmentation parameters after initialization."""
+        super().model_post_init(__context)
+
+        for aug_type, params in self.augmentations.items():
+            if aug_type == "perturb":
+                if not params or "jitter" not in params:
+                    raise ValueError(f"Perturb augmentation requires 'jitter' parameter: {params}")
+            elif aug_type == "rotate":
+                # rotate doesn't need parameters, an empty dict is valid
+                pass
+            elif aug_type == "drop_branches":
+                if not params or "prop" not in params:
+                    raise ValueError(
+                        f"Drop branches augmentation requires 'prop' parameter: {params}"
+                    )
+            else:
+                raise ValueError(f"Unknown augmentation type: {aug_type}")
 
 
 class Training(BaseModel):
