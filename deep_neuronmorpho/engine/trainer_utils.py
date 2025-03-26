@@ -9,11 +9,11 @@ from typing import Any
 import numpy as np
 import pytorch_lightning as pl
 import torch
-from dgl.data import DGLDataset
-from dgl.dataloading import GraphDataLoader
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn, optim
+from torch_geometric.data import Dataset
+from torch_geometric.loader import DataLoader
 
 from deep_neuronmorpho.data import NeuronGraphDataset
 from deep_neuronmorpho.models import MACGNN, MACGNNv2
@@ -104,12 +104,12 @@ def create_scheduler(
 
 
 def create_dataloader(
-    graph_dataset: DGLDataset,
+    graph_dataset: Dataset,
     batch_size: int,
     shuffle: bool = True,
     drop_last: bool = True,
     **kwargs: Any,
-) -> GraphDataLoader:
+) -> DataLoader:
     """Create dataloaders for training and validation datasets.
 
     Args:
@@ -123,7 +123,7 @@ def create_dataloader(
     Returns:
         GraphDataLoader: Dataloader of graph dataset.
     """
-    graph_loader = GraphDataLoader(
+    graph_loader = DataLoader(
         graph_dataset,
         batch_size=batch_size,
         shuffle=shuffle,
@@ -136,7 +136,7 @@ def create_dataloader(
 
 def setup_dataloaders(
     conf: Config, datasets: Sequence[str], **kwargs: Any
-) -> dict[str, GraphDataLoader]:
+) -> dict[str, DataLoader]:
     """Create dataloaders for contrastive training and evaluation datasets.
 
     Args:
@@ -146,7 +146,7 @@ def setup_dataloaders(
         arguments such as num_workers, pin_memory, etc.
 
     Returns:
-        dict[str, GraphDataLoader]: Dictionary of dataloaders for each dataset.
+        dict[str, DataLoader]: Dictionary of dataloaders for each dataset.
     """
     data_dir = conf.dirs.data
     graph_datasets = {
