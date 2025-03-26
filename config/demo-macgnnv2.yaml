@@ -9,7 +9,7 @@ datasets:
   eval_test: "allen_cell_types-dimfeats17-self_loop"
 
 model:
-  name: "macgnnv2"
+  name: "macgnn"
   num_gnn_layers: 5
   num_mlp_layers: 2
   hidden_dim: 64
