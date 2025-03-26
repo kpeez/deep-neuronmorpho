@@ -1,5 +1,6 @@
 """Create training, validation, and test splits of the dataset."""
 
+from collections import deque
 from collections.abc import Sequence
 
 import networkx as nx
@@ -65,3 +66,40 @@ def compute_graph_attrs(graph_attrs: Sequence[float]) -> list[float]:
         res.nobs,
     ]
     return attr_stats
+
+
+def find_leaf_nodes(neighbors: dict[int, list[int]]) -> list[int]:
+    """
+    Create list of candidates for leaf and branching nodes.
+    Identifies all leaf nodes (degree 1) and follows branch paths (degree 2)
+    to create a collection of all terminal structures in the neuron.
+
+    Args:
+        neighbors: dict of neighbors per node
+
+    Returns:
+        List of node IDs representing leaf nodes and their connecting pathways
+    """
+    node_degrees = {node: len(neighbors[node]) for node in neighbors}
+    leafs = [node for node, degree in node_degrees.items() if degree == 1]
+    candidates = set(leafs)
+    # find all nodes with degree 2 that are not in candidates
+    next_nodes = deque()
+    for leaf in leafs:
+        for neighbor in neighbors[leaf]:
+            if node_degrees[neighbor] == 2 and neighbor not in candidates:
+                next_nodes.append(neighbor)
+
+    while next_nodes:
+        current = next_nodes.popleft()
+        candidates.add(current)
+
+        for neighbor in neighbors[current]:
+            if (
+                node_degrees[neighbor] == 2
+                and neighbor not in candidates
+                and neighbor not in next_nodes
+            ):
+                next_nodes.append(neighbor)
+
+    return list(candidates)
