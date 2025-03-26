@@ -1,8 +1,4 @@
-"""Graph Isomorphism Network (GIN) model. from [Xu et al. 2019](https://arxiv.org/abs/1810.00826).
-
-See example DGL implementation [here](https://github.com/dmlc/dgl/blob/master/examples/pytorch/gin/train.py).
-
-"""
+"""Graph Isomorphism Network (GIN) model. from [Xu et al. 2019](https://arxiv.org/abs/1810.00826)."""
 
 import torch
 from torch import Tensor, nn
