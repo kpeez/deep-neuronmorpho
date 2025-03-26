@@ -16,7 +16,7 @@ from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from deep_neuronmorpho.data import NeuronGraphDataset
-from deep_neuronmorpho.models import MACGNN, MACGNNv2
+from deep_neuronmorpho.models import MACGNN
 from deep_neuronmorpho.utils import Config
 
 from .ntxent_loss import NTXEntLoss
@@ -246,10 +246,7 @@ def create_trainer(
 
 
 def create_model(name: str, cfg: Config) -> torch.nn.Module:
-    model_loaders = {
-        "macgnnv2": MACGNNv2,
-        "macgnn": MACGNN,
-    }
+    model_loaders = {"macgnn": MACGNN}
 
     return model_loaders[name.lower()](cfg.model)
 
