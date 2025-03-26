@@ -7,34 +7,26 @@ from torch.distributions.uniform import Uniform
 
 def perturb_node_positions(
     node_features: torch.Tensor,
-    prop: float,
     std_noise: float,
 ) -> torch.Tensor:
-    """Shift a proportion of points by a random distance with Gaussian noise.
+    """Shift node positions by adding Gaussian noise.
 
-    This augmentation shifts 3D coordinates of a proportion of points by adding
-    Gaussian noise to their positions.
+    This augmentation shifts 3D coordinates of all points by adding
+    Gaussian noise to their positions, similar to PyTorch Geometric's RandomJitter.
 
     Args:
         node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
                        XYZ coordinates are assumed to be in the first 3 columns.
-        prop: Proportion of points to perturb.
         std_noise: Standard deviation of Gaussian noise.
 
     Returns:
         Augmented node features tensor.
     """
     node_features = node_features.clone()
-    num_nodes = node_features.shape[0]
-    nodes_to_perturb = np.random.choice(
-        num_nodes,
-        int(num_nodes * prop),
-        replace=False,
-    )
-    node_features[nodes_to_perturb, :3] += torch.normal(
+    node_features[:, :3] += torch.normal(
         mean=0,
         std=std_noise,
-        size=(len(nodes_to_perturb), 3),
+        size=(node_features.shape[0], 3),
         device=node_features.device,
     )
     return node_features
@@ -96,7 +88,6 @@ def drop_branches(
     node_features: torch.Tensor,
     adjacency_list: torch.Tensor,
     prop: float,
-    deg_power: float = 1.0,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Randomly drop a proportion of nodes from the graph.
 
@@ -107,7 +98,6 @@ def drop_branches(
         node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
         adjacency_list: Tensor of shape (num_edges, 2) containing edge connections.
         prop: Proportion of nodes to drop.
-        deg_power: Power to which to raise node index for biasing drop probability.
 
     Returns:
         Tuple of (augmented node features, augmented adjacency list).
@@ -120,7 +110,7 @@ def drop_branches(
     # Generate random probability for each node based on position in the sequence
     # (Higher indices more likely to be dropped) - simple approximation without path distance
     node_indices = torch.arange(num_nodes, device=node_features.device).float()
-    drop_probs = (node_indices + 1) ** deg_power  # Add 1 to avoid 0^power = 0 for node 0
+    drop_probs = node_indices + 1  # Add 1 to avoid 0^power = 0 for node 0
     drop_probs[0] = 0.0  # Preserve the root node (index 0)
     # normalize to get probabilities
     drop_probs /= drop_probs.sum()
@@ -143,48 +133,29 @@ def drop_branches(
 def augment_graph(
     node_features: torch.Tensor,
     adjacency_list: torch.Tensor,
-    augmentations: list[str],
-    augmentation_params: dict,
+    augmentations: dict[str, dict],
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Apply a sequence of augmentations to node features and adjacency list.
 
     Args:
         node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
         adjacency_list: Tensor of shape (num_edges, 2) containing edge connections.
-        augmentations: List of augmentation types to apply in sequence.
-        augmentation_params: Dictionary of parameters for each augmentation type.
+        augmentations: Dictionary mapping augmentation types to their parameters.
+                     The order of keys determines the sequence of application.
 
     Returns:
         Tuple of (augmented node features, augmented adjacency list).
     """
-    for aug_type in augmentations:
-        if aug_type == "perturb":
-            params = augmentation_params.get("perturb", {})
-            if "prop" not in params or "std_noise" not in params:
-                raise ValueError(f"Missing required parameters for perturb augmentation: {params}")
-
-            node_features = perturb_node_positions(
-                node_features, prop=params["prop"], std_noise=params["std_noise"]
-            )
-
-        elif aug_type == "rotate":
+    for aug_type, params in augmentations.items():
+        if aug_type == "rotate":
             node_features = rotate_node_positions(node_features)
-
+        elif aug_type == "perturb":
+            node_features = perturb_node_positions(node_features, std_noise=params["jitter"])
         elif aug_type == "drop_branches":
-            params = augmentation_params.get("drop_branches", {})
-            if "prop" not in params:
-                raise ValueError(
-                    f"Missing required parameters for drop_branches augmentation: {params}"
-                )
-
             node_features, adjacency_list = drop_branches(
                 node_features,
                 adjacency_list,
                 prop=params["prop"],
-                deg_power=params.get("deg_power", 1.0),
             )
-
-        else:
-            raise ValueError(f"Unknown augmentation type: {aug_type}")
 
     return node_features, adjacency_list
