@@ -13,7 +13,7 @@ import torch
 from torch import Tensor, nn
 from torch_geometric.data import Batch
 
-from deep_neuronmorpho.utils.model_config import Model
+from deep_neuronmorpho.utils.model_config import GNNConfig
 
 from .gin import GIN
 from .mlp import MLP
@@ -27,7 +27,7 @@ from .model_utils import (
 class MACGNN(nn.Module):
     """MACGNN model from [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206)."""
 
-    def __init__(self, args: Model, device: torch.device | None = None) -> None:
+    def __init__(self, args: GNNConfig, device: torch.device | None = None) -> None:
         super().__init__()
 
         self.args = args
