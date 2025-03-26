@@ -113,7 +113,7 @@ def create_dataloader(
     """Create dataloaders for training and validation datasets.
 
     Args:
-        graph_dataset (DGLDataset): Graph dataset.
+        graph_dataset (Dataset): Graph dataset.
         batch_size (int): Batch size.
         shuffle (bool): Whether to shuffle the training data. Defaults to True.
         drop_last (bool): Whether to drop the last batch if it is smaller than the batch size.
