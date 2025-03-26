@@ -14,7 +14,7 @@ class DatasetConfig(BaseModel):
     evaluation: str | None = None
 
 
-class GNNModel(BaseModel):
+class GNNConfig(BaseModel):
     """Model architecture and hyperparameters for GNN model."""
 
     num_gnn_layers: int
@@ -118,7 +118,7 @@ class Config(BaseModel):
 
     config_file: str | Path
     datasets: DatasetConfig
-    model: GNNModel | GraphDINOConfig
+    model: GNNConfig | GraphDINOConfig
     training: Training
     augmentation: Augmentation | None = None
 
