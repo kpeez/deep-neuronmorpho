@@ -6,7 +6,7 @@ from sklearn.svm import SVC
 from torch import nn
 from torch_geometric.data import Batch
 
-from deep_neuronmorpho.data import GraphAugmenter
+from deep_neuronmorpho.data import augment_graph
 from deep_neuronmorpho.utils import Config
 
 from .evaluation import repeated_kfold_eval
@@ -30,7 +30,6 @@ class ContrastiveGraphModule(pl.LightningModule):
         cfg (Config): Configuration object containing model and training parameters.
         node_attrs (str): The key for node attributes in the graph data.
         loss_fn (NTXEntLoss): The contrastive loss function.
-        augmenter (GraphAugmenter): Object for performing graph augmentations.
         _best_train_loss (float): The best (lowest) training loss observed.
         _best_val_acc (float): The best (highest) validation accuracy observed.
         validation_step_outputs (list): Stores outputs from validation steps.
@@ -60,7 +59,6 @@ class ContrastiveGraphModule(pl.LightningModule):
         self.loss_fn = (
             loss_fn if loss_fn is not None else NTXEntLoss(self.cfg.training.contra_loss_temp)
         )
-        self.augmenter = GraphAugmenter(self.cfg.augmentation)
         self._best_train_loss = float("inf")
         self._best_val_acc = 0.0
         self.validation_step_outputs = []
@@ -83,9 +81,9 @@ class ContrastiveGraphModule(pl.LightningModule):
         self._best_val_acc = value
 
     def compute_loss(self, batch_graphs: Batch) -> torch.Tensor:
-        aug1_batch = self.augmenter.augment_batch(batch_graphs)
+        aug1_batch = augment_graph(batch_graphs)
         aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs], is_training=True)
-        aug2_batch = self.augmenter.augment_batch(batch_graphs)
+        aug2_batch = augment_graph(batch_graphs)
         aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs], is_training=True)
         loss = self.loss_fn(aug1_embeds, aug2_embeds)
         return loss
