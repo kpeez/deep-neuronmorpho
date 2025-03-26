@@ -1,11 +1,11 @@
 """Utility functions for model-related tasks."""
 
-from collections.abc import Mapping, Sequence
 from functools import partial
 
 import torch
-from dgl.nn.pytorch import AvgPooling, MaxPooling, SumPooling
-from torch import Tensor, nn
+from torch import Tensor
+from torch.nn import Module
+from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_pool
 
 
 def aggregate_tensor(
@@ -32,7 +32,7 @@ def aggregate_tensor(
         NotImplementedError: If the aggregation method is not implemented.
     """
 
-    def wsum(tensor_data: Tensor, weights: Tensor | None, dim: int = -1) -> Tensor:
+    def wsum(tensor_data: Tensor, weights: Tensor, dim: int = -1) -> Tensor:
         if weights is None:
             raise ValueError("weights cannot be None for weighted sum aggregation.")
 
@@ -60,29 +60,33 @@ def aggregate_tensor(
             return aggregation_func(tensor_data)
 
 
-def create_pooling_layer(pooling_type: str) -> nn.Module:
-    """Create a pooling layer for the given pooling type.
+class GlobalPooling(Module):
+    """Class for global graph pooling of node features to create graph-level representation."""
 
-    Args:
-        pooling_type (str): The pooling type ('sum', 'mean', or 'max').
+    def __init__(self, pooling_type: str):
+        super().__init__()
+        self.pooling_type = pooling_type
 
-    Returns:
-        nn.Module: The created pooling layer.
+    def forward(self, x: Tensor, batch: Tensor) -> Tensor:
+        """Pool node features to create graph-level representation.
 
-    Raises:
-        NotImplementedError: If the pooling type is not implemented.
-    """
-    pooling_layer_dict = {
-        "sum": SumPooling,
-        "mean": AvgPooling,
-        "max": MaxPooling,
-    }
-    try:
-        return pooling_layer_dict[pooling_type]()
-    except KeyError as err:
-        raise NotImplementedError(
-            f"Graph pooling type '{pooling_type}' is not implemented."
-        ) from err
+        Args:
+            x (Tensor): Node features.
+            batch (Tensor): Batch information for the nodes.
+
+        Returns:
+            Tensor: Graph-level representation.
+        """
+        if self.pooling_type == "mean":
+            return global_mean_pool(x, batch)
+        elif self.pooling_type == "sum":
+            return global_add_pool(x, batch)
+        elif self.pooling_type == "max":
+            return global_max_pool(x, batch)
+        else:
+            raise NotImplementedError(
+                f"Graph pooling type '{self.pooling_type}' is not implemented."
+            )
 
 
 def compute_embedding_dim(
@@ -117,7 +121,7 @@ def compute_embedding_dim(
     return embedding_dim
 
 
-def load_attrs_streams(attrs_streams: Mapping[str, Sequence[int]] | None) -> dict[str, list[int]]:
+def load_attrs_streams(attrs_streams: dict[str, list[int]] | None) -> dict[str, list[int]]:
     """Load attribute streams from a dictionary containing the range of indices.
 
     Args:
