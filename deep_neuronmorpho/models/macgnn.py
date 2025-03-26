@@ -98,7 +98,7 @@ class MACGNN(nn.Module):
 
         Args:
             stream_name (str): Name of the attribute stream in self.attrs_streams dict.
-            graphs (Batch): Batch of graph objects from dgl.GraphDataLoader.
+            graphs (Batch): Batch of graphs.
             edge_weight (Tensor | None): Edge weights of the graph. Defaults to None.
 
         Returns:
