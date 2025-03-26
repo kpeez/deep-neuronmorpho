@@ -103,3 +103,30 @@ def find_leaf_nodes(neighbors: dict[int, list[int]]) -> list[int]:
                 next_nodes.append(neighbor)
 
     return list(candidates)
+
+
+def compute_path_lengths(source_idx: int, neighbors: dict[int, list[int]]) -> dict[int, int]:
+    """
+    Computes shortest path distances from a source node to all reachable nodes.
+    Uses breadth-first search to find the minimum number of edges between nodes.
+
+    Args:
+        source_idx: Index of the source node
+        neighbors: Dictionary mapping node indices to their neighbor indices
+
+    Returns:
+        Dictionary mapping node indices to their distance from the source node
+    """
+    queue = deque([source_idx])
+    distances = {source_idx: 0}
+
+    while queue:
+        current = queue.popleft()
+        current_dist = distances[current]
+
+        for neighbor in neighbors[current]:
+            if neighbor not in distances:
+                distances[neighbor] = current_dist + 1
+                queue.append(neighbor)
+
+    return distances

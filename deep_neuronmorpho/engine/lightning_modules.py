@@ -2,11 +2,11 @@
 
 import pytorch_lightning as pl
 import torch
-from dgl import DGLGraph
 from sklearn.svm import SVC
 from torch import nn
+from torch_geometric.data import Batch
 
-from deep_neuronmorpho.data import GraphAugmenter
+from deep_neuronmorpho.data import augment_graph
 from deep_neuronmorpho.utils import Config
 
 from .evaluation import repeated_kfold_eval
@@ -30,7 +30,6 @@ class ContrastiveGraphModule(pl.LightningModule):
         cfg (Config): Configuration object containing model and training parameters.
         node_attrs (str): The key for node attributes in the graph data.
         loss_fn (NTXEntLoss): The contrastive loss function.
-        augmenter (GraphAugmenter): Object for performing graph augmentations.
         _best_train_loss (float): The best (lowest) training loss observed.
         _best_val_acc (float): The best (highest) validation accuracy observed.
         validation_step_outputs (list): Stores outputs from validation steps.
@@ -60,7 +59,6 @@ class ContrastiveGraphModule(pl.LightningModule):
         self.loss_fn = (
             loss_fn if loss_fn is not None else NTXEntLoss(self.cfg.training.contra_loss_temp)
         )
-        self.augmenter = GraphAugmenter(self.cfg.augmentation)
         self._best_train_loss = float("inf")
         self._best_val_acc = 0.0
         self.validation_step_outputs = []
@@ -82,15 +80,15 @@ class ContrastiveGraphModule(pl.LightningModule):
     def best_val_acc(self, value):
         self._best_val_acc = value
 
-    def compute_loss(self, batch_graphs: DGLGraph) -> torch.Tensor:
-        aug1_batch = self.augmenter.augment_batch(batch_graphs)
+    def compute_loss(self, batch_graphs: Batch) -> torch.Tensor:
+        aug1_batch = augment_graph(batch_graphs)
         aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs], is_training=True)
-        aug2_batch = self.augmenter.augment_batch(batch_graphs)
+        aug2_batch = augment_graph(batch_graphs)
         aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs], is_training=True)
         loss = self.loss_fn(aug1_embeds, aug2_embeds)
         return loss
 
-    def training_step(self, batch: tuple[DGLGraph, torch.Tensor]) -> torch.Tensor:
+    def training_step(self, batch: tuple[Batch, torch.Tensor]) -> torch.Tensor:
         batch_graphs = batch[0] if isinstance(batch, (list, tuple)) else batch
         loss = self.compute_loss(batch_graphs)
         self.log(
@@ -124,7 +122,7 @@ class ContrastiveGraphModule(pl.LightningModule):
             logger=self.logging,
         )
 
-    def validation_step(self, batch: tuple[DGLGraph, torch.Tensor]) -> None:
+    def validation_step(self, batch: tuple[Batch, torch.Tensor]) -> None:
         batch, labels = batch
         batch_feats = batch.ndata[self.node_attrs]
         model_output = self.model(batch, batch_feats, is_training=False)
