@@ -6,12 +6,14 @@ import yaml
 from pydantic import BaseModel
 
 
-class DatasetConfig(BaseModel):
+class DataConfig(BaseModel):
     """Paths to datasets for training, validation, and testing."""
 
-    dataset_root: str
-    train: str
-    evaluation: str | None = None
+    data_path: str
+    train_dataset: str
+    eval_dataset: str | None = None
+    num_nodes: int | None = None
+    feat_dim: int | None = None
 
 
 class GNNConfig(BaseModel):
@@ -52,50 +54,24 @@ class OptimizerConfig(BaseModel):
     scheduler: dict[str, str | int | float] | None = None  # kind, step_size, factor
 
 
-class Augmentation(BaseModel):
+class Augmentations(BaseModel):
     """Data augmentation methods and parameters.
 
     Example:
     ```yaml
     augmentation:
-      perturb:
-        jitter: 0.1
-      rotate: {}
-      drop_branches:
-        prop: 0.2
-        deg_power: 1.0
+      jitter: 0.1
+      translate: 1.0
+      rotate_axis: y
+      num_drop_branches: 10
     ```
     The order of augmentations is determined by the order in the dictionary.
     """
 
-    augmentations: dict[str, dict[str, float | int] | dict] = {}
-
-    def get_augmentation_list(self) -> list[str]:
-        """Return the list of augmentation names in the order they should be applied."""
-        return list(self.augmentations.keys())
-
-    def get_augmentation_params(self) -> dict:
-        """Return all augmentation parameters."""
-        return self.augmentations
-
-    def model_post_init(self, __context):
-        """Validate augmentation parameters after initialization."""
-        super().model_post_init(__context)
-
-        for aug_type, params in self.augmentations.items():
-            if aug_type == "perturb":
-                if not params or "jitter" not in params:
-                    raise ValueError(f"Perturb augmentation requires 'jitter' parameter: {params}")
-            elif aug_type == "rotate":
-                # rotate doesn't need parameters, an empty dict is valid
-                pass
-            elif aug_type == "drop_branches":
-                if not params or "prop" not in params:
-                    raise ValueError(
-                        f"Drop branches augmentation requires 'prop' parameter: {params}"
-                    )
-            else:
-                raise ValueError(f"Unknown augmentation type: {aug_type}")
+    jitter: float | None = None
+    translate: float | None = None
+    rotation_axis: str | None = None
+    num_drop_branches: int | None = None
 
 
 class Training(BaseModel):
@@ -117,16 +93,17 @@ class Config(BaseModel):
     """Main configuration class."""
 
     config_file: str | Path
-    datasets: DatasetConfig
+    data: DataConfig
     model: GNNConfig | GraphDINOConfig
     training: Training
-    augmentation: Augmentation | None = None
+    augmentations: Augmentations | None = None
 
     @classmethod
-    def from_yaml(cls, config_file: str | Path) -> "Config":
+    def load(cls, config_file: str | Path) -> "Config":
         """Load a configuration from a YAML file."""
         with open(config_file, "r", encoding="utf-8") as f:
             config_dict = yaml.safe_load(f)
+
         config_dict["config_file"] = config_file
 
         return cls(**config_dict)

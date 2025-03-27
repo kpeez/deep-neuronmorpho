@@ -1,12 +1,7 @@
-# model config
-dirs:
-  data: "../datasets/allen_cell_types/processed/"
-  logging: "../runs/demo_runs/macgnnv2_demo"
-
-datasets:
-  contra_train: "allen_cell_types-dimfeats17-self_loop"
-  eval_train: "allen_cell_types-dimfeats17-self_loop"
-  eval_test: "allen_cell_types-dimfeats17-self_loop"
+data:
+  data_path: "../datasets/processed/m1_patchseq/data"
+  train_dataset: "allen_cell_types-dimfeats17-self_loop"
+  eval_dataset: "allen_cell_types-dimfeats17-self_loop"
 
 model:
   name: "macgnn"
@@ -43,14 +38,8 @@ training:
   logging_steps: 1
 
 # Augmentation info
-augmentation:
-  order: [perturb, rotate, drop_branches]
-  params:
-    perturb:
-      prop: 0.5
-      std_noise: 2.0
-    rotate: {} # no args needed
-    drop_branches:
-      prop: 0.02
-      deg_power: 1.0
-      path_dist_idx: 4
+augmentations:
+  jitter: 1.0
+  translate: 10
+  rotation_axis: "y"
+  num_drop_branches: 10
