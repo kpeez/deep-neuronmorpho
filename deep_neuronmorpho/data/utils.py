@@ -286,7 +286,7 @@ def neighbors_to_adjacency_torch(
     return new_adj_matrix
 
 
-def compute_eig_lapl_torch_batch(adj_matrix: torch.Tensor, pos_enc_dim: int = 32) -> torch.Tensor:
+def compute_laplacian_eigenvectors(adj_matrix: torch.Tensor, pos_enc_dim: int = 32) -> torch.Tensor:
     """Compute positional encoding using graph laplacian.
         Adapted from https://github.com/graphdeeplearning/benchmarking-gnns/blob/ef8bd8c7d2c87948bc1bdd44099a52036e715cd0/data/molecules.py#L147-L168.
 
