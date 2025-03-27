@@ -4,10 +4,12 @@ import numpy as np
 import torch
 from torch.distributions.uniform import Uniform
 
+from deep_neuronmorpho.utils.model_config import Augmentations
 
-def perturb_node_positions(
+
+def jitter_node_positions(
     node_features: torch.Tensor,
-    std_noise: float,
+    jitter: float,
 ) -> torch.Tensor:
     """Shift node positions by adding Gaussian noise.
 
@@ -25,10 +27,30 @@ def perturb_node_positions(
     node_features = node_features.clone()
     node_features[:, :3] += torch.normal(
         mean=0,
-        std=std_noise,
+        std=jitter,
         size=(node_features.shape[0], 3),
         device=node_features.device,
     )
+    return node_features
+
+
+def translate_all_nodes(node_features: torch.Tensor, translate_var: float) -> torch.Tensor:
+    """Translate all nodes by a specified amount.
+
+    This augmentation shifts 3D coordinates of all points by adding a constant vector,
+    similar to PyTorch Geometric's RandomTranslate.
+
+    Args:
+        node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
+                       XYZ coordinates are assumed to be in the first 3 columns.
+        translate_var: Amount to translate each node.
+
+    Returns:
+        Augmented node features tensor.
+    """
+    jitter = torch.randn(3).numpy() * translate_var
+    node_features[:, :3] += jitter
+
     return node_features
 
 
@@ -87,53 +109,32 @@ def rotate_node_positions(node_features: torch.Tensor) -> torch.Tensor:
 def drop_branches(
     node_features: torch.Tensor,
     adjacency_list: torch.Tensor,
-    prop: float,
+    n_branches: int,
+    keep_nodes: int = 100,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Randomly drop a proportion of nodes from the graph.
+    """Randomly drop a specified number of branches from the graph.
 
-    This augmentation randomly selects nodes to drop based on a uniform distribution,
+    This augmentation randomly selects branches to drop from the leaf nodes,
     and removes them along with any affected edges.
 
     Args:
         node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
         adjacency_list: Tensor of shape (num_edges, 2) containing edge connections.
-        prop: Proportion of nodes to drop.
+        n_branches: Number of branches to drop.
+        keep_nodes: Minimum number of nodes to keep in graph.
 
     Returns:
         Tuple of (augmented node features, augmented adjacency list).
     """
-    if prop == 0.0:
-        return node_features, adjacency_list
-
-    num_nodes = node_features.shape[0]
-
-    # Generate random probability for each node based on position in the sequence
-    # (Higher indices more likely to be dropped) - simple approximation without path distance
-    node_indices = torch.arange(num_nodes, device=node_features.device).float()
-    drop_probs = node_indices + 1  # Add 1 to avoid 0^power = 0 for node 0
-    drop_probs[0] = 0.0  # Preserve the root node (index 0)
-    # normalize to get probabilities
-    drop_probs /= drop_probs.sum()
-    # select nodes to drop
-    drop_num = int(torch.ceil(num_nodes * torch.tensor(prop)).item())
-    drop_nodes = torch.multinomial(drop_probs, min(drop_num, num_nodes - 1), replacement=False)
-    # create a mask for nodes to keep
-    keep_mask = torch.ones(num_nodes, dtype=torch.bool, device=node_features.device)
-    keep_mask[drop_nodes] = False
-    # create a mapping from old to new indices for the kept nodes
-    idx_map = torch.zeros(num_nodes, dtype=torch.long, device=node_features.device)
-    idx_map[keep_mask] = torch.arange(keep_mask.sum(), device=node_features.device)
-    # filter edges to only include those between kept nodes
-    edge_mask = keep_mask[adjacency_list[:, 0]] & keep_mask[adjacency_list[:, 1]]
-    new_adjacency_list = idx_map[adjacency_list[edge_mask]]
-
-    return node_features[keep_mask], new_adjacency_list
+    # TODO: Implement this
+    raise NotImplementedError("Dropping branches is not implemented yet")
 
 
 def augment_graph(
     node_features: torch.Tensor,
     adjacency_list: torch.Tensor,
-    augmentations: dict[str, dict],
+    augmentations: Augmentations,
+    keep_nodes: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Apply a sequence of augmentations to node features and adjacency list.
 
@@ -146,16 +147,22 @@ def augment_graph(
     Returns:
         Tuple of (augmented node features, augmented adjacency list).
     """
-    for aug_type, params in augmentations.items():
-        if aug_type == "rotate":
-            node_features = rotate_node_positions(node_features)
-        elif aug_type == "perturb":
-            node_features = perturb_node_positions(node_features, std_noise=params["jitter"])
-        elif aug_type == "drop_branches":
-            node_features, adjacency_list = drop_branches(
-                node_features,
-                adjacency_list,
-                prop=params["prop"],
-            )
+
+    if augmentations.num_drop_branches is not None:
+        node_features, adjacency_list = drop_branches(
+            node_features,
+            adjacency_list,
+            n_branches=augmentations.num_drop_branches,
+            keep_nodes=keep_nodes,
+        )
+
+    if augmentations.jitter is not None:
+        node_features = jitter_node_positions(node_features, jitter=augmentations.jitter)
+
+    if augmentations.translate is not None:
+        node_features = translate_all_nodes(node_features, translate_var=augmentations.translate)
+
+    if augmentations.rotate_axis is not None:
+        node_features = rotate_node_positions(node_features, axis=augmentations.rotate_axis)
 
     return node_features, adjacency_list
