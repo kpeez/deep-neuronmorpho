@@ -129,14 +129,14 @@ def build_dataloader(cfg: Config):
     )
 
     train_loader = DataLoader(
-        NeuronGraphDataset(cfg),
+        NeuronGraphDataset(cfg, mode="train"),
         batch_size=cfg.training.batch_size,
         shuffle=True,
         drop_last=True,
         **kwargs,
     )
 
-    val_dataset = NeuronGraphDataset(cfg)
+    val_dataset = NeuronGraphDataset(cfg, mode="eval")
 
     batch_size = (
         val_dataset.num_samples
