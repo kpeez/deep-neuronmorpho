@@ -7,7 +7,7 @@ from typing import Any
 
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn, optim
 from torch_geometric.data import Dataset
@@ -117,6 +117,40 @@ def create_dataloader(
     return graph_loader
 
 
+def build_dataloader(cfg: Config):
+    kwargs = (
+        {
+            "num_workers": cfg.training.num_workers,
+            "pin_memory": True,
+            "persistent_workers": True,
+        }
+        if torch.cuda.is_available()
+        else {}
+    )
+
+    train_loader = DataLoader(
+        NeuronGraphDataset(cfg),
+        batch_size=cfg.training.batch_size,
+        shuffle=True,
+        drop_last=True,
+        **kwargs,
+    )
+
+    val_dataset = NeuronGraphDataset(cfg)
+
+    batch_size = (
+        val_dataset.num_samples
+        if len(val_dataset) < cfg.training.batch_size
+        else cfg.training.batch_size
+    )
+
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs
+    )
+
+    return train_loader, val_loader
+
+
 def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> dict[str, DataLoader]:
     """Create dataloaders for contrastive training and evaluation datasets.
 
@@ -129,7 +163,7 @@ def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> di
     Returns:
         dict[str, DataLoader]: Dictionary of dataloaders for each dataset.
     """
-    data_dir = cfg.dirs.data
+    data_dir = cfg.data.data_path
     graph_datasets = {
         dataset: NeuronGraphDataset(
             name=Path(f"{data_dir}/{getattr(cfg.data, dataset)}"), from_file=True
@@ -151,10 +185,12 @@ def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> di
 
 
 def setup_logging(cfg: Config) -> tuple[TensorBoardLogger, Path]:
-    runs = sorted(Path(cfg.dirs.logging).glob(f"{cfg.model.name}/run-*"))
+    runs = sorted(Path(cfg.training.logging_dir).glob(f"{cfg.model.name}/run-*"))
     run_number = int(runs[-1].name.split("-")[1]) + 1 if runs else 1
-    expt_id = f"run-{run_number:03d}-{cfg.model.name}-{cfg.data.contra_train.split('-')[0]}"
-    logger = TensorBoardLogger(save_dir=cfg.dirs.logging, name=cfg.model.name, version=expt_id)
+    expt_id = f"run-{run_number:03d}-{cfg.model.name}-{cfg.data.train_dataset.split('-')[0]}"
+    logger = TensorBoardLogger(
+        save_dir=cfg.training.logging_dir, name=cfg.model.name, version=expt_id
+    )
     run_dir = Path(logger.log_dir)
     ckpts_dir = run_dir / "ckpts"
     ckpts_dir.mkdir(parents=True, exist_ok=True)
@@ -175,14 +211,12 @@ def log_hyperparameters(logger: TensorBoardLogger, cfg: Config) -> None:
         "learning_rate": cfg.training.lr,
         "batch_size": cfg.training.batch_size,
         "max_steps": cfg.training.max_steps,
-        "loss_function": cfg.training.loss_fn,
-        "loss_temp": cfg.training.loss_temp,
     }
-    if cfg.training.lr_scheduler:
+    if cfg.training.optimizer.scheduler:
         lr_hparams = {
-            "lr_scheduler": cfg.training.lr_scheduler.kind,
-            "lr_decay_steps": cfg.training.lr_scheduler.step_size,
-            "lr_decay_rate": cfg.training.lr_scheduler.factor,
+            "lr_scheduler": cfg.training.optimizer.scheduler.kind,
+            "lr_decay_steps": cfg.training.optimizer.scheduler.step_size,
+            "lr_decay_rate": cfg.training.optimizer.scheduler.factor,
         }
         hparams.update(lr_hparams)
     logger.log_hyperparams(hparams)
@@ -196,16 +230,9 @@ def setup_callbacks(cfg: Config, ckpts_dir: Path) -> list:
         save_last=True,
         save_top_k=-1,
     )
-    early_stopping = (
-        EarlyStopping(
-            monitor="train_loss",
-            patience=cfg.training.patience,
-            mode="min",
-        )
-        if cfg.training.patience
-        else None
-    )
-    callbacks = [model_checkpoint, early_stopping] if early_stopping else [model_checkpoint]
+
+    callbacks = [model_checkpoint]
+
     return callbacks
 
 
