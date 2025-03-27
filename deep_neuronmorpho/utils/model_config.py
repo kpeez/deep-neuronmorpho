@@ -12,8 +12,8 @@ class DataConfig(BaseModel):
     data_path: str
     train_dataset: str
     eval_dataset: str | None = None
-    num_nodes: int
-    feat_dim: int
+    num_nodes: int | None = None
+    feat_dim: int | None = None
 
 
 class GNNConfig(BaseModel):
