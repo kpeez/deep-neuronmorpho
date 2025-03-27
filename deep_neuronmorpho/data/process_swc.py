@@ -32,7 +32,7 @@ class SWCData:
     Args:
         swc_file (str | Path): Path to the SWC file.
         standardize (bool, optional): Flag indicating whether to standardize the data. Defaults to True.
-        align (bool, optional): Flag indicating whether to align the data to principal axes. Defaults to True.
+        align (bool, optional): Flag indicating whether to align the data to principal axes. Defaults to False.
         resample_dist (float, optional): Value to downsample the data. Default is 1.0 (no downsampling).
 
     Attributes:
@@ -47,7 +47,7 @@ class SWCData:
         self,
         swc_file: str | Path,
         standardize: bool = True,
-        align: bool = True,
+        align: bool = False,
         resample_dist: float | None = None,
     ):
         self.swc_file = Path(swc_file)
@@ -115,7 +115,7 @@ class SWCData:
         return data
 
     @staticmethod
-    def standardize_swc(swc_data: pd.DataFrame, align: bool = True) -> pd.DataFrame:
+    def standardize_swc(swc_data: pd.DataFrame, align: bool = False) -> pd.DataFrame:
         """Standardize swc data to single node soma, PCA aligned axes, and centered at origin.
 
         1. Soma is collapsed to a single node (by placing a single node at the centroid of the
@@ -129,7 +129,7 @@ class SWCData:
 
         Args:
             swc_data (DataFrame): DataFrame of swc data.
-            align (bool, optional): Align to PCA axes. Defaults to True.
+            align (bool, optional): Align to PCA axes. Defaults to False.
 
         Returns:
             DataFrame: DataFrame of standardized swc data.
@@ -329,8 +329,8 @@ def main(
         is_flag=True,
     ),
     align: bool = Option(
-        True,
-        help="Use PCA to align the data. Default is True. Use --no-align to skip.",
+        False,
+        help="Use PCA to align the data. Default is False. Use --align to enable.",
         is_flag=True,
     ),
     resample_dist: float | None = Option(
@@ -376,7 +376,6 @@ def main(
         resample_dist (float, optional): Value to downsample the data. Default is 1.0 (no downsampling).
     """
 
-    # create output directories
     swc_folder_path = Path(swc_folder)
     output_dir = Path(output_dir) if output_dir else swc_folder_path.parents[0] / "output"
     output_dir.mkdir(exist_ok=True)
