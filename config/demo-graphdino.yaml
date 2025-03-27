@@ -1,8 +1,9 @@
-datasets:
-  dataset_path: "../datasets/processed/m1_patchseq/data"
-  train: "allen_cell_types-dimfeats17-self_loop"
-  evaluation: "allen_cell_types-dimfeats17-self_loop"
+data:
+  data_path: "../datasets/processed/m1_patchseq/data"
+  train_dataset: "allen_cell_types-dimfeats17-self_loop"
+  eval_dataset: "allen_cell_types-dimfeats17-self_loop"
   num_nodes: 200
+  feat_dim: 3
 
 model:
   num_classes: 1000

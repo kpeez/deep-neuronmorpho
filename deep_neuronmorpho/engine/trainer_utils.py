@@ -148,7 +148,7 @@ def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> di
     data_dir = cfg.dirs.data
     graph_datasets = {
         dataset: NeuronGraphDataset(
-            name=Path(f"{data_dir}/{getattr(cfg.datasets, dataset)}"), from_file=True
+            name=Path(f"{data_dir}/{getattr(cfg.data, dataset)}"), from_file=True
         )
         for dataset in datasets
     }
@@ -169,7 +169,7 @@ def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> di
 def setup_logging(cfg: Config) -> tuple[TensorBoardLogger, Path]:
     runs = sorted(Path(cfg.dirs.logging).glob(f"{cfg.model.name}/run-*"))
     run_number = int(runs[-1].name.split("-")[1]) + 1 if runs else 1
-    expt_id = f"run-{run_number:03d}-{cfg.model.name}-{cfg.datasets.contra_train.split('-')[0]}"
+    expt_id = f"run-{run_number:03d}-{cfg.model.name}-{cfg.data.contra_train.split('-')[0]}"
     logger = TensorBoardLogger(save_dir=cfg.dirs.logging, name=cfg.model.name, version=expt_id)
     run_dir = Path(logger.log_dir)
     ckpts_dir = run_dir / "ckpts"
