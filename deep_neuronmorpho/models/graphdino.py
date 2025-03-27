@@ -317,7 +317,7 @@ def create_model(cfg: Config):
 
     # Create encoder.
     transformer = GraphTransformer(
-        n_nodes=cfg.data.n_nodes,
+        n_nodes=cfg.data.num_nodes,
         dim=cfg.model.dim,
         depth=cfg.model.depth,
         num_heads=cfg.model.n_head,
