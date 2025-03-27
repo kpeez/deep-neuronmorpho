@@ -379,7 +379,7 @@ def main(
     swc_folder_path = Path(swc_folder)
     output_dir = Path(output_dir) if output_dir else swc_folder_path.parents[0] / "output"
     output_dir.mkdir(exist_ok=True)
-    cells_dir = output_dir / "cells"
+    cells_dir = output_dir / "data"
     cells_dir.mkdir(exist_ok=True)
     # setup logging
     log_file = output_dir / f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-swc_processing.log"
