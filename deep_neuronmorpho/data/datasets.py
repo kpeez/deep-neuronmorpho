@@ -29,18 +29,18 @@ from .utils import (
 
 
 class NeuronGraphDataset(Dataset):
-    """Dataset of neuronal graphs.
+    """Dataset of neuronal graphs for training GraphDINO.
 
     Neuronal graphs are assumed to be soma-centered (i.e. soma node
     position is (0, 0, 0) and axons have been removed. Node positions
     are assumed to be in microns and y-axis is orthogonal to the pia.
     """
 
-    def __init__(self, cfg: Config, inference=False):
+    def __init__(self, cfg: Config, mode="train"):
         self.cfg = cfg
-        self.inference = inference
-        data_path = Path(cfg.data.data_path)
-        print(data_path)
+        self.mode = mode
+        data_path = Path(cfg.data.data_path) / cfg.data.train_dataset
+        data_path = data_path.resolve()
         self.cell_files = sorted(data_path.glob("*.pkl"))
         self.num_samples = len(self.cell_files)
 
@@ -67,7 +67,7 @@ class NeuronGraphDataset(Dataset):
 
             assert len(features) == len(neighbors)
 
-            if len(features) >= self.n_nodes or self.inference:
+            if len(features) >= self.n_nodes or self.mode == "eval":
                 # Subsample graphs for faster processing during training.
                 neighbors, _ = subsample_graph(
                     neighbors=neighbors,
@@ -196,12 +196,12 @@ class NeuronGraphDataset(Dataset):
     def __getitem__(self, index):
         cell = self.cells[index]
 
-        if self.inference:
-            return cell["features"], cell["neighbors"], cell["cell_id"]
-        else:
-            # Compute two different views through augmentations.
+        if self.mode == "train":
+            # Compute two different views through augmentations
             features1, adj_matrix1 = self._augment(cell)
             features2, adj_matrix2 = self._augment(cell)
 
-            # Return features and adjacency matrices for GraphDINO
             return features1, features2, adj_matrix1, adj_matrix2
+
+        else:  # eval mode
+            return cell["features"], cell["neighbors"]
