@@ -73,11 +73,11 @@ def rotate_node_positions(node_features: torch.Tensor, axis: str | None = None) 
 
     if axis is not None:
         if axis == "x":
-            rotate_axis = torch.tensor([1, 0, 0], device=device)
+            rotation_axis = torch.tensor([1, 0, 0], dtype=torch.float32, device=device)
         elif axis == "y":
-            rotate_axis = torch.tensor([0, 1, 0], device=device)
+            rotation_axis = torch.tensor([0, 1, 0], dtype=torch.float32, device=device)
         elif axis == "z":
-            rotate_axis = torch.tensor([0, 0, 1], device=device)
+            rotation_axis = torch.tensor([0, 0, 1], dtype=torch.float32, device=device)
 
     # Generate rotation angle
     angle_dist = Uniform(0, np.pi)
@@ -85,7 +85,7 @@ def rotate_node_positions(node_features: torch.Tensor, axis: str | None = None) 
     cos_theta, sin_theta = torch.cos(theta), torch.sin(theta)
 
     # Orthonormal unit vector along rotation axis
-    u = rotate_axis / rotate_axis.norm()
+    u = rotation_axis / rotation_axis.norm()
 
     # Outer product of u with itself used to project vectors onto the plane perpendicular to u
     outer = torch.ger(u, u)
