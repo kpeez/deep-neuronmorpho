@@ -12,6 +12,8 @@ from typing import Any
 import torch
 from torch import nn
 
+from deep_neuronmorpho.utils.model_config import Config
+
 
 class GraphAttention(nn.Module):
     """Implements GraphAttention.
@@ -310,17 +312,17 @@ class GraphDINO(nn.Module):
         return loss
 
 
-def create_model(config):
-    num_classes = config["model"]["num_classes"]
+def create_model(cfg: Config):
+    num_classes = cfg.model.num_classes
 
     # Create encoder.
     transformer = GraphTransformer(
-        n_nodes=config["data"]["n_nodes"],
-        dim=config["model"]["dim"],
-        depth=config["model"]["depth"],
-        num_heads=config["model"]["n_head"],
-        feat_dim=config["data"]["feat_dim"],
-        pos_dim=config["model"]["pos_dim"],
+        n_nodes=cfg.data.n_nodes,
+        dim=cfg.model.dim,
+        depth=cfg.model.depth,
+        num_heads=cfg.model.n_head,
+        feat_dim=cfg.data.feat_dim,
+        pos_dim=cfg.model.pos_dim,
         num_classes=num_classes,
     )
 
@@ -328,9 +330,9 @@ def create_model(config):
     model = GraphDINO(
         transformer,
         num_classes=num_classes,
-        moving_average_decay=config["model"]["move_avg"],
-        center_moving_average_decay=config["model"]["center_avg"],
-        teacher_temp=config["model"]["teacher_temp"],
+        moving_average_decay=cfg.model.move_avg,
+        center_moving_average_decay=cfg.model.center_avg,
+        teacher_temp=cfg.model.teacher_temp,
     )
 
     return model
