@@ -1,12 +1,10 @@
 """Utilities for working with and tracking the training process."""
 
-import random
 import shutil
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
@@ -16,24 +14,10 @@ from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from deep_neuronmorpho.data import NeuronGraphDataset
-from deep_neuronmorpho.models import MACGNN
+from deep_neuronmorpho.models import MACGNN, create_graphdino
 from deep_neuronmorpho.utils import Config
 
 from .ntxent_loss import NTXEntLoss
-
-
-def setup_seed(seed: int) -> None:
-    """Set the random seed for reproducibility.
-
-    Args:
-        seed (int, optional): The random seed to set.
-    """
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
 
 
 def create_optimizer(
@@ -246,9 +230,9 @@ def create_trainer(
 
 
 def create_model(name: str, cfg: Config) -> torch.nn.Module:
-    model_loaders = {"macgnn": MACGNN}
+    model_loaders = {"graphdino": create_graphdino, "macgnn": MACGNN}
 
-    return model_loaders[name.lower()](cfg.model)
+    return model_loaders[name.lower()](cfg)
 
 
 def create_loss_fn(name: str, **kwargs):
