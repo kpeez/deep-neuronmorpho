@@ -10,5 +10,4 @@ from .trainer_utils import (
     setup_callbacks,
     setup_dataloaders,
     setup_logging,
-    setup_seed,
 )
