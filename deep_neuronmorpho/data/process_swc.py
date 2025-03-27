@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+import torch
 from morphopy.neurontree import NeuronTree as nt
 from morphopy.neurontree.utils import get_standardized_swc
 from sklearn.decomposition import PCA
@@ -228,13 +229,18 @@ class SWCData:
         features = np.zeros((len(nodes), 4))
         # use undirected graph for neighbor lookup
         adj = nx.to_numpy_array(self._ntree.get_graph().to_undirected())
+        edge_index = np.array(np.nonzero(adj))
         neighbors = {}
         for i, node in enumerate(nodes):
             features[i, :3] = positions[node]
             features[i, 3] = types[node]
-            neighbors[i] = set(np.where(adj[i] == 1)[0])
+            neighbors[i] = set(edge_index[0, edge_index[1] == i])
 
-        return {"features": features, "neighbors": neighbors}
+        return {
+            "features": torch.tensor(features, dtype=torch.float32),
+            "edge_index": torch.tensor(edge_index, dtype=torch.long),
+            "neighbors": neighbors,
+        }
 
     def save_pickle(self, file_name: str | Path) -> None:
         """Save neuron as a pickle file.
