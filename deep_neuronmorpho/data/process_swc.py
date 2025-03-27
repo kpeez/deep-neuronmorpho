@@ -86,7 +86,6 @@ class SWCData:
 
         Raises:
             AssertionError: If no dendrites are connected to the soma.
-
         """
         with open(swc_file, "r", encoding="utf-8") as file:
             lines = file.readlines()
@@ -387,7 +386,7 @@ def main(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
         handlers=[
-            logging.FileHandler(log_file),  # Log everything to file
+            logging.FileHandler(log_file),
         ],
     )
     console = logging.StreamHandler()
