@@ -162,6 +162,9 @@ def subsample_graph(
     # protect soma node from being removed
     protected = set(protected)
 
+    # Set fixed seed for reproducibility
+    torch.manual_seed(42)
+
     # indices as set in random order
     perm = torch.randperm(k_nodes).tolist()
     all_indices = np.array(list(not_deleted))[perm].tolist()
@@ -172,6 +175,7 @@ def subsample_graph(
             if len(all_indices) == 0:
                 assert len(not_deleted) > keep_nodes, len(not_deleted)
                 remaining = list(not_deleted - deleted)
+                torch.manual_seed(42)  # Reset seed for consistency
                 perm = torch.randperm(len(remaining)).tolist()
                 all_indices = np.array(remaining)[perm].tolist()
 
