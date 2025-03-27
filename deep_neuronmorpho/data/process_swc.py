@@ -1,7 +1,9 @@
 """Process SWC files."""
 
 import logging
+import os
 import pickle
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime as dt
 from pathlib import Path
 from typing import Any
@@ -13,9 +15,8 @@ import pandas as pd
 from morphopy.neurontree import NeuronTree as nt
 from morphopy.neurontree.utils import get_standardized_swc
 from sklearn.decomposition import PCA
+from tqdm import tqdm
 from typer import Argument, Option, Typer
-
-from deep_neuronmorpho.utils import ProgressBar
 
 app = Typer()
 
@@ -261,6 +262,61 @@ class SWCData:
         return f"SWCData(swc_file={self.swc_file}, standardize={self._data is not self._raw_data})"
 
 
+def process_swc_file(args):
+    """Process a single SWC file.
+
+    Args:
+        args: Tuple containing (swc_file, standardize, align, resample_dist, drop_axon, format, cells_dir)
+
+    Returns:
+        dict containing:
+            - 'filename': Name of the SWC file
+            - 'status': 'success' or 'error'
+            - 'output': Output message or None if successful
+            - 'error': Error message or None if successful
+    """
+    swc_file, standardize, align, resample_dist, drop_axon, file_format, cells_dir = args
+    try:
+        output_stem = cells_dir / swc_file.stem
+        swc_data = SWCData(
+            swc_file,
+            standardize=standardize,
+            align=align,
+            resample_dist=resample_dist,
+        )
+
+        if resample_dist is not None and file_format.lower() == "swc":
+            output_stem = output_stem.with_name(
+                f"{output_stem.name}-resampled_{round(resample_dist)}um"
+            )
+
+        if drop_axon:
+            swc_data.remove_axon()
+            if file_format.lower() == "swc":
+                output_stem = output_stem.with_name(f"{output_stem.name}-no_axon")
+
+        if file_format.lower() in {"pickle", "pkl"}:
+            swc_data.save_pickle(output_stem)
+            logging.info(f"Processed: {swc_file.name} → {output_stem.name}.pkl")
+        else:
+            swc_data.save_swc(output_stem)
+            logging.info(f"Processed: {swc_file.name} → {output_stem.name}.swc")
+
+        return {
+            "filename": swc_file.name,
+            "status": "success",
+            "output": f"{swc_file.name} → {output_stem.name}.{file_format.lower()}",
+            "error": None,
+        }
+    except Exception as e:
+        return {
+            "filename": swc_file.name,
+            "status": "error",
+            "output": None,
+            "error": str(e),
+        }
+
+
 @app.command()
 def main(
     swc_folder: str = Argument(
@@ -290,17 +346,23 @@ def main(
         help="Remove axon nodes from the reconstruction.",
         is_flag=True,
     ),
-    export_dir: str | None = Option(
+    output_dir: str | None = Option(
         None,
-        "-e",
-        "--export-dir",
+        "-o",
+        "--output-dir",
         help="Path to directory to save processed SWC files. Default is `swc_folder`/output.",
     ),
-    format: str = Option(
+    file_format: str = Option(
         "pkl",
         "-f",
         "--format",
         help="Output format: 'swc' for SWC files or 'pkl' for pickle files. If 'pkl', then the node features and a neighbor mapping is saved.  If 'swc', then a new .swc file is created.",
+    ),
+    num_workers: int = Option(
+        None,
+        "-n",
+        "--num-workers",
+        help="Number of worker processes to use. Default is number of CPU cores.",
     ),
 ) -> None:
     """Process SWC file.
@@ -316,7 +378,7 @@ def main(
 
     # create output directories
     swc_folder_path = Path(swc_folder)
-    output_dir = Path(export_dir) if export_dir else swc_folder_path.parents[0] / "output"
+    output_dir = Path(output_dir) if output_dir else swc_folder_path.parents[0] / "output"
     output_dir.mkdir(exist_ok=True)
     cells_dir = output_dir / "cells"
     cells_dir.mkdir(exist_ok=True)
@@ -334,15 +396,18 @@ def main(
     console.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
     logging.getLogger().addHandler(console)
 
-    # Log run parameters
-    logging.info("PROCESSING PARAMETERS:")
-    logging.info(f"Input folder: {swc_folder_path}")
-    logging.info(f"Output directory: {output_dir}")
-    logging.info(f"File format: {format}")
-    logging.info(f"Standardize data: {standardize}")
-    logging.info(f"PCA alignment: {align}")
-    logging.info(f"Resample distance: {resample_dist}")
-    logging.info(f"Remove axon: {drop_axon}")
+    processing_params = f"""
+    PROCESSING PARAMETERS:
+    Input folder: {swc_folder_path}
+    Output directory: {output_dir}
+    File format: {file_format}
+    Standardize data: {standardize}
+    PCA alignment: {align}
+    Resample distance: {resample_dist}
+    Remove axon: {drop_axon}
+    Number of workers: {num_workers or os.cpu_count()}
+    """
+    logging.info(processing_params)
 
     swc_files_list = list(swc_folder_path.glob("*.swc"))
     if not swc_files_list:
@@ -351,41 +416,25 @@ def main(
 
     logging.info(f"Found {len(swc_files_list)} SWC files to process")
 
-    # Process files
-    failed_files = []
+    process_args = [
+        (f, standardize, align, resample_dist, drop_axon, file_format, cells_dir)
+        for f in swc_files_list
+    ]
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        results = []
+        with tqdm(total=len(swc_files_list), desc="Processing neurons: ") as pbar:
+            for result in executor.map(process_swc_file, process_args):
+                if result["status"] == "success":
+                    logging.info(f"Processed: {result['output']}")
+                else:
+                    logging.error(f"Error processing {result['filename']}: {result['error']}")
+                results.append(result)
+                pbar.update(1)
 
-    for swc_file in ProgressBar(swc_files_list, desc="Processing neurons: "):
-        try:
-            output_stem = cells_dir / swc_file.stem
-            swc_data = SWCData(
-                swc_file,
-                standardize=standardize,
-                align=align,
-                resample_dist=resample_dist,
-            )
-
-            if resample_dist is not None and format.lower() == ".swc":
-                output_stem = output_stem.with_name(
-                    f"{output_stem.name}-resampled_{round(resample_dist)}um"
-                )
-
-            if drop_axon and format.lower() == ".swc":
-                swc_data.remove_axon()
-                output_stem = output_stem.with_name(f"{output_stem.name}-no_axon")
-
-            if format.lower() in {"pickle", "pkl"}:
-                swc_data.save_pickle(output_stem)
-                logging.info(f"Processed: {swc_file.name} → {output_stem.name}.pkl")
-            else:
-                swc_data.save_swc(output_stem)
-                logging.info(f"Processed: {swc_file.name} → {output_stem.name}.swc")
-
-        except Exception as e:
-            logging.error(f"Error processing {swc_file.name}: {e}")
-            failed_files.append((swc_file.name, str(e)))
-
-    # Print summary
-    extension = ".pkl" if format.lower() in {"pickle", "pkl"} else ".swc"
+    failed_files = [
+        (result["filename"], result["error"]) for result in results if result["error"] is not None
+    ]
+    extension = ".pkl" if file_format.lower() in {"pickle", "pkl"} else ".swc"
     num_processed = len(list(cells_dir.glob(f"*{extension}")))
 
     summary = [
