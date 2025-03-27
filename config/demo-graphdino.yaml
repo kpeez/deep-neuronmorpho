@@ -6,6 +6,7 @@ data:
   feat_dim: 3
 
 model:
+  name: "graphdino"
   num_classes: 1000
   dim: 32
   depth: 7

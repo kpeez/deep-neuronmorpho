@@ -19,6 +19,7 @@ class DataConfig(BaseModel):
 class GNNConfig(BaseModel):
     """Model architecture and hyperparameters for GNN model."""
 
+    name: str
     num_gnn_layers: int
     hidden_dim: int
     output_dim: int
@@ -36,6 +37,7 @@ class GNNConfig(BaseModel):
 class GraphDINOConfig(BaseModel):
     """Model architecture and hyperparameters for GraphDINO model."""
 
+    name: str
     num_classes: int
     dim: int
     depth: int
