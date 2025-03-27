@@ -312,7 +312,7 @@ class GraphDINO(nn.Module):
         return loss
 
 
-def create_model(cfg: Config):
+def create_graphdino(cfg: Config):
     num_classes = cfg.model.num_classes
 
     # Create encoder.
