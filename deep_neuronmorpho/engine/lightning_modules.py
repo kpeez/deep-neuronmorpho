@@ -50,9 +50,9 @@ class GraphDINOLightningModule(pl.LightningModule):
         self.config = config
 
         # Training parameters from config
-        self.max_iter = config["optimizer"]["max_iter"]
-        self.init_lr = config["optimizer"]["lr"]
-        self.exp_decay = config["optimizer"]["exp_decay"]
+        self.max_iter = config.optimizer["max_iter"]
+        self.init_lr = config.optimizer["lr"]
+        self.exp_decay = 0.5  # from original implementation
         self.warmup_steps = self.max_iter // 50
         self.lr_decay_steps = self.max_iter // 5
 
