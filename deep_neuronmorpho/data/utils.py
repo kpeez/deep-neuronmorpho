@@ -284,3 +284,36 @@ def neighbors_to_adjacency_torch(
             new_adj_matrix[j, i] = True
 
     return new_adj_matrix
+
+
+def compute_eig_lapl_torch_batch(adj_matrix: torch.Tensor, pos_enc_dim: int = 32) -> torch.Tensor:
+    """Compute positional encoding using graph laplacian.
+        Adapted from https://github.com/graphdeeplearning/benchmarking-gnns/blob/ef8bd8c7d2c87948bc1bdd44099a52036e715cd0/data/molecules.py#L147-L168.
+
+    Args:
+        adj_matrix: Adjacency matrix (B x N x N).
+        pos_enc_dim: Output dimensions of positional encoding.
+    """
+    b, n, _ = adj_matrix.size()
+    # laplacian
+    A = adj_matrix.float()
+    degree_matrix = A.sum(axis=1).clip(1)
+    N = torch.diag_embed(degree_matrix**-0.5)
+    L = torch.eye(n, device=A.device)[None,].repeat(b, 1, 1) - (N @ A) @ N
+    # eigenvectors
+    _, eig_vec = torch.linalg.eigh(L)
+    eig_vec = torch.flip(eig_vec, dims=[2])
+    pos_enc = eig_vec[:, :, 1 : pos_enc_dim + 1]
+
+    if pos_enc.size(2) < pos_enc_dim:
+        pos_enc = torch.cat(
+            [
+                pos_enc,
+                torch.zeros(
+                    pos_enc.size(0), pos_enc.size(1), pos_enc_dim - pos_enc.size(2), device=A.device
+                ),
+            ],
+            dim=2,
+        )
+
+    return pos_enc
