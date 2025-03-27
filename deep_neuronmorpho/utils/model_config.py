@@ -82,7 +82,7 @@ class Training(BaseModel):
     logging_dir: str
     max_steps: int | None = None
     batch_size: int
-    loss_fn: str
+    loss_fn: str | None = None
     loss_temp: float | None = None
     eval_interval: int | None = None
     optimizer: OptimizerConfig
