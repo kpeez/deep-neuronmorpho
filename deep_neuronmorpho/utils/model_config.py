@@ -86,7 +86,7 @@ class Training(BaseModel):
     loss_temp: float | None = None
     eval_interval: int | None = None
     optimizer: OptimizerConfig
-    patience: int | None = None
+    num_workers: int | None = None
     random_state: int | None = None
     logging_steps: int = 100
 
