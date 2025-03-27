@@ -207,16 +207,16 @@ def log_hyperparameters(logger: TensorBoardLogger, cfg: Config) -> None:
     """
     hparams = {
         "model_name": cfg.model.name,
-        "optimizer": cfg.training.optimizer,
-        "learning_rate": cfg.training.lr,
+        "optimizer": cfg.training.optimizer.name,
+        "learning_rate": cfg.training.optimizer.lr,
         "batch_size": cfg.training.batch_size,
         "max_steps": cfg.training.max_steps,
     }
     if cfg.training.optimizer.scheduler:
         lr_hparams = {
-            "lr_scheduler": cfg.training.optimizer.scheduler.kind,
-            "lr_decay_steps": cfg.training.optimizer.scheduler.step_size,
-            "lr_decay_rate": cfg.training.optimizer.scheduler.factor,
+            "lr_scheduler": cfg.training.optimizer.scheduler["kind"],
+            "lr_decay_steps": cfg.training.optimizer.scheduler["step_size"],
+            "lr_decay_rate": cfg.training.optimizer.scheduler["factor"],
         }
         hparams.update(lr_hparams)
     logger.log_hyperparams(hparams)
