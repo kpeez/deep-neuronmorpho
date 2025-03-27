@@ -54,11 +54,10 @@ def translate_all_nodes(node_features: torch.Tensor, translate_var: float) -> to
     return node_features
 
 
-def rotate_node_positions(node_features: torch.Tensor) -> torch.Tensor:
+def rotate_node_positions(node_features: torch.Tensor, axis: str | None = None) -> torch.Tensor:
     """Perform a random 3D rotation on node coordinates.
 
-    This augmentation generates a random rotation axis and random rotation angle,
-    and creates a rotation matrix that rotates the input tensor along the given axis.
+    This augmentation rotates the input tensor along the given axis, using [Rodrigues' rotation formula](https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula).
 
     Args:
         node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
@@ -67,13 +66,18 @@ def rotate_node_positions(node_features: torch.Tensor) -> torch.Tensor:
     Returns:
         Augmented node features tensor with rotated XYZ coordinates.
     """
-    node_features = node_features.clone()
+    if axis is None:
+        return node_features
+
     device = node_features.device
 
-    # Make sure we get a rotation axis
-    rotate_axis = torch.tensor([0, 0, 0], device=device)
-    while rotate_axis.sum() == 0:
-        rotate_axis = torch.randint(2, (3,), device=device).float()
+    if axis is not None:
+        if axis == "x":
+            rotate_axis = torch.tensor([1, 0, 0], device=device)
+        elif axis == "y":
+            rotate_axis = torch.tensor([0, 1, 0], device=device)
+        elif axis == "z":
+            rotate_axis = torch.tensor([0, 0, 1], device=device)
 
     # Generate rotation angle
     angle_dist = Uniform(0, np.pi)
