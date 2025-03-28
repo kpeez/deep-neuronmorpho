@@ -47,11 +47,9 @@ class GraphDINOLightningModule(pl.LightningModule):
         """
         super().__init__()
         self.model = model
-        self.config = config
-
-        # Training parameters from config
-        self.max_iter = config.optimizer["max_iter"]
-        self.init_lr = config.optimizer["lr"]
+        self.cfg = config
+        self.max_iter = self.cfg.training.max_steps
+        self.init_lr = self.cfg.training.optimizer.lr
         self.exp_decay = 0.5  # from original implementation
         self.warmup_steps = self.max_iter // 50
         self.lr_decay_steps = self.max_iter // 5
@@ -304,15 +302,15 @@ class ContrastiveGraphModule(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = create_optimizer(
             model=self.model,
-            optimizer_name=self.cfg.training.optimizer,
-            lr=self.cfg.training.lr,
+            optimizer_name=self.cfg.training.optimizer.name,
+            lr=self.cfg.training.optimizer.lr,
         )
-        if self.cfg.training.lr_scheduler is not None:
+        if self.cfg.training.optimizer.scheduler is not None:
             scheduler = create_scheduler(
-                kind=self.cfg.training.lr_scheduler.kind,
+                kind=self.cfg.training.optimizer.scheduler["kind"],
                 optimizer=optimizer,
-                step_size=self.cfg.training.lr_scheduler.step_size,
-                factor=self.cfg.training.lr_scheduler.factor,
+                step_size=self.cfg.training.optimizer.scheduler["step_size"],
+                factor=self.cfg.training.optimizer.scheduler["factor"],
             )
             return {"optimizer": optimizer, "lr_scheduler": scheduler}
         return optimizer
