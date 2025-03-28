@@ -1,40 +1,23 @@
 """Utilities for working with and tracking the training process."""
 
-import random
 import shutil
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytorch_lightning as pl
 import torch
-from dgl.data import DGLDataset
-from dgl.dataloading import GraphDataLoader
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn, optim
+from torch_geometric.data import Dataset
+from torch_geometric.loader import DataLoader
 
 from deep_neuronmorpho.data import NeuronGraphDataset
-from deep_neuronmorpho.models import MACGNN, MACGNNv2
+from deep_neuronmorpho.models import MACGNN, create_graphdino
 from deep_neuronmorpho.utils import Config
-from deep_neuronmorpho.utils.model_config import Model
 
 from .ntxent_loss import NTXEntLoss
-
-
-def setup_seed(seed: int) -> None:
-    """Set the random seed for reproducibility.
-
-    Args:
-        seed (int, optional): The random seed to set.
-    """
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
 
 
 def create_optimizer(
@@ -104,16 +87,16 @@ def create_scheduler(
 
 
 def create_dataloader(
-    graph_dataset: DGLDataset,
+    graph_dataset: Dataset,
     batch_size: int,
     shuffle: bool = True,
     drop_last: bool = True,
     **kwargs: Any,
-) -> GraphDataLoader:
+) -> DataLoader:
     """Create dataloaders for training and validation datasets.
 
     Args:
-        graph_dataset (DGLDataset): Graph dataset.
+        graph_dataset (Dataset): Graph dataset.
         batch_size (int): Batch size.
         shuffle (bool): Whether to shuffle the training data. Defaults to True.
         drop_last (bool): Whether to drop the last batch if it is smaller than the batch size.
@@ -123,7 +106,7 @@ def create_dataloader(
     Returns:
         GraphDataLoader: Dataloader of graph dataset.
     """
-    graph_loader = GraphDataLoader(
+    graph_loader = DataLoader(
         graph_dataset,
         batch_size=batch_size,
         shuffle=shuffle,
@@ -134,24 +117,56 @@ def create_dataloader(
     return graph_loader
 
 
-def setup_dataloaders(
-    conf: Config, datasets: Sequence[str], **kwargs: Any
-) -> dict[str, GraphDataLoader]:
+def build_dataloader(cfg: Config):
+    kwargs = (
+        {
+            "num_workers": cfg.training.num_workers,
+            "pin_memory": True,
+            "persistent_workers": True,
+        }
+        if torch.cuda.is_available()
+        else {}
+    )
+
+    train_loader = DataLoader(
+        NeuronGraphDataset(cfg, mode="train"),
+        batch_size=cfg.training.batch_size,
+        shuffle=True,
+        drop_last=True,
+        **kwargs,
+    )
+
+    val_dataset = NeuronGraphDataset(cfg, mode="eval")
+
+    batch_size = (
+        val_dataset.num_samples
+        if len(val_dataset) < cfg.training.batch_size
+        else cfg.training.batch_size
+    )
+
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs
+    )
+
+    return train_loader, val_loader
+
+
+def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> dict[str, DataLoader]:
     """Create dataloaders for contrastive training and evaluation datasets.
 
     Args:
-        conf (Config): Model configuration.
+        cfg (Config): Model configuration.
         datasets (Sequence[str]): List of dataset names from model configuration.
         kwargs: Additional keyword arguments to pass to the parent torch.utils.data.DataLoader
         arguments such as num_workers, pin_memory, etc.
 
     Returns:
-        dict[str, GraphDataLoader]: Dictionary of dataloaders for each dataset.
+        dict[str, DataLoader]: Dictionary of dataloaders for each dataset.
     """
-    data_dir = conf.dirs.data
+    data_dir = cfg.data.data_path
     graph_datasets = {
         dataset: NeuronGraphDataset(
-            name=Path(f"{data_dir}/{getattr(conf.datasets, dataset)}"), from_file=True
+            name=Path(f"{data_dir}/{getattr(cfg.data, dataset)}"), from_file=True
         )
         for dataset in datasets
     }
@@ -159,7 +174,7 @@ def setup_dataloaders(
     for dataset, graph_dataset in graph_datasets.items():
         dataloaders[dataset] = create_dataloader(
             graph_dataset=graph_dataset,
-            batch_size=conf.training.batch_size if "eval" not in dataset else 16,
+            batch_size=cfg.training.batch_size if "eval" not in dataset else 16,
             shuffle="eval" not in dataset,
             drop_last="eval" not in dataset,
             persistent_workers=True,
@@ -169,92 +184,82 @@ def setup_dataloaders(
     return dataloaders
 
 
-def setup_logging(conf: Config) -> tuple[TensorBoardLogger, Path]:
-    runs = sorted(Path(conf.dirs.logging).glob(f"{conf.model.name}/run-*"))
+def setup_logging(cfg: Config) -> tuple[TensorBoardLogger, Path]:
+    runs = sorted(Path(cfg.training.logging_dir).glob(f"{cfg.model.name}/run-*"))
     run_number = int(runs[-1].name.split("-")[1]) + 1 if runs else 1
-    expt_id = f"run-{run_number:03d}-{conf.model.name}-{conf.datasets.contra_train.split('-')[0]}"
-    logger = TensorBoardLogger(save_dir=conf.dirs.logging, name=conf.model.name, version=expt_id)
+    expt_id = f"run-{run_number:03d}-{cfg.model.name}-{cfg.data.train_dataset.split('-')[0]}"
+    logger = TensorBoardLogger(
+        save_dir=cfg.training.logging_dir, name=cfg.model.name, version=expt_id
+    )
     run_dir = Path(logger.log_dir)
     ckpts_dir = run_dir / "ckpts"
     ckpts_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(conf.config_file, run_dir / f"{expt_id}_config.yaml")
+    shutil.copy(cfg.config_file, run_dir / f"{expt_id}_config.yaml")
     return logger, ckpts_dir
 
 
-def log_hyperparameters(logger: TensorBoardLogger, conf: Config) -> None:
+def log_hyperparameters(logger: TensorBoardLogger, cfg: Config) -> None:
     """Log hyperparameters to TensorBoard.
 
     Args:
         logger (TensorBoardLogger): The TensorBoard logger.
-        conf (Config): The configuration object.
+        cfg (Config): The configuration object.
     """
     hparams = {
-        "model_name": conf.model.name,
-        "optimizer": conf.training.optimizer,
-        "learning_rate": conf.training.lr,
-        "batch_size": conf.training.batch_size,
-        "max_steps": conf.training.max_steps,
-        "loss_function": conf.training.loss_fn,
-        "loss_temp": conf.training.loss_temp,
+        "model_name": cfg.model.name,
+        "optimizer": cfg.training.optimizer.name,
+        "learning_rate": cfg.training.optimizer.lr,
+        "batch_size": cfg.training.batch_size,
+        "max_steps": cfg.training.max_steps,
     }
-    if conf.training.lr_scheduler:
+    if cfg.training.optimizer.scheduler:
         lr_hparams = {
-            "lr_scheduler": conf.training.lr_scheduler.kind,
-            "lr_decay_steps": conf.training.lr_scheduler.step_size,
-            "lr_decay_rate": conf.training.lr_scheduler.factor,
+            "lr_scheduler": cfg.training.optimizer.scheduler["kind"],
+            "lr_decay_steps": cfg.training.optimizer.scheduler["step_size"],
+            "lr_decay_rate": cfg.training.optimizer.scheduler["factor"],
         }
         hparams.update(lr_hparams)
     logger.log_hyperparams(hparams)
 
 
-def setup_callbacks(conf: Config, ckpts_dir: Path) -> list:
+def setup_callbacks(cfg: Config, ckpts_dir: Path) -> list:
     model_checkpoint = ModelCheckpoint(
         dirpath=ckpts_dir,
         filename="{step:07d}-{train_loss:.2f}",
-        every_n_train_steps=conf.training.logging_steps,
+        every_n_train_steps=cfg.training.logging_steps,
         save_last=True,
         save_top_k=-1,
     )
-    early_stopping = (
-        EarlyStopping(
-            monitor="train_loss",
-            patience=conf.training.patience,
-            mode="min",
-        )
-        if conf.training.patience
-        else None
-    )
-    callbacks = [model_checkpoint, early_stopping] if early_stopping else [model_checkpoint]
+
+    callbacks = [model_checkpoint]
+
     return callbacks
 
 
 def create_trainer(
-    conf: Config,
+    cfg: Config,
     logger: TensorBoardLogger,
     callbacks: list[pl.Callback],
     **kwargs,
 ) -> pl.Trainer:
     return pl.Trainer(
-        max_steps=conf.training.max_steps,
+        max_steps=cfg.training.max_steps,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
         devices="auto",
         deterministic=True,
         logger=logger,
         num_sanity_val_steps=0,
-        val_check_interval=conf.training.eval_interval,
-        log_every_n_steps=conf.training.logging_steps,
+        val_check_interval=cfg.training.eval_interval,
+        log_every_n_steps=cfg.training.logging_steps,
         callbacks=callbacks,
         **kwargs,
     )
 
 
-def create_model(name: str, conf: Model) -> torch.nn.Module:
-    model_loaders = {
-        "macgnnv2": MACGNNv2,
-        "macgnn": MACGNN,
-    }
+def create_model(name: str, cfg: Config) -> torch.nn.Module:
+    model_loaders = {"graphdino": create_graphdino, "macgnn": MACGNN}
 
-    return model_loaders[name.lower()](conf)
+    return model_loaders[name.lower()](cfg)
 
 
 def create_loss_fn(name: str, **kwargs):

@@ -1,20 +1,12 @@
 """Create training, validation, and test splits of the dataset."""
 
-import random
-import shutil
+from collections import deque
 from collections.abc import Sequence
-from pathlib import Path
 
 import networkx as nx
 import numpy as np
-import pandas as pd
 import torch
-from dgl import DGLGraph
 from scipy import stats
-from sklearn.preprocessing import LabelEncoder
-from torch import Tensor
-
-from deep_neuronmorpho.utils import ProgressBar
 
 
 def compute_edge_weights(G: nx.DiGraph, path_idx: int, epsilon: float = 1.0) -> nx.DiGraph:
@@ -77,127 +69,251 @@ def compute_graph_attrs(graph_attrs: Sequence[float]) -> list[float]:
     return attr_stats
 
 
-def graph_is_broken(graph: DGLGraph) -> bool:
-    """Determines if a graph is broken by checking if any node attributes are NaN.
+def find_leaf_nodes(neighbors: dict[int, list[int]]) -> list[int]:
+    """
+    Create list of candidates for leaf and branching nodes.
+    Identifies all leaf nodes (degree 1) and follows branch paths (degree 2)
+    to create a collection of all terminal structures in the neuron.
 
     Args:
-        graph (DGLGraph): The graph to check.
+        neighbors: dict of neighbors per node
 
     Returns:
-        bool: True if the graph is broken, False otherwise.
+        List of node IDs representing leaf nodes and their connecting pathways
     """
-    g_ndata = graph.ndata["nattrs"]
-    nan_indices = torch.nonzero(torch.isnan(g_ndata))
+    node_degrees = {node: len(neighbors[node]) for node in neighbors}
+    leafs = [node for node, degree in node_degrees.items() if degree == 1]
+    candidates = set(leafs)
+    # find all nodes with degree 2 that are not in candidates
+    next_nodes = deque()
+    for leaf in leafs:
+        for neighbor in neighbors[leaf]:
+            if node_degrees[neighbor] == 2 and neighbor not in candidates:
+                next_nodes.append(neighbor)
 
-    return len(nan_indices[:, 1].unique()) > 0
+    while next_nodes:
+        current = next_nodes.popleft()
+        candidates.add(current)
+
+        for neighbor in neighbors[current]:
+            if (
+                node_degrees[neighbor] == 2
+                and neighbor not in candidates
+                and neighbor not in next_nodes
+            ):
+                next_nodes.append(neighbor)
+
+    return list(candidates)
 
 
-def add_graph_labels(label_file: str | Path, graphs: Sequence[DGLGraph]) -> tuple[Tensor, dict]:
-    """Add graph labels to the dataset.
-
-    Note: The label file should be a CSV file with columns 'neuron_name' and 'label'. Other column names are ignored.
+def compute_path_lengths(source_idx: int, neighbors: dict[int, list[int]]) -> dict[int, int]:
+    """
+    Computes shortest path distances from a source node to all reachable nodes.
+    Uses breadth-first search to find the minimum number of edges between nodes.
 
     Args:
-        label_file (str | Path): Path to the label file.
-        graphs (Sequence[DGLGraph]): List of graphs in the dataset.
+        source_idx: Index of the source node
+        neighbors: Dictionary mapping node indices to their neighbor indices
 
     Returns:
-        tuple[torch.Tensor, dict]: A tuple containing the graph labels and a dictionary mapping
-        graph label encodings to original labels.
+        Dictionary mapping node indices to their distance from the source node
     """
-    label_data = pd.read_csv(label_file)
-    label_encoder = LabelEncoder()
-    label_encoder.fit(label_data["label"])
-    label_to_int = dict(
-        zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_), strict=True)
-    )
-    int_to_label = {v: k for k, v in label_to_int.items()}
-    # map neuron names to labels and then to their encoded integers
-    neuron_to_label = dict(zip(label_data["neuron_name"], label_data["label"], strict=False))
-    # map neuron -> labels -> encoded integers
-    _labels = [label_to_int.get(neuron_to_label.get(g.id, None), -1) for g in graphs]
-    labels = torch.tensor(_labels, dtype=torch.long)
+    queue = [source_idx]
+    distances = {source_idx: 0}
 
-    return labels, int_to_label
+    while queue:
+        current = queue.pop(0)
+        current_dist = distances[current]
+
+        for neighbor in neighbors[current]:
+            if neighbor not in distances:
+                distances[neighbor] = current_dist + 1
+                queue.append(neighbor)
+
+    return distances
 
 
-def parse_dataset_log(logfile: str | Path, metadata_file: str | Path) -> pd.DataFrame:
-    """Parse log file assocaited with dataset to get the file name and label for each sample.
-
-    When creating the NeuronGraphDataset, the file names are sorted in alphabetical order and
-    written to the log file. This function parses the log file to get the file names, and gets
-    the labels from the metadata.
+def subsample_graph(
+    neighbors: dict[int, list[int]] | None = None,
+    not_deleted: list[int] | None = None,
+    keep_nodes: int = 200,
+    protected: list[int] | None = None,
+) -> tuple[dict[int, list[int]], list[int]]:
+    """
+    Subsample graph to a fixed number of nodes.
 
     Args:
-        logfile (str | Path): Path to the log file.
-        metadata_file (str | Path): Path to metadata file.
+        neighbors: dict of neighbors per node
+        not_deleted: list of nodes, who did not get deleted in previous processing steps
+        keep_nodes: number of nodes to keep in graph
+        protected: nodes to be excluded from subsampling
 
     Returns:
-        pd.Series: A dataframe containing the file name and label for each processed sample.
+        tuple of (neighbors, not_deleted)
     """
-    metadata_file = (
-        metadata_file if Path(metadata_file).suffix == ".csv" else f"{metadata_file}.csv"
-    )
-    metadata = pd.read_csv(metadata_file)
-    log_data = pd.read_csv(logfile, skiprows=1, header=None, names=["timestamps", "log"])
-    log_data["file_name"] = log_data["log"].str.extract(r"mouse-(.*?)-resampled_\d{2}um")
-    log_data["label"] = log_data["file_name"].map(metadata.set_index("neuron_name")["dataset"])
+    if neighbors is not None:
+        k_nodes = len(neighbors)
+    else:
+        raise ValueError("neighbors must be provided")
 
-    return log_data
+    if protected is None:
+        protected = [0]
+
+    # protect soma node from being removed
+    protected = set(protected)
+
+    # Set fixed seed for reproducibility
+    torch.manual_seed(42)
+
+    # indices as set in random order
+    perm = torch.randperm(k_nodes).tolist()
+    all_indices = np.array(list(not_deleted))[perm].tolist()
+    deleted = set()
+
+    while len(deleted) < k_nodes - keep_nodes:
+        while True:
+            if len(all_indices) == 0:
+                assert len(not_deleted) > keep_nodes, len(not_deleted)
+                remaining = list(not_deleted - deleted)
+                torch.manual_seed(42)  # Reset seed for consistency
+                perm = torch.randperm(len(remaining)).tolist()
+                all_indices = np.array(remaining)[perm].tolist()
+
+            idx = all_indices.pop()
+
+            if idx not in deleted and len(neighbors[idx]) < 3 and idx not in protected:
+                break
+
+        if len(neighbors[idx]) == 2:
+            n1, n2 = neighbors[idx]
+            neighbors[n1].remove(idx)
+            neighbors[n2].remove(idx)
+            neighbors[n1].add(n2)
+            neighbors[n2].add(n1)
+        elif len(neighbors[idx]) == 1:
+            n1 = neighbors[idx].pop()
+            neighbors[n1].remove(idx)
+
+        del neighbors[idx]
+        deleted.add(idx)
+
+    not_deleted = list(not_deleted - deleted)
+    return neighbors, not_deleted
 
 
-if __name__ == "__main__":
-    from typer import Typer
+def drop_random_branch(
+    nodes: list[int],
+    neighbors: dict[int, list[int]],
+    distances: dict[int, int],
+    keep_nodes: int = 200,
+) -> tuple[dict[int, list[int]], set[int]]:
+    """
+    Removes a terminal branch. Starting nodes should be between
+    branching node and leaf (see leaf_branch_nodes)
 
-    app = Typer()
+    Args:
+        nodes: List of nodes of the graph
+        neighbors: Dict of neighbors per node
+        distances: Dict of distances of nodes to origin
+        keep_nodes: Number of nodes to keep in graph
+    """
+    start = list(nodes)[torch.randint(len(nodes), (1,)).item()]
+    to = next(iter(neighbors[start]))
 
-    @app.command()
-    def create_data_splits(
-        input_dir: Path,
-        split_ratios: tuple[float, float, float] = (0.8, 0.1, 0.1),
-        seed: int = 42,
-    ) -> None:
-        """Create training, validation, and test data splits from a directory containing .swc files.
+    if distances[start] > distances[to]:
+        start, to = to, start
 
-        Args:
-            input_dir (Path): The path to the input directory containing the .swc files.
-            split_ratios (tuple[float, float, float], optional): Ratios for train, validation,
-            and test splits. Defaults to (0.7, 0.2, 0.1).
-            seed (int, optional): The random seed for shuffling the data. Defaults to 42.
+    drop_nodes = [to]
+    next_nodes = [n for n in neighbors[to] if n != start]
 
-        This function creates subdirectories named 'train', 'val', and 'test' in the parent of the
-        input directory and move the .swc files into the corresponding subdirectories according
-        to the specified split ratios.
-        """
-        input_dir = Path(input_dir)
-        swc_files = list(input_dir.glob("*.swc"))
+    while next_nodes:
+        s = next_nodes.pop(0)
+        drop_nodes.append(s)
+        next_nodes += [n for n in neighbors[s] if n not in drop_nodes]
 
-        random.seed(seed)
-        random.shuffle(swc_files)
+    if len(neighbors) - len(drop_nodes) < keep_nodes:
+        return neighbors, set()
+    else:
+        # Delete nodes.
+        for key in drop_nodes:
+            if key in neighbors:
+                for k in neighbors[key]:
+                    neighbors[k].remove(key)
+                del neighbors[key]
 
-        num_files = len(swc_files)
-        train_end_idx = int(num_files * split_ratios[0])
-        val_end_idx = train_end_idx + int(num_files * split_ratios[1])
+        return neighbors, set(drop_nodes)
 
-        train_dir = input_dir / "train"
-        val_dir = input_dir / "val"
-        test_dir = input_dir / "test"
 
-        for directory in [train_dir, val_dir, test_dir]:
-            directory.mkdir(exist_ok=True)
+def remap_neighbors(neighbors: dict[int, list[int]]) -> tuple[dict[int, list[int]], dict[int, int]]:
+    """
+    Remap node indices to be between 0 and the number of nodes.
 
-        split_mapping = {
-            "train": (0, train_end_idx, train_dir),
-            "val": (train_end_idx, val_end_idx, val_dir),
-            "test": (val_end_idx, num_files, test_dir),
-        }
+    Args:
+        neighbors: Dict of node id mapping to the node's neighbors.
+    Returns:
+        ordered_neighbors: Dict with neighbors with new node ids.
+        subsampled2new: Mapping between old and new indices (dict).
+    """
+    # Create maps between new and old indices.
+    subsampled2new = {k: i for i, k in enumerate(sorted(neighbors))}
 
-        for _split, (start, end, target_dir) in split_mapping.items():
-            split_files = swc_files[start:end]
-            pbar = ProgressBar(split_files, desc=f"Moving {_split} files: ")
-            for file in pbar:
-                shutil.move(str(file), str(target_dir / file.name))
+    # Re-map indices to 1..N.
+    ordered_neighbors = {i: neighbors[k] for i, k in enumerate(sorted(neighbors))}
 
-    print("Splitting dataset into train, val, and test sets...")
-    app()
-    print("Done splitting dataset.")
+    # Re-map keys of neighbors
+    for k, v in ordered_neighbors.items():
+        ordered_neighbors[k] = {subsampled2new[x] for x in v}
+
+    return ordered_neighbors, subsampled2new
+
+
+def neighbors_to_adjacency_torch(
+    neighbors: dict[int, list[int]], not_deleted: list[int]
+) -> torch.Tensor:
+    """Create adjacency matrix from list of non-empty neighbors."""
+    node_map = {n: i for i, n in enumerate(not_deleted)}
+
+    n_nodes = len(not_deleted)
+
+    new_adj_matrix = torch.zeros((n_nodes, n_nodes), dtype=torch.float32)
+    for ii, nodes in neighbors.items():
+        for jj in nodes:
+            i, j = node_map[ii], node_map[jj]
+            new_adj_matrix[i, i] = True  # diagonal if needed
+            new_adj_matrix[i, j] = True
+            new_adj_matrix[j, i] = True
+
+    return new_adj_matrix
+
+
+def compute_laplacian_eigenvectors(adj_matrix: torch.Tensor, pos_enc_dim: int = 32) -> torch.Tensor:
+    """Compute positional encoding using graph laplacian.
+        Adapted from https://github.com/graphdeeplearning/benchmarking-gnns/blob/ef8bd8c7d2c87948bc1bdd44099a52036e715cd0/data/molecules.py#L147-L168.
+
+    Args:
+        adj_matrix: Adjacency matrix (B x N x N).
+        pos_enc_dim: Output dimensions of positional encoding.
+    """
+    b, n, _ = adj_matrix.size()
+    # laplacian
+    A = adj_matrix.float()
+    degree_matrix = A.sum(axis=1).clip(1)
+    N = torch.diag_embed(degree_matrix**-0.5)
+    L = torch.eye(n, device=A.device)[None,].repeat(b, 1, 1) - (N @ A) @ N
+    # eigenvectors
+    _, eig_vec = torch.linalg.eigh(L)
+    eig_vec = torch.flip(eig_vec, dims=[2])
+    pos_enc = eig_vec[:, :, 1 : pos_enc_dim + 1]
+
+    if pos_enc.size(2) < pos_enc_dim:
+        pos_enc = torch.cat(
+            [
+                pos_enc,
+                torch.zeros(
+                    pos_enc.size(0), pos_enc.size(1), pos_enc_dim - pos_enc.size(2), device=A.device
+                ),
+            ],
+            dim=2,
+        )
+
+    return pos_enc

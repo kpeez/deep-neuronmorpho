@@ -1,4 +1,4 @@
-from .model_config import Config, DatasetConfig
+from .model_config import Config, DataConfig
 from .monitoring import (
     EventLogger,
     ExperimentResults,

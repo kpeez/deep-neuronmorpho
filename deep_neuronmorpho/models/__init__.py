@@ -1,4 +1,4 @@
 from .gin import GIN
-from .graphdino import GraphDINO
-from .macgnn import MACGNN, MACGNNv2
+from .graphdino import GraphDINO, create_graphdino
+from .macgnn import MACGNN
 from .mlp import MLP

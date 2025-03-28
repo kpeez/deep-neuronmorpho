@@ -4,7 +4,6 @@ import typer
 
 from deep_neuronmorpho.engine import (
     ContrastiveGraphModule,
-    create_loss_fn,
     create_model,
     create_trainer,
     log_hyperparameters,
@@ -17,23 +16,23 @@ from deep_neuronmorpho.utils import Config
 
 def train_model(config_file: str, checkpoint: str | None = None) -> None:
     """Train a model using a configuration file."""
-    conf = Config.from_yaml(config_file=config_file)
-    if conf.training.random_state is not None:
-        pl.seed_everything(conf.training.random_state, workers=True)
-    logger, ckpts_dir = setup_logging(conf)
+    cfg = Config.load(config_file=config_file)
+    if cfg.training.random_state is not None:
+        pl.seed_everything(cfg.training.random_state, workers=True)
+    logger, ckpts_dir = setup_logging(cfg)
 
-    log_hyperparameters(logger, conf)
-    callbacks = setup_callbacks(conf, ckpts_dir)
+    log_hyperparameters(logger, cfg)
+    callbacks = setup_callbacks(cfg, ckpts_dir)
     dataloaders = setup_dataloaders(
-        conf,
+        cfg,
         datasets=["contra_train", "eval_train"],
         pin_memory=torch.cuda.is_available(),
         num_workers=9,
     )
-    model = create_model(conf.model.name, conf.model)
-    loss_fn = create_loss_fn(conf.training.loss_fn, temp=conf.training.loss_temp)
-    contrastive_model = ContrastiveGraphModule(model, conf, loss_fn=loss_fn)
-    trainer = create_trainer(conf, logger, callbacks)
+    model = create_model(cfg.model.name, cfg.model)
+    # loss_fn = create_loss_fn(cfg.training.loss_fn, temp=cfg.training.loss_temp)
+    contrastive_model = ContrastiveGraphModule(model, cfg)
+    trainer = create_trainer(cfg, logger, callbacks)
 
     trainer.fit(
         contrastive_model,

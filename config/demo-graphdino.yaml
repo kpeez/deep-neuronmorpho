@@ -1,0 +1,40 @@
+data:
+  data_path: "./datasets/processed/m1_patchseq/"
+  train_dataset: "data"
+  eval_dataset: "data"
+  num_nodes: 200
+  feat_dim: 3
+
+model:
+  name: "graphdino"
+  num_classes: 1000
+  dim: 32
+  depth: 7
+  n_head: 8
+  pos_dim: 32
+  move_avg: 0.999
+  center_avg: 0.9
+  teacher_temp: 0.06
+
+# Training configuration
+training:
+  logging_dir: "./runs/demo_runs/graphdino"
+  max_steps: 10
+  batch_size: 64
+  eval_interval: 1
+  random_state: 42 # optional
+  logging_steps: 1
+  optimizer:
+    name: "adam"
+    lr: 0.01
+    scheduler:
+      kind: "step"
+      step_size: 20
+      factor: 0.6
+
+# Augmentation info
+augmentations:
+  jitter: 1.0
+  translate: 10
+  rotation_axis: "y"
+  num_drop_branches: 10

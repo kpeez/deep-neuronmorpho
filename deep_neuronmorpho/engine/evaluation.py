@@ -2,8 +2,7 @@
 
 from pathlib import Path
 from typing import Any
-
-import dgl
+from torch_geometric.data import Batch
 import numpy as np
 import pandas as pd
 import torch
@@ -42,7 +41,7 @@ def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFr
         labels = np.zeros(len(graphs), dtype=int)
     else:
         graphs, labels = dataset[:]
-    batch_graphs = dgl.batch(graphs)
+    batch_graphs = Batch.from_data_list(graphs)
     model.eval()
     with torch.inference_mode():
         embeds = model(batch_graphs, batch_graphs.ndata["nattrs"])

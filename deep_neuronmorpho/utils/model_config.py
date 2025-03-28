@@ -6,17 +6,20 @@ import yaml
 from pydantic import BaseModel
 
 
-class DatasetConfig(BaseModel):
+class DataConfig(BaseModel):
     """Paths to datasets for training, validation, and testing."""
 
-    dataset_root: str
-    train: str
-    evaluation: str | None = None
+    data_path: str
+    train_dataset: str
+    eval_dataset: str | None = None
+    num_nodes: int | None = None
+    feat_dim: int | None = None
 
 
-class GNNModel(BaseModel):
+class GNNConfig(BaseModel):
     """Model architecture and hyperparameters for GNN model."""
 
+    name: str
     num_gnn_layers: int
     hidden_dim: int
     output_dim: int
@@ -34,6 +37,7 @@ class GNNModel(BaseModel):
 class GraphDINOConfig(BaseModel):
     """Model architecture and hyperparameters for GraphDINO model."""
 
+    name: str
     num_classes: int
     dim: int
     depth: int
@@ -52,13 +56,24 @@ class OptimizerConfig(BaseModel):
     scheduler: dict[str, str | int | float] | None = None  # kind, step_size, factor
 
 
-class Augmentation(BaseModel):
-    """Data augmentation methods and parameters."""
+class Augmentations(BaseModel):
+    """Data augmentation methods and parameters.
 
-    order: list[str]
-    perturb: dict[str, float | int] | None = None
-    rotate: dict[str, float | int] | None = {}
-    drop_branches: dict[str, float | int] | None = None
+    Example:
+    ```yaml
+    augmentation:
+      jitter: 0.1
+      translate: 1.0
+      rotate_axis: y
+      num_drop_branches: 10
+    ```
+    The order of augmentations is determined by the order in the dictionary.
+    """
+
+    jitter: float | None = None
+    translate: float | None = None
+    rotation_axis: str | None = None
+    num_drop_branches: int | None = None
 
 
 class Training(BaseModel):
@@ -67,11 +82,11 @@ class Training(BaseModel):
     logging_dir: str
     max_steps: int | None = None
     batch_size: int
-    loss_fn: str
+    loss_fn: str | None = None
     loss_temp: float | None = None
     eval_interval: int | None = None
     optimizer: OptimizerConfig
-    patience: int | None = None
+    num_workers: int | None = None
     random_state: int | None = None
     logging_steps: int = 100
 
@@ -80,16 +95,17 @@ class Config(BaseModel):
     """Main configuration class."""
 
     config_file: str | Path
-    datasets: DatasetConfig
-    model: GNNModel | GraphDINOConfig
+    data: DataConfig
+    model: GNNConfig | GraphDINOConfig
     training: Training
-    augmentation: Augmentation | None = None
+    augmentations: Augmentations | None = None
 
     @classmethod
-    def from_yaml(cls, config_file: str | Path) -> "Config":
+    def load(cls, config_file: str | Path) -> "Config":
         """Load a configuration from a YAML file."""
         with open(config_file, "r", encoding="utf-8") as f:
             config_dict = yaml.safe_load(f)
+
         config_dict["config_file"] = config_file
 
         return cls(**config_dict)
