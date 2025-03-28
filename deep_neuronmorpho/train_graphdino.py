@@ -6,6 +6,7 @@ rather than torch-geometric specialized loaders.
 """
 
 import pytorch_lightning as pl
+import torch
 import typer
 
 from deep_neuronmorpho.engine import (
@@ -56,7 +57,7 @@ def train_graphdino(config_file: str, checkpoint: str | None = None) -> None:
         logger=logger,
         callbacks=callbacks,
         devices="auto",
-        accelerator="auto",
+        accelerator="cuda" if torch.cuda.is_available() else "cpu",
         deterministic=hasattr(cfg.training, "deterministic") and cfg.training.deterministic,
     )
 
