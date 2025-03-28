@@ -4,7 +4,6 @@ import typer
 
 from deep_neuronmorpho.engine import (
     ContrastiveGraphModule,
-    create_loss_fn,
     create_model,
     create_trainer,
     log_hyperparameters,
@@ -17,7 +16,7 @@ from deep_neuronmorpho.utils import Config
 
 def train_model(config_file: str, checkpoint: str | None = None) -> None:
     """Train a model using a configuration file."""
-    cfg = Config.from_yaml(config_file=config_file)
+    cfg = Config.load(config_file=config_file)
     if cfg.training.random_state is not None:
         pl.seed_everything(cfg.training.random_state, workers=True)
     logger, ckpts_dir = setup_logging(cfg)
@@ -31,8 +30,8 @@ def train_model(config_file: str, checkpoint: str | None = None) -> None:
         num_workers=9,
     )
     model = create_model(cfg.model.name, cfg.model)
-    loss_fn = create_loss_fn(cfg.training.loss_fn, temp=cfg.training.loss_temp)
-    contrastive_model = ContrastiveGraphModule(model, cfg, loss_fn=loss_fn)
+    # loss_fn = create_loss_fn(cfg.training.loss_fn, temp=cfg.training.loss_temp)
+    contrastive_model = ContrastiveGraphModule(model, cfg)
     trainer = create_trainer(cfg, logger, callbacks)
 
     trainer.fit(

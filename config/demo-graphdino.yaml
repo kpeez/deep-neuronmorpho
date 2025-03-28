@@ -1,11 +1,12 @@
 data:
-  data_path: "../datasets/processed/m1_patchseq/data"
-  train_dataset: "allen_cell_types-dimfeats17-self_loop"
-  eval_dataset: "allen_cell_types-dimfeats17-self_loop"
+  data_path: "./datasets/processed/m1_patchseq/"
+  train_dataset: "data"
+  eval_dataset: "data"
   num_nodes: 200
   feat_dim: 3
 
 model:
+  name: "graphdino"
   num_classes: 1000
   dim: 32
   depth: 7
@@ -17,13 +18,10 @@ model:
 
 # Training configuration
 training:
-  logging_dir: "../runs/demo_runs/macgnnv2_demo"
+  logging_dir: "./runs/demo_runs/graphdino"
   max_steps: 10
   batch_size: 64
-  loss_fn: "ntxent"
-  loss_temp: 0.2
   eval_interval: 1
-  patience: 60
   random_state: 42 # optional
   logging_steps: 1
   optimizer:

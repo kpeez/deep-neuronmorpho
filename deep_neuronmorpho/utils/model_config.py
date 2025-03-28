@@ -19,6 +19,7 @@ class DataConfig(BaseModel):
 class GNNConfig(BaseModel):
     """Model architecture and hyperparameters for GNN model."""
 
+    name: str
     num_gnn_layers: int
     hidden_dim: int
     output_dim: int
@@ -36,6 +37,7 @@ class GNNConfig(BaseModel):
 class GraphDINOConfig(BaseModel):
     """Model architecture and hyperparameters for GraphDINO model."""
 
+    name: str
     num_classes: int
     dim: int
     depth: int
@@ -80,11 +82,11 @@ class Training(BaseModel):
     logging_dir: str
     max_steps: int | None = None
     batch_size: int
-    loss_fn: str
+    loss_fn: str | None = None
     loss_temp: float | None = None
     eval_interval: int | None = None
     optimizer: OptimizerConfig
-    patience: int | None = None
+    num_workers: int | None = None
     random_state: int | None = None
     logging_steps: int = 100
 

@@ -1,4 +1,4 @@
-from .lightning_modules import ContrastiveGraphModule
+from .lightning_modules import ContrastiveGraphModule, GraphDINOLightningModule
 from .ntxent_loss import NTXEntLoss
 from .trainer_utils import (
     create_loss_fn,
@@ -10,5 +10,4 @@ from .trainer_utils import (
     setup_callbacks,
     setup_dataloaders,
     setup_logging,
-    setup_seed,
 )
