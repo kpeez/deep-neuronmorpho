@@ -48,7 +48,7 @@ def translate_all_nodes(node_features: torch.Tensor, translate_var: float) -> to
     Returns:
         Augmented node features tensor.
     """
-    jitter = torch.randn(3).numpy() * translate_var
+    jitter = torch.randn(3, device=node_features.device, dtype=torch.float32) * translate_var
     node_features[:, :3] += jitter
 
     return node_features

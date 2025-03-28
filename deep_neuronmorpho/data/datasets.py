@@ -7,6 +7,7 @@ to utilize torch-geometric's dataset class.
 from pathlib import Path
 
 import numpy as np
+import torch
 from torch.multiprocessing import Manager
 from torch.utils.data import Dataset
 from tqdm import tqdm
@@ -81,6 +82,9 @@ class NeuronGraphDataset(Dataset):
 
                 # Accumulate features of subsampled nodes.
                 features = features[list(subsampled2new.keys()), :3]
+
+                if not isinstance(features, torch.Tensor):
+                    features = torch.tensor(features, dtype=torch.float32)
 
                 leaf_branch_nodes = find_leaf_nodes(neighbors)
                 # Using the distances we can infer the direction of an edge.

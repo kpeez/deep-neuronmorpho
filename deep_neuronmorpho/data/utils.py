@@ -275,7 +275,7 @@ def neighbors_to_adjacency_torch(
 
     n_nodes = len(not_deleted)
 
-    new_adj_matrix = torch.zeros((n_nodes, n_nodes), dtype=float)
+    new_adj_matrix = torch.zeros((n_nodes, n_nodes), dtype=torch.float32)
     for ii, nodes in neighbors.items():
         for jj in nodes:
             i, j = node_map[ii], node_map[jj]
