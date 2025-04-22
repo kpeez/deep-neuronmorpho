@@ -9,7 +9,6 @@ license = { file = "LICENSE" }
 dependencies = [
   "numpy<=2.0",
   "torch>=2.6.0",
-  "torch-geometric>=2.6.1",
   "pytorch-lightning>=2.5.1",
   "tensorboard>=2.19.0",
   "scipy==1.12", # pinned for morphopy issue
@@ -22,12 +21,12 @@ dependencies = [
   "pyyaml>=6.0.2",
   "pydantic>=2.11.3",
   "typer>=0.15.2",
+  "torch-geometric>=2.6.1",
 ]
 
 [dependency-groups]
 dev = [
     "ruff>=0.11.6",
-    "notebook>=7.4.0",
     "pre-commit>=4.2.0",
     "pytest>=8.3.5",
 ]
