@@ -14,7 +14,7 @@ install: check_uv ## Install the virtual environment and  pre-commit hooks
 
 requirements: check_uv
 	@echo "Exporting dependencies to requirements.txt..."
-	@uv export --no-dev >> requirements.txt
+	@uv export -o requirements.txt --no-hashes --no-dev
 
 check: ## Run code quality tools
 	@echo "⚡️ Linting code: Running ruff"
