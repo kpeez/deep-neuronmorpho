@@ -1,8 +1,8 @@
 # datasets/docs
-datasets
+data*
 runs
-notebooks/*dev*
-notebooks/*info*
+external
+slurm
 *.csv
 *.pt
 *.pth
