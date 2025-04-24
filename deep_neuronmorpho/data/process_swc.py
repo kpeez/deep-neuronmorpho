@@ -360,14 +360,24 @@ def main(
     file_format: str = Option(
         "pkl",
         "-f",
-        "--format",
-        help="Output format: 'swc' for SWC files or 'pkl' for pickle files. If 'pkl', then the node features and a neighbor mapping is saved.  If 'swc', then a new .swc file is created.",
+        "--file-format",
+        help="Output file format: 'swc' for SWC files or 'pkl' for pickle files. If 'pkl', then the node features and a neighbor mapping is saved.  If 'swc', then a new .swc file is created.",
     ),
-    num_workers: int = Option(
+    internal_workers: int = Option(
         None,
-        "-n",
-        "--num-workers",
-        help="Number of worker processes to use. Default is number of CPU cores.",
+        "-w",
+        "--internal-workers",
+        help="Number of worker processes to use WITHIN this job. Default is os.cpu_count() divided by SLURM tasks per node if available, else os.cpu_count().",
+    ),
+    task_id: int = Option(
+        None,
+        "--task-id",
+        help="ID of the current task (e.g., from SLURM_ARRAY_TASK_ID). Processes all files if not set.",
+    ),
+    num_tasks: int = Option(
+        None,
+        "--num-tasks",
+        help="Total number of tasks (e.g., from SLURM_ARRAY_TASK_COUNT). Processes all files if not set.",
     ),
 ) -> None:
     """Process SWC file.
@@ -386,8 +396,18 @@ def main(
     output_dir.mkdir(exist_ok=True)
     cells_dir = output_dir / "data"
     cells_dir.mkdir(exist_ok=True)
+
+    # Determine task ID for logging, default to 0 if not specified
+    is_array_job = task_id is not None and num_tasks is not None
+    current_task_id = task_id if is_array_job else 0
+    total_tasks = num_tasks if is_array_job else 1
+    task_id_str = f"-{current_task_id}" if is_array_job else "-all"
+
     # setup logging
-    log_file = output_dir / f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-swc_processing.log"
+    log_file = (
+        output_dir
+        / f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-swc_processing_task{task_id_str:02d}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
@@ -400,8 +420,24 @@ def main(
     console.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
     logging.getLogger().addHandler(console)
 
+    # Determine number of workers for ProcessPoolExecutor
+    if internal_workers is None:
+        try:
+            # Try to get SLURM environment variables to calculate workers per task
+            cpus_on_node = int(os.environ.get("SLURM_CPUS_ON_NODE", os.cpu_count()))
+            # Use the determined total_tasks (could be 1 if not an array job)
+            tasks_per_node = int(os.environ.get("SLURM_NTASKS_PER_NODE", total_tasks))
+            calculated_workers = max(1, cpus_on_node // tasks_per_node)
+            internal_workers = calculated_workers  # Assign here after successful calculation
+        except (ValueError, TypeError, KeyError):
+            # Fallback if SLURM vars not set, invalid, or not found
+            logging.warning(
+                "Could not determine workers based on SLURM env vars, defaulting to os.cpu_count()."
+            )
+            internal_workers = os.cpu_count()
+
     processing_params = f"""
-    PROCESSING PARAMETERS:
+    PROCESSING PARAMETERS (Task {current_task_id}/{total_tasks}):
     Input folder: {swc_folder_path}
     Output directory: {output_dir}
     File format: {file_format}
@@ -409,51 +445,83 @@ def main(
     PCA alignment: {align}
     Resample distance: {resample_dist}
     Remove axon: {drop_axon}
-    Number of workers: {num_workers or os.cpu_count()}
+    Internal workers for this task: {internal_workers}
+    Task ID: {current_task_id}
+    Total Tasks: {total_tasks}
     """
     logging.info(processing_params)
 
-    swc_files_list = list(swc_folder_path.glob("*.swc"))
-    if not swc_files_list:
+    all_swc_files = sorted(swc_folder_path.glob("*.swc"))
+    if not all_swc_files:
         logging.error(f"No .swc files found in {swc_folder_path}")
         return
 
-    logging.info(f"Found {len(swc_files_list)} SWC files to process")
+    logging.info(f"Found {len(all_swc_files)} total SWC files")
+    # slice the list based on task ID and total tasks
+    if is_array_job:
+        if not (0 <= current_task_id < total_tasks):
+            logging.error(f"Invalid Task ID {current_task_id} for total tasks {total_tasks}")
+            return
+
+        total_files = len(all_swc_files)
+        # distribute files evenly across tasks
+        files_per_task = total_files // total_tasks
+        remainder = total_files % total_tasks
+
+        start_index = current_task_id * files_per_task + min(current_task_id, remainder)
+        num_files_for_this_task = files_per_task + (1 if current_task_id < remainder else 0)
+        end_index = start_index + num_files_for_this_task
+
+        swc_files_list = all_swc_files[start_index:end_index]
+        logging.info(
+            f"Task {current_task_id}/{total_tasks}: Processing {len(swc_files_list)} files (indices {start_index} to {end_index - 1})"
+        )
+    else:
+        swc_files_list = all_swc_files  # Process all files if not running as part of an array
+        logging.info(f"Processing all {len(swc_files_list)} SWC files (Task 0/1)")
+
+    if not swc_files_list:
+        logging.warning(f"Task {current_task_id}: No files assigned to this task. Exiting.")
+        return
 
     process_args = [
         (f, standardize, align, resample_dist, drop_axon, file_format, cells_dir)
         for f in swc_files_list
     ]
-    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+    # Use internal_workers for the executor within this task
+    with ProcessPoolExecutor(max_workers=internal_workers) as executor:
         results = []
-        with tqdm(total=len(swc_files_list), desc="Processing neurons: ") as pbar:
+        with tqdm(
+            total=len(swc_files_list),
+            desc=f"Processing neurons (Task {current_task_id}/{total_tasks}): ",
+        ) as pbar:
             for result in executor.map(process_swc_file, process_args):
                 if result["status"] == "success":
                     logging.info(f"Processed: {result['output']}")
                 else:
-                    logging.error(f"Error processing {result['filename']}: {result['error']}")
+                    logging.error(
+                        f"Task {current_task_id}: Error processing {result['filename']}: {result['error']}"
+                    )
                 results.append(result)
                 pbar.update(1)
 
     failed_files = [
         (result["filename"], result["error"]) for result in results if result["error"] is not None
     ]
-    extension = ".pkl" if file_format.lower() in {"pickle", "pkl"} else ".swc"
-    num_processed = len(list(cells_dir.glob(f"*{extension}")))
-
+    num_processed_this_task = len([res for res in results if res["status"] == "success"])
     summary = [
-        f"\nProcessing complete: {num_processed}/{len(swc_files_list)} files processed",
+        f"\nTask {current_task_id}/{total_tasks} Processing complete: {num_processed_this_task}/{len(swc_files_list)} files processed by this task.",
         f"Cell files saved to: {cells_dir}",
-        f"Log file saved to: {log_file}",
+        f"Log file for this task: {log_file}",
     ]
 
     if failed_files:
-        summary.append(f"\nFailed files ({len(failed_files)}):")
+        summary.append(f"\nFailed files ({len(failed_files)}) for this task:")
         for file, error in failed_files:
             summary.append(f"- {file}: {error}")
 
     logging.info("\n".join(summary))
-    logging.info("Processing complete")
+    logging.info(f"Task {current_task_id}/{total_tasks} finished.")
 
 
 if __name__ == "__main__":
