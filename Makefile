@@ -8,7 +8,7 @@ check_uv: # install `uv` if not installed
 
 install: check_uv ## Install the virtual environment and  pre-commit hooks
 	@echo "📦 Creating virtual environment"
-	@uv sync --all-extras
+	@uv sync --all-extras --python=3.12
 	@echo "🛠️ Installing developer tools..."
 	@uv run pre-commit install
 
