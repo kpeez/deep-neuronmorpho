@@ -92,7 +92,7 @@ multidict==6.4.3
     # via
     #   aiohttp
     #   yarl
-narwhals==1.35.0
+narwhals==1.36.0
     # via plotly
 networkx==3.4.2
     # via
@@ -223,7 +223,7 @@ seaborn==0.13.2
     # via
     #   deep-neuronmorpho
     #   morphopy
-setuptools==79.0.0
+setuptools==79.0.1
     # via
     #   lightning-utilities
     #   tensorboard
