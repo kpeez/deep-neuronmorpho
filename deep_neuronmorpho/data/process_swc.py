@@ -347,9 +347,8 @@ def main(
     drop_axon: bool = Option(
         True,
         "-d",
-        "--drop-axon",
-        help="Remove axon nodes from the reconstruction.",
-        is_flag=True,
+        "--drop-axon / --no-drop-axon",
+        help="Remove axon nodes (default: enabled). Use --no-drop-axon to keep them.",
     ),
     output_dir: str | None = Option(
         None,
@@ -403,11 +402,8 @@ def main(
     total_tasks = num_tasks if is_array_job else 1
     task_id_str = f"-{current_task_id}" if is_array_job else "-all"
 
-    # setup logging
-    log_file = (
-        output_dir
-        / f"{dt.now().strftime('%Y-%m-%d_%H-%M-%S')}-swc_processing_task{task_id_str:02d}.log"
-    )
+    timestamp_str = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_file = output_dir / f"{timestamp_str}-swc_processing{task_id_str}.log"
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
