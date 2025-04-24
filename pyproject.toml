@@ -1,34 +1,34 @@
 [project]
 name = "deep_neuronmorpho"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 description = "Deep learning based approaches for neuron morphology embeddings."
 authors = [{ name = "Kyle Puhger", email = "krpuhger@gmail.com" }]
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
-  "numpy<=2.0",
-  "torch>=2.6.0",
-  "pytorch-lightning>=2.5.1",
-  "tensorboard>=2.19.0",
-  "scipy==1.12", # pinned for morphopy issue
-  "scikit-learn>=1.6.1",
-  "pandas>=2.2.3",
-  "seaborn>=0.13.2",
-  "matplotlib>=3.10.1",
-  "umap-learn>=0.5.7",
-  "morphopy>=0.7.2",
-  "pyyaml>=6.0.2",
-  "pydantic>=2.11.3",
-  "typer>=0.15.2",
-  "torch-geometric>=2.6.1",
+    "matplotlib>=3.10.1",
+    "morphopy>=0.7.2",
+    "numpy<2.0", # pinned for morphopy issue
+    "pandas>=2.2.3",
+    "pydantic>=2.11.3",
+    "pytorch-lightning>=2.5.1",
+    "pyyaml>=6.0.2",
+    "scikit-learn>=1.6.1",
+    "scipy==1.12", # pinned for morphopy issue
+    "seaborn>=0.13.2",
+    "tensorboard>=2.19.0",
+    "torch<2.7",
+    "torch-geometric>=2.6.1",
+    "typer>=0.15.2",
+    "umap-learn>=0.5.7",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff>=0.11.6",
     "pre-commit>=4.2.0",
     "pytest>=8.3.5",
+    "ruff>=0.11.7",
 ]
 
 docs = [
@@ -53,7 +53,7 @@ addopts = "--log-cli-level=INFO -sv --durations=0"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 exclude = [".venv", "external"]
 
 [tool.ruff.lint]
