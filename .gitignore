@@ -1,8 +1,8 @@
 # datasets/docs
-data*
-runs
-external
-slurm
+/data*
+/runs
+/external
+/slurm
 *.csv
 *.pt
 *.pth
@@ -13,6 +13,7 @@ slurm
 .vscode/
 .ipynb_checkpoints
 *.egg-info
+.cursor/
 
 # C extensions
 *.so
@@ -72,3 +73,4 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+
