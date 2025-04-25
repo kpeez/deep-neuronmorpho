@@ -104,12 +104,10 @@ class SWCData:
         float_cols = ["x", "y", "z", "radius"]
         col_type = dict.fromkeys(int_cols, int) | dict.fromkeys(float_cols, float)
         data = data.astype(col_type)
-        # only soma nodes (type=1) should have -1 as parent
-        mask = data["type"] != 1
-        data.loc[mask, "parent"] = data.loc[mask, "parent"].abs()
-        # validate swc file
-        assert not data.query("parent == 1 and (type == 3 or type == 4)").empty, (
-            "Bad SWC file: No dendrites connected to soma!"
+        # any nodes with parent == -1 should be type 1 (soma)
+        data.loc[data["parent"] == -1, "type"] = 1
+        assert (data["parent"] == -1).any(), (
+            "SWC file must contain at least one root node with parent == -1"
         )
 
         return data
