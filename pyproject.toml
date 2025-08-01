@@ -8,7 +8,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
     "matplotlib>=3.10.1",
-    "morphopy>=0.7.2",
+    "morphopy",
     "pandas>=2.2.3",
     "pydantic>=2.11.3",
     "pytorch-lightning>=2.5.1",
@@ -34,6 +34,9 @@ docs = [
     "mkdocs-material>=9.6.12",
     "mkdocstrings[python]>=0.29.1",
 ]
+
+[tool.uv.sources]
+morphopy = { git = "https://github.com/berenslab/MorphoPy" }
 
 [project.urls]
 repository = "https://github.com/kpeez/deep-neuronmorpho"
@@ -131,3 +134,4 @@ ignore_missing_imports = true
 warn_return_any = false
 disallow_any_unimported = false
 disable_error_code = "attr-defined"
+

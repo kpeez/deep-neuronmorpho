@@ -378,7 +378,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.1" },
-    { name = "morphopy", specifier = ">=0.7.2" },
+    { name = "morphopy", git = "https://github.com/berenslab/MorphoPy" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pydantic", specifier = ">=2.11.3" },
     { name = "pytorch-lightning", specifier = ">=2.5.1" },
@@ -1005,7 +1005,7 @@ wheels = [
 [[package]]
 name = "morphopy"
 version = "0.7.2"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/berenslab/MorphoPy#b706ecf63f1469544aed4a042790a2bd00824b44" }
 dependencies = [
     { name = "matplotlib" },
     { name = "matplotlib-scalebar" },
@@ -1019,10 +1019,6 @@ dependencies = [
     { name = "scipy", version = "1.16.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "seaborn" },
     { name = "shapely" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/18/fe/4cb8fcb9678b8d55d7e30650b43024303ffe1d5fb99f1a95046e4a41616c/morphopy-0.7.2.tar.gz", hash = "sha256:98c5a2a4ccf182c71e1dbabef6bcb6c6247c4be497e45d04033dc1d799e0423c", size = 54544, upload-time = "2023-01-24T10:11:11.667Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5a/c8/ebc83acfcb8cb84d635a08ecbd4a9c815c2cb61cc368e92640107d5e6be6/morphopy-0.7.2-py3-none-any.whl", hash = "sha256:bbf2938a97363f91197575f410a74403277553417316bd9980d6726a771d3618", size = 52737, upload-time = "2023-01-24T10:11:10.17Z" },
 ]
 
 [[package]]
