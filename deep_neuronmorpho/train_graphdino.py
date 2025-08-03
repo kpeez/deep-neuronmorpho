@@ -29,11 +29,8 @@ def train_graphdino(config_file: str, checkpoint: str | None = None) -> None:
         checkpoint: Optional checkpoint to resume training from
     """
     cfg = Config.load(config_file=config_file)
-
-    # set random seed if specified
     if hasattr(cfg.training, "random_state") and cfg.training.random_state is not None:
         pl.seed_everything(cfg.training.random_state, workers=True)
-
     logger, ckpts_dir = setup_logging(cfg)
     log_hyperparameters(logger, cfg)
     callbacks = setup_callbacks(cfg, ckpts_dir)
@@ -55,7 +52,7 @@ def train_graphdino(config_file: str, checkpoint: str | None = None) -> None:
         ckpt_path=checkpoint,
     )
 
-    print(f"Training completed! Checkpoints saved to {ckpts_dir}")
+    logger.info(f"Training completed! Checkpoints saved to {ckpts_dir}")
 
 
 if __name__ == "__main__":
