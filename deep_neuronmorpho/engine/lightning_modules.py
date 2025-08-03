@@ -50,14 +50,12 @@ class GraphDINOLightningModule(pl.LightningModule):
         self.cfg = config
         self.max_iter = self.cfg.training.max_steps
         self.init_lr = self.cfg.training.optimizer.lr
-        self.exp_decay = 0.5  # from original implementation
+        self.exp_decay = 0.5
         self.warmup_steps = self.max_iter // 50
         self.lr_decay_steps = self.max_iter // 5
 
-        # Track current iteration for learning rate scheduling
         self.curr_iter = 0
 
-        # We handle optimization manually to match the original implementation
         self.automatic_optimization = False
 
     def configure_optimizers(self):
@@ -67,7 +65,6 @@ class GraphDINOLightningModule(pl.LightningModule):
         Returns:
             torch.optim.Optimizer: The optimizer (Adam).
         """
-        # Initialize with lr=0, will be set in training_step
         optimizer = torch.optim.Adam(self.model.parameters(), lr=0)
         return optimizer
 
@@ -81,19 +78,15 @@ class GraphDINOLightningModule(pl.LightningModule):
         optimizer = self.optimizers()
 
         if self.curr_iter < self.warmup_steps:
-            # Linear warmup
             lr = (self.curr_iter / self.warmup_steps) * self.init_lr
         else:
-            # Exponential decay after warmup
             lr = self.init_lr * self.exp_decay ** (
                 (self.curr_iter - self.warmup_steps) / self.lr_decay_steps
             )
 
-        # Update optimizer learning rate
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
 
-        # Log the learning rate
         self.log("learning_rate", lr, on_step=True, prog_bar=True)
 
         return lr
@@ -109,38 +102,19 @@ class GraphDINOLightningModule(pl.LightningModule):
         Returns:
             torch.Tensor: The loss value.
         """
-        # Get optimizer
         optimizer = self.optimizers()
-
-        # Prepare batch data
         f1, f2, a1, a2 = [x.float() for x in batch]
 
-        # Compute positional encoding
         l1 = compute_laplacian_eigenvectors(a1)
         l2 = compute_laplacian_eigenvectors(a2)
 
-        # Set learning rate
         self.set_lr()
-
-        # Reset gradients
         optimizer.zero_grad(set_to_none=True)
-
-        # Forward pass - model computes the loss
         loss = self.model(f1, f2, a1, a2, l1, l2)
-
-        # Backward pass
         self.manual_backward(loss.sum())
-
-        # Optimizer step
         optimizer.step()
-
-        # Update teacher weights
         self.model.update_moving_average()
-
-        # Increment iteration counter
         self.curr_iter += 1
-
-        # Log the loss
         self.log("train_loss", loss.mean(), on_step=True, on_epoch=True, prog_bar=True)
 
         return loss
@@ -152,7 +126,6 @@ class GraphDINOLightningModule(pl.LightningModule):
         Args:
             checkpoint (dict): The checkpoint data.
         """
-        # Add iteration counter to checkpoint to allow proper resuming
         checkpoint["curr_iter"] = self.curr_iter
 
     def on_load_checkpoint(self, checkpoint):
@@ -162,7 +135,6 @@ class GraphDINOLightningModule(pl.LightningModule):
         Args:
             checkpoint (dict): The checkpoint data.
         """
-        # Restore iteration counter from checkpoint
         if "curr_iter" in checkpoint:
             self.curr_iter = checkpoint["curr_iter"]
 
@@ -170,10 +142,7 @@ class GraphDINOLightningModule(pl.LightningModule):
         """
         Called at the end of a training epoch.
         """
-        # Get the average loss from the logged metrics
         avg_loss = self.trainer.callback_metrics.get("train_loss_epoch", torch.tensor(0.0))
-
-        # Print epoch summary similar to original implementation
         print(f"Epoch {self.current_epoch} | Loss {avg_loss:.4f}")
 
 
