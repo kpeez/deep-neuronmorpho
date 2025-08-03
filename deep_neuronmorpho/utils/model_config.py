@@ -9,7 +9,6 @@ from pydantic import BaseModel
 class DataConfig(BaseModel):
     """Paths to datasets for training, validation, and testing."""
 
-    data_path: str
     train_dataset: str
     eval_dataset: str | None = None
     num_nodes: int | None = None
