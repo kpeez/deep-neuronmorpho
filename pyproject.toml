@@ -16,7 +16,7 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "seaborn>=0.13.2",
     "tensorboard>=2.19.0",
-    "torch<2.7",
+    "torch<3.0",
     "torch-geometric>=2.6.1",
     "typer>=0.15.2",
     "umap-learn>=0.5.7",
