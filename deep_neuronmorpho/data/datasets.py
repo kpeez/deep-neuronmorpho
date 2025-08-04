@@ -159,7 +159,10 @@ class NeuronGraphDataset(Dataset):
         pos = features[:, :3]
         rot_pos = rotate_node_positions(pos, axis=self.rotation_axis)
         jittered_pos = jitter_node_positions(rot_pos, jitter=self.jitter_var)
-        jittered_pos = translate_all_nodes(jittered_pos, translate_var=self.translate_var)
+        jittered_pos = translate_all_nodes(
+            jittered_pos,
+            translate_var=self.cfg.augmentations.translate,
+        )
         features[:, :3] = jittered_pos
 
         return features
@@ -181,7 +184,6 @@ class NeuronGraphDataset(Dataset):
         cell = self.cells[index]
 
         if self.mode == "train":
-            # Compute two different views through augmentations
             features1, adj_matrix1 = self._augment(cell)
             features2, adj_matrix2 = self._augment(cell)
 
