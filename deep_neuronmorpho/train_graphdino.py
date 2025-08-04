@@ -52,7 +52,7 @@ def train_graphdino(config_file: str, checkpoint: str | None = None) -> None:
         ckpt_path=checkpoint,
     )
 
-    logger.info(f"Training completed! Checkpoints saved to {ckpts_dir}")
+    print(f"Training completed! Checkpoints saved to {ckpts_dir}")
 
 
 if __name__ == "__main__":
