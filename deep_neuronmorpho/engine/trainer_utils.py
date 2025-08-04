@@ -136,19 +136,23 @@ def build_dataloader(cfg: Config):
         **kwargs,
     )
 
-    val_dataset = NeuronGraphDataset(cfg, mode="eval")
+    loaders = [train_loader]
 
-    batch_size = (
-        val_dataset.num_samples
-        if len(val_dataset) < cfg.training.batch_size
-        else cfg.training.batch_size
-    )
+    if cfg.data.eval_dataset is not None:
+        val_dataset = NeuronGraphDataset(cfg, mode="eval")
 
-    val_loader = DataLoader(
-        val_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs
-    )
+        batch_size = (
+            val_dataset.num_samples
+            if len(val_dataset) < cfg.training.batch_size
+            else cfg.training.batch_size
+        )
 
-    return train_loader, val_loader
+        val_loader = DataLoader(
+            val_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs
+        )
+        loaders.append(val_loader)
+
+    return tuple(loaders)
 
 
 def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> dict[str, DataLoader]:
@@ -188,12 +192,15 @@ def setup_logging(cfg: Config) -> tuple[TensorBoardLogger, Path]:
     run_number = int(runs[-1].name.split("-")[1]) + 1 if runs else 1
     expt_id = f"run-{run_number:03d}"  # -{cfg.model.name}-{cfg.data.train_dataset.split('-')[0]}"
     logger = TensorBoardLogger(
-        save_dir=cfg.training.logging_dir, name=cfg.model.name, version=expt_id
+        save_dir=cfg.training.logging_dir,
+        name=cfg.model.name,
+        version=expt_id,
     )
     run_dir = Path(logger.log_dir)
     ckpts_dir = run_dir / "ckpts"
     ckpts_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(cfg.config_file, run_dir / f"{expt_id}_config.yaml")
+
     return logger, ckpts_dir
 
 
