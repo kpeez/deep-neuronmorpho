@@ -1,7 +1,5 @@
 data:
-  data_path: "./datasets/processed/m1_patchseq/"
-  train_dataset: "data"
-  eval_dataset: "data"
+  train_dataset: "./datasets/processed/m1_patchseq/data"
   num_nodes: 200
   feat_dim: 3
 
@@ -16,9 +14,8 @@ model:
   center_avg: 0.9
   teacher_temp: 0.06
 
-# Training configuration
 training:
-  logging_dir: "./runs/demo_runs/graphdino"
+  logging_dir: "./runs/demo_runs/"
   max_steps: 10
   batch_size: 64
   eval_interval: 1
