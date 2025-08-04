@@ -40,7 +40,12 @@ class NeuronGraphDataset(Dataset):
     def __init__(self, cfg: Config, mode="train"):
         self.cfg = cfg
         self.mode = mode
-        data_path = Path(cfg.data.data_path) / cfg.data.train_dataset
+        dataset_folder = cfg.data.train_dataset if self.mode == "train" else cfg.data.eval_dataset
+
+        if dataset_folder is None:
+            raise ValueError(f"Dataset for mode '{self.mode}' is not specified in the config.")
+
+        data_path = Path(dataset_folder)
         data_path = data_path.resolve()
         self.cell_files = sorted(data_path.glob("*.pkl"))
         self.num_samples = len(self.cell_files)
@@ -48,14 +53,13 @@ class NeuronGraphDataset(Dataset):
         if self.num_samples == 0:
             raise ValueError(f"No graph files found in {data_path}")
 
-        # Augmentation parameters.
+        # augmentation parameters
         self.jitter_var = cfg.augmentations.jitter
         self.rotation_axis = cfg.augmentations.rotation_axis
         self.n_drop_branch = cfg.augmentations.num_drop_branches
         self.translate_var = cfg.augmentations.translate
         self.n_nodes = cfg.data.num_nodes
 
-        # Load graphs.
         self.manager = Manager()
         self.cells = self.manager.dict()
         count = 0
@@ -69,25 +73,20 @@ class NeuronGraphDataset(Dataset):
             assert len(features) == len(neighbors)
 
             if len(features) >= self.n_nodes or self.mode == "eval":
-                # Subsample graphs for faster processing during training.
                 neighbors, _ = subsample_graph(
                     neighbors=neighbors,
                     not_deleted=set(range(len(neighbors))),
                     keep_nodes=1000,
                     protected=[soma_id],
                 )
-                # Remap neighbor indices to 0..999.
                 neighbors, subsampled2new = remap_neighbors(neighbors)
                 soma_id = subsampled2new[soma_id]
-
-                # Accumulate features of subsampled nodes.
                 features = features[list(subsampled2new.keys()), :3]
 
                 if not isinstance(features, torch.Tensor):
                     features = torch.tensor(features, dtype=torch.float32)
 
                 leaf_branch_nodes = find_leaf_nodes(neighbors)
-                # Using the distances we can infer the direction of an edge.
                 distances = compute_path_lengths(soma_id, neighbors)
 
                 item = {
@@ -141,11 +140,7 @@ class NeuronGraphDataset(Dataset):
             not_deleted: List of node IDs that were not deleted
         """
         neighbors2 = {k: set(v) for k, v in neighbors.items()}
-
-        # Delete random branches.
         not_deleted = self._delete_subbranch(neighbors2, soma_id, distances, leaf_branch_nodes)
-
-        # Subsample graphs to fixed number of nodes.
         neighbors2, not_deleted = subsample_graph(
             neighbors=neighbors2,
             not_deleted=not_deleted,
@@ -153,9 +148,7 @@ class NeuronGraphDataset(Dataset):
             protected=soma_id,
         )
 
-        # Compute new adjacency matrix
         adj_matrix = neighbors_to_adjacency_torch(neighbors2, not_deleted)
-
         assert adj_matrix.shape == (self.n_nodes, self.n_nodes), (
             f"{adj_matrix.shape} != {self.n_nodes} {self.n_nodes}"
         )
@@ -163,18 +156,13 @@ class NeuronGraphDataset(Dataset):
         return neighbors2, adj_matrix, not_deleted
 
     def _augment_node_position(self, features):
-        # Extract positional features (xyz-position).
         pos = features[:, :3]
-
-        # Rotate (random 3D rotation or rotation around specific axis).
         rot_pos = rotate_node_positions(pos, axis=self.rotation_axis)
-
-        # Randomly jitter node position.
         jittered_pos = jitter_node_positions(rot_pos, jitter=self.jitter_var)
-
-        # Translate neuron position as a whole.
-        jittered_pos = translate_all_nodes(jittered_pos, translate_var=self.translate_var)
-
+        jittered_pos = translate_all_nodes(
+            jittered_pos,
+            translate_var=self.cfg.augmentations.translate,
+        )
         features[:, :3] = jittered_pos
 
         return features
@@ -183,16 +171,11 @@ class NeuronGraphDataset(Dataset):
         features = cell["features"]
         neighbors = cell["neighbors"]
         distances = cell["distances"]
-
-        # Reduce nodes to N == n_nodes via subgraph deletion and subsampling.
         _neighbors2, adj_matrix, not_deleted = self._reduce_nodes(
             neighbors, [int(cell["soma_id"])], distances, cell["leaf_branch_nodes"]
         )
 
-        # Extract features of remaining nodes.
         new_features = features[not_deleted].clone()
-
-        # Augment node position via rotation and jittering.
         new_features = self._augment_node_position(new_features)
 
         return new_features, adj_matrix
@@ -201,11 +184,10 @@ class NeuronGraphDataset(Dataset):
         cell = self.cells[index]
 
         if self.mode == "train":
-            # Compute two different views through augmentations
             features1, adj_matrix1 = self._augment(cell)
             features2, adj_matrix2 = self._augment(cell)
 
             return features1, features2, adj_matrix1, adj_matrix2
 
-        else:  # eval mode
+        else:
             return cell["features"], cell["neighbors"]

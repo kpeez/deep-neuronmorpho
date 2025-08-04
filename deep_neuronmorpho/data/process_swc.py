@@ -3,6 +3,8 @@
 import logging
 import os
 import pickle
+import shutil
+import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime as dt
 from pathlib import Path
@@ -90,7 +92,6 @@ class SWCData:
         """
         with open(swc_file, "r", encoding="utf-8") as file:
             lines = file.readlines()
-        # Find the start of data
         start_idx = 0
         for i, line in enumerate(lines):
             if line.strip() and not (line.startswith("#") or line.startswith("n")):
@@ -158,7 +159,6 @@ class SWCData:
         """
         self._ntree = self.ntree.get_dendritic_tree()
         self._data = self._ntree.to_swc()
-        # reset soma to origin
         soma_coords = self._data[["x", "y", "z"]].iloc[0]
         self._data[["x", "y", "z"]] -= soma_coords
 
@@ -198,12 +198,8 @@ class SWCData:
 
         plt.show()
 
-    def save_swc(self, file_name: str | Path, **kwargs: Any) -> None:
+    def save_swc(self, file_path: str | Path, **kwargs: Any) -> None:
         """Use pandas to save data to .swc file."""
-        file_path = Path(file_name)
-        if file_path.suffix != ".swc":
-            file_path = file_path.with_name(f"{file_path.name}.swc")
-        print(f"Saving SWC data to {file_path}")
         with open(file_path, "w", encoding="utf-8") as file:
             header = " ".join(self._data.columns)
             file.write(f"# {header}\n")
@@ -217,10 +213,8 @@ class SWCData:
                 - 'features': Numpy array of node features [N x 3] (x, y, z coordinates only)
                 - 'neighbors': dict mapping node IDs to their connected neighbors
         """
-        # Get node attributes from NeuronTree
         positions = self._ntree.get_node_attributes("pos")
         types = self._ntree.get_node_attributes("type")
-        # Get list of nodes
         nodes = list(self._ntree.nodes())
         nodes.sort()
         # features array w/ position (x, y, z) and node type
@@ -240,7 +234,7 @@ class SWCData:
             "neighbors": neighbors,
         }
 
-    def save_pickle(self, file_name: str | Path) -> None:
+    def save_pickle(self, file_path: str | Path) -> None:
         """Save neuron as a pickle file.
 
         Note: Only position and node type are included as features. The radius is typically not accurate
@@ -251,12 +245,8 @@ class SWCData:
             - neighbors: dict mapping node IDs to their neighbors
 
         Args:
-            file_name (str | Path): Path to save the .pt file (without extension)
+            file_path (str | Path): Path to save the file.
         """
-        file_path = Path(file_name)
-        if file_path.suffix != ".pkl":
-            file_path = file_path.with_name(f"{file_path.name}.pkl")
-
         graph_dict = self.to_graph_dict()
         with open(file_path, "wb") as f:
             pickle.dump(graph_dict, f)
@@ -279,8 +269,9 @@ def process_swc_file(args):
             - 'error': Error message or None if successful
     """
     swc_file, standardize, align, resample_dist, drop_axon, file_format, cells_dir = args
+    temp_file_path = None
     try:
-        output_stem = cells_dir / swc_file.stem
+        output_stem = swc_file.stem
         swc_data = SWCData(
             swc_file,
             standardize=standardize,
@@ -289,35 +280,48 @@ def process_swc_file(args):
         )
 
         if resample_dist is not None and file_format.lower() == "swc":
-            output_stem = output_stem.with_name(
-                f"{output_stem.name}-resampled_{round(resample_dist)}um"
-            )
+            output_stem = f"{output_stem}-resampled_{round(resample_dist)}um"
 
         if drop_axon:
             swc_data.remove_axon()
             if file_format.lower() == "swc":
-                output_stem = output_stem.with_name(f"{output_stem.name}-no_axon")
+                output_stem = f"{output_stem}-no_axon"
 
         if file_format.lower() in {"pickle", "pkl"}:
-            swc_data.save_pickle(output_stem)
-            logging.info(f"Processed: {swc_file.name} → {output_stem.name}.pkl")
+            final_output_path = (cells_dir / output_stem).with_suffix(".pkl")
+            with tempfile.NamedTemporaryFile(
+                mode="wb", dir=cells_dir, delete=False, suffix=".pkl"
+            ) as tmp:
+                temp_file_path = Path(tmp.name)
+                swc_data.save_pickle(temp_file_path)
         else:
-            swc_data.save_swc(output_stem)
-            logging.info(f"Processed: {swc_file.name} → {output_stem.name}.swc")
+            final_output_path = (cells_dir / output_stem).with_suffix(".swc")
+            with tempfile.NamedTemporaryFile(
+                mode="w", dir=cells_dir, delete=False, suffix=".swc"
+            ) as tmp:
+                temp_file_path = Path(tmp.name)
+                swc_data.save_swc(temp_file_path)
+
+        shutil.move(temp_file_path, final_output_path)
+        temp_file_path = None
 
         return {
             "filename": swc_file.name,
             "status": "success",
-            "output": f"{swc_file.name} → {output_stem.name}.{file_format.lower()}",
+            "output": f"{swc_file.name} → {final_output_path.name}",
             "error": None,
         }
     except Exception as e:
+        logging.error(f"Error processing {swc_file.name}", exc_info=True)
         return {
             "filename": swc_file.name,
             "status": "error",
             "output": None,
             "error": str(e),
         }
+    finally:
+        if temp_file_path and temp_file_path.exists():
+            os.remove(temp_file_path)
 
 
 @app.command()
@@ -393,8 +397,6 @@ def main(
     output_dir.mkdir(exist_ok=True)
     cells_dir = output_dir / "data"
     cells_dir.mkdir(exist_ok=True)
-
-    # Determine task ID for logging, default to 0 if not specified
     is_array_job = task_id is not None and num_tasks is not None
     current_task_id = task_id if is_array_job else 0
     total_tasks = num_tasks if is_array_job else 1
@@ -413,8 +415,6 @@ def main(
     console.setLevel(logging.ERROR)
     console.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
     logging.getLogger().addHandler(console)
-
-    # Determine number of workers for ProcessPoolExecutor
     if internal_workers is None:
         try:
             # Try to get SLURM environment variables to calculate workers per task
@@ -451,14 +451,12 @@ def main(
         return
 
     logging.info(f"Found {len(all_swc_files)} total SWC files")
-    # slice the list based on task ID and total tasks
     if is_array_job:
         if not (0 <= current_task_id < total_tasks):
             logging.error(f"Invalid Task ID {current_task_id} for total tasks {total_tasks}")
             return
 
         total_files = len(all_swc_files)
-        # distribute files evenly across tasks
         files_per_task = total_files // total_tasks
         remainder = total_files % total_tasks
 
@@ -471,7 +469,7 @@ def main(
             f"Task {current_task_id}/{total_tasks}: Processing {len(swc_files_list)} files (indices {start_index} to {end_index - 1})"
         )
     else:
-        swc_files_list = all_swc_files  # Process all files if not running as part of an array
+        swc_files_list = all_swc_files
         logging.info(f"Processing all {len(swc_files_list)} SWC files (Task 0/1)")
 
     if not swc_files_list:
@@ -482,7 +480,6 @@ def main(
         (f, standardize, align, resample_dist, drop_axon, file_format, cells_dir)
         for f in swc_files_list
     ]
-    # Use internal_workers for the executor within this task
     with ProcessPoolExecutor(max_workers=internal_workers) as executor:
         results = []
         with tqdm(
