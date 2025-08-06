@@ -10,6 +10,8 @@ import torch
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn, optim
+from torch.utils.data import DataLoader as TorchDataLoader
+from torch.utils.data.dataloader import default_collate
 from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
@@ -117,22 +119,29 @@ def create_dataloader(
     return graph_loader
 
 
+def custom_collate(batch):
+    batch = list(filter(lambda x: x is not None, batch))
+    return default_collate(batch)
+
+
 def build_dataloader(cfg: Config):
+    num_workers = cfg.training.num_workers if cfg.training.num_workers is not None else 0
     kwargs = (
         {
-            "num_workers": cfg.training.num_workers,
+            "num_workers": num_workers,
             "pin_memory": True,
-            "persistent_workers": True,
+            "persistent_workers": num_workers > 0,
         }
         if torch.cuda.is_available()
-        else {}
+        else {"num_workers": num_workers}
     )
 
-    train_loader = DataLoader(
+    train_loader = TorchDataLoader(
         NeuronGraphDataset(cfg, mode="train"),
         batch_size=cfg.training.batch_size,
         shuffle=True,
         drop_last=True,
+        collate_fn=custom_collate,
         **kwargs,
     )
 
@@ -147,8 +156,13 @@ def build_dataloader(cfg: Config):
             else cfg.training.batch_size
         )
 
-        val_loader = DataLoader(
-            val_dataset, batch_size=batch_size, shuffle=False, drop_last=True, **kwargs
+        val_loader = TorchDataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            drop_last=True,
+            collate_fn=custom_collate,
+            **kwargs,
         )
         loaders.append(val_loader)
 
@@ -188,9 +202,10 @@ def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> di
 
 
 def setup_logging(cfg: Config) -> tuple[TensorBoardLogger, Path]:
-    runs = sorted(Path(cfg.training.logging_dir).glob("run-*"))
+    run_dir = Path(cfg.training.logging_dir) / cfg.model.name
+    runs = sorted(run_dir.glob("run-*"))
     run_number = int(runs[-1].name.split("-")[1]) + 1 if runs else 1
-    expt_id = f"run-{run_number:03d}"  # -{cfg.model.name}-{cfg.data.train_dataset.split('-')[0]}"
+    expt_id = f"run-{run_number:03d}"
     logger = TensorBoardLogger(
         save_dir=cfg.training.logging_dir,
         name=cfg.model.name,
