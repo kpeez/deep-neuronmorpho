@@ -8,9 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.multiprocessing import Manager
 from torch.utils.data import Dataset
-from tqdm import tqdm
 
 from deep_neuronmorpho.data.augmentation import (
     jitter_node_positions,
@@ -49,7 +47,6 @@ class NeuronGraphDataset(Dataset):
         data_path = data_path.resolve()
         self.cell_files = sorted(data_path.glob("*.pkl"))
         self.num_samples = len(self.cell_files)
-
         if self.num_samples == 0:
             raise ValueError(f"No graph files found in {data_path}")
 
@@ -59,49 +56,6 @@ class NeuronGraphDataset(Dataset):
         self.n_drop_branch = cfg.augmentations.num_drop_branches
         self.translate_var = cfg.augmentations.translate
         self.n_nodes = cfg.data.num_nodes
-
-        self.manager = Manager()
-        self.cells = self.manager.dict()
-        count = 0
-        for cell_file in tqdm(self.cell_files):
-            # Adapt for datasets where this is not true.
-            soma_id = 0
-            cell = np.load(cell_file, allow_pickle=True)
-            features = cell["features"]
-            neighbors = cell["neighbors"]
-
-            assert len(features) == len(neighbors)
-
-            if len(features) >= self.n_nodes or self.mode == "eval":
-                neighbors, _ = subsample_graph(
-                    neighbors=neighbors,
-                    not_deleted=set(range(len(neighbors))),
-                    keep_nodes=1000,
-                    protected=[soma_id],
-                )
-                neighbors, subsampled2new = remap_neighbors(neighbors)
-                soma_id = subsampled2new[soma_id]
-                features = features[list(subsampled2new.keys()), :3]
-
-                if not isinstance(features, torch.Tensor):
-                    features = torch.tensor(features, dtype=torch.float32)
-
-                leaf_branch_nodes = find_leaf_nodes(neighbors)
-                distances = compute_path_lengths(soma_id, neighbors)
-
-                item = {
-                    "cell_id": cell_file.stem,
-                    "features": features,
-                    "neighbors": neighbors,
-                    "distances": distances,
-                    "soma_id": soma_id,
-                    "leaf_branch_nodes": leaf_branch_nodes,
-                }
-
-                self.cells[count] = item
-                count += 1
-
-        self.num_samples = len(self.cells)
 
     def __len__(self):
         return self.num_samples
@@ -181,13 +135,47 @@ class NeuronGraphDataset(Dataset):
         return new_features, adj_matrix
 
     def __getitem__(self, index):
-        cell = self.cells[index]
+        cell_file = self.cell_files[index]
+        soma_id = 0
+        cell_data = np.load(cell_file, allow_pickle=True)
+        features = cell_data["features"]
+        neighbors = cell_data["neighbors"]
 
-        if self.mode == "train":
-            features1, adj_matrix1 = self._augment(cell)
-            features2, adj_matrix2 = self._augment(cell)
+        assert len(features) == len(neighbors)
 
-            return features1, features2, adj_matrix1, adj_matrix2
+        if len(features) >= self.n_nodes or self.mode == "eval":
+            neighbors, _ = subsample_graph(
+                neighbors=neighbors,
+                not_deleted=set(range(len(neighbors))),
+                keep_nodes=1000,
+                protected=[soma_id],
+            )
+            neighbors, subsampled2new = remap_neighbors(neighbors)
+            soma_id = subsampled2new[soma_id]
+            features = features[list(subsampled2new.keys()), :3]
 
+            if not isinstance(features, torch.Tensor):
+                features = torch.tensor(features, dtype=torch.float32)
+
+            leaf_branch_nodes = find_leaf_nodes(neighbors)
+            distances = compute_path_lengths(soma_id, neighbors)
+
+            cell = {
+                "cell_id": cell_file.stem,
+                "features": features,
+                "neighbors": neighbors,
+                "distances": distances,
+                "soma_id": soma_id,
+                "leaf_branch_nodes": leaf_branch_nodes,
+            }
+
+            if self.mode == "train":
+                features1, adj_matrix1 = self._augment(cell)
+                features2, adj_matrix2 = self._augment(cell)
+                return features1, features2, adj_matrix1, adj_matrix2
+            else:
+                return cell["features"], cell["neighbors"]
         else:
-            return cell["features"], cell["neighbors"]
+            # we should probably skip graphs that are smaller than n_nodes when not in eval mode
+            # for now, we'll return None and it should be handled in the dataloader collate_fn
+            return None
