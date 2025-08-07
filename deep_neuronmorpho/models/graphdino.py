@@ -4,6 +4,8 @@ File downloaded from https://github.com/marissaweis/ssl_neuron/blob/0a292e717891
 
 Attention and Block adapted from https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py
 DINO adapted from https://github.com/lucidrains/vit-pytorch/blob/main/vit_pytorch/dino.py
+
+TODO: Refactor with more logical transformer implementation.
 """
 
 import copy
