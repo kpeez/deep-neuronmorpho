@@ -3,10 +3,12 @@ defaults:
   - model: graphdino
   - training/optimizer: adam
   - training/scheduler: steplr
+  - training/logger: tensorboard
+  - training/callbacks: checkpoint
 
 hydra:
   run:
-    dir: ${training.logging_dir}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${training.logging_dir}/${hydra:runtime.choices.model}/${now:%Y-%m-%d_%H-%M-%S}
   job:
     chdir: false
 
