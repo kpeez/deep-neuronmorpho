@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from omegaconf import DictConfig
 from torch.utils.data import Dataset
 
 from deep_neuronmorpho.data.augmentation import (
@@ -15,7 +16,6 @@ from deep_neuronmorpho.data.augmentation import (
     rotate_node_positions,
     translate_all_nodes,
 )
-from deep_neuronmorpho.utils.model_config import Config
 
 from .utils import (
     compute_path_lengths,
@@ -35,7 +35,7 @@ class NeuronGraphDataset(Dataset):
     are assumed to be in microns and y-axis is orthogonal to the pia.
     """
 
-    def __init__(self, cfg: Config, mode="train"):
+    def __init__(self, cfg: DictConfig, mode="train"):
         self.cfg = cfg
         self.mode = mode
         dataset_folder = cfg.data.train_dataset if self.mode == "train" else cfg.data.eval_dataset
