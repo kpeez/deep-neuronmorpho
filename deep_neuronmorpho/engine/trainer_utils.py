@@ -2,11 +2,13 @@
 
 import shutil
 from collections.abc import Sequence
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
 import pytorch_lightning as pl
 import torch
+from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn, optim
@@ -16,7 +18,7 @@ from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
 from deep_neuronmorpho.data import NeuronGraphDataset
-from deep_neuronmorpho.models import MACGNN, create_graphdino
+from deep_neuronmorpho.models import MACGNN
 from deep_neuronmorpho.utils import Config
 
 from .ntxent_loss import NTXEntLoss
@@ -124,7 +126,7 @@ def custom_collate(batch):
     return default_collate(batch)
 
 
-def build_dataloader(cfg: Config):
+def build_dataloader(cfg: DictConfig):
     num_workers = cfg.training.num_workers if cfg.training.num_workers is not None else 0
     kwargs = (
         {
@@ -201,7 +203,7 @@ def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> di
     return dataloaders
 
 
-def setup_logging(cfg: Config) -> tuple[TensorBoardLogger, Path]:
+def setup_logging(cfg: Any) -> tuple[TensorBoardLogger, Path]:
     run_dir = Path(cfg.training.logging_dir) / cfg.model.name
     runs = sorted(run_dir.glob("run-*"))
     run_number = int(runs[-1].name.split("-")[1]) + 1 if runs else 1
@@ -214,7 +216,15 @@ def setup_logging(cfg: Config) -> tuple[TensorBoardLogger, Path]:
     run_dir = Path(logger.log_dir)
     ckpts_dir = run_dir / "ckpts"
     ckpts_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(cfg.config_file, run_dir / f"{expt_id}_config.yaml")
+    # Copy or materialize the effective configuration for reproducibility
+    with suppress(Exception):
+        config_src = getattr(cfg, "config_file", None)
+        if config_src is not None:
+            shutil.copy(config_src, run_dir / f"{expt_id}_config.yaml")
+        else:
+            # If using Hydra DictConfig, save resolved config
+            with suppress(Exception):
+                OmegaConf.save(config=cfg, f=str(run_dir / f"{expt_id}_config.yaml"))
 
     return logger, ckpts_dir
 
@@ -228,8 +238,8 @@ def log_hyperparameters(logger: TensorBoardLogger, cfg: Config) -> None:
     """
     hparams = {
         "model_name": cfg.model.name,
-        "optimizer": cfg.training.optimizer.name,
-        "learning_rate": cfg.training.optimizer.lr,
+        "optimizer": cfg.optimizer.name,
+        "learning_rate": cfg.optimizer.lr,
         "batch_size": cfg.training.batch_size,
         "max_steps": cfg.training.max_steps,
     }
@@ -249,7 +259,7 @@ def setup_callbacks(cfg: Config, ckpts_dir: Path) -> list:
         filename="{step:07d}-{train_loss:.2f}",
         every_n_train_steps=cfg.training.logging_steps,
         save_last=True,
-        save_top_k=-1,
+        save_top_k=3,
     )
 
     callbacks = [model_checkpoint]
@@ -278,7 +288,7 @@ def create_trainer(
 
 
 def create_model(name: str, cfg: Config) -> torch.nn.Module:
-    model_loaders = {"graphdino": create_graphdino, "macgnn": MACGNN}
+    model_loaders = {"macgnn": MACGNN}
 
     return model_loaders[name.lower()](cfg)
 

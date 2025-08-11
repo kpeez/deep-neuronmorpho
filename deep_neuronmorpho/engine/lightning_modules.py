@@ -2,6 +2,8 @@
 
 import pytorch_lightning as pl
 import torch
+from hydra.utils import instantiate
+from omegaconf import DictConfig
 from sklearn.svm import SVC
 from torch import nn
 from torch_geometric.data import Batch
@@ -37,7 +39,7 @@ class GraphDINOLightningModule(pl.LightningModule):
         automatic_optimization (bool): Always False as we handle optimization manually.
     """
 
-    def __init__(self, model, config):
+    def __init__(self, model: nn.Module, config: DictConfig):
         """
         Initialize the GraphDINOLightningModule.
 
@@ -59,22 +61,11 @@ class GraphDINOLightningModule(pl.LightningModule):
         self.automatic_optimization = False
 
     def configure_optimizers(self):
-        """
-        Configure optimizers for training.
-
-        Returns:
-            torch.optim.Optimizer: The optimizer (Adam).
-        """
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=0)
+        optimizer = instantiate(self.cfg.training.optimizer, params=self.model.parameters())
         return optimizer
 
     def set_lr(self):
-        """
-        Set the learning rate based on the current iteration.
-
-        Returns:
-            float: The calculated learning rate.
-        """
+        """Set the learning rate based on the current iteration."""
         optimizer = self.optimizers()
 
         if self.curr_iter < self.warmup_steps:
@@ -91,7 +82,7 @@ class GraphDINOLightningModule(pl.LightningModule):
 
         return lr
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, batch_idx) -> torch.Tensor:
         """
         Execute training step to process a batch of data.
 
@@ -119,29 +110,17 @@ class GraphDINOLightningModule(pl.LightningModule):
 
         return loss
 
-    def on_save_checkpoint(self, checkpoint):
-        """
-        Customize what gets saved in the checkpoint.
-
-        Args:
-            checkpoint (dict): The checkpoint data.
-        """
+    def on_save_checkpoint(self, checkpoint: dict) -> None:
+        """Customize what gets saved in the checkpoint."""
         checkpoint["curr_iter"] = self.curr_iter
 
-    def on_load_checkpoint(self, checkpoint):
-        """
-        Customize what gets loaded from the checkpoint.
-
-        Args:
-            checkpoint (dict): The checkpoint data.
-        """
+    def on_load_checkpoint(self, checkpoint: dict) -> None:
+        """Customize what gets loaded from the checkpoint."""
         if "curr_iter" in checkpoint:
             self.curr_iter = checkpoint["curr_iter"]
 
     def on_train_epoch_end(self):
-        """
-        Called at the end of a training epoch.
-        """
+        """Called at the end of a training epoch."""
         avg_loss = self.trainer.callback_metrics.get("train_loss_epoch", torch.tensor(0.0))
         print(f"Epoch {self.current_epoch} | Loss {avg_loss:.4f}")
 

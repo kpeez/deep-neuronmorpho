@@ -10,6 +10,7 @@ dependencies = [
     "matplotlib>=3.10.1",
     "morphopy",
     "pandas>=2.2.3",
+    "hydra-core>=1.3.2",
     "pydantic>=2.11.3",
     "pytorch-lightning>=2.5.1",
     "pyyaml>=6.0.2",
