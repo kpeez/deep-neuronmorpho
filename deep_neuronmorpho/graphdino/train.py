@@ -11,7 +11,7 @@ from deep_neuronmorpho.engine import (
 from deep_neuronmorpho.engine.trainer_utils import build_dataloader
 
 
-@hydra.main(config_path="../conf", config_name="config", version_base=None)
+@hydra.main(config_path="../../conf", config_name="config", version_base=None)
 def main(cfg: DictConfig) -> None:
     """Train a GraphDINO model using a Hydra DictConfig."""
 
