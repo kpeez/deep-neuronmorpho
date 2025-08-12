@@ -27,7 +27,7 @@ from .utils import (
 )
 
 
-class NeuronGraphDataset(Dataset):
+class GraphDINODataset(Dataset):
     """Dataset of neuronal graphs for training GraphDINO.
 
     Neuronal graphs are assumed to be soma-centered (i.e. soma node

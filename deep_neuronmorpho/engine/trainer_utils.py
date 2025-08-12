@@ -17,7 +17,7 @@ from torch.utils.data.dataloader import default_collate
 from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
-from deep_neuronmorpho.data import NeuronGraphDataset
+from deep_neuronmorpho.data import GraphDINODataset
 from deep_neuronmorpho.models import MACGNN
 from deep_neuronmorpho.utils import Config
 
@@ -139,7 +139,7 @@ def build_dataloader(cfg: DictConfig):
     )
 
     train_loader = TorchDataLoader(
-        NeuronGraphDataset(cfg, mode="train"),
+        GraphDINODataset(cfg, mode="train"),
         batch_size=cfg.training.batch_size,
         shuffle=True,
         drop_last=True,
@@ -150,7 +150,7 @@ def build_dataloader(cfg: DictConfig):
     loaders = [train_loader]
 
     if cfg.data.eval_dataset is not None:
-        val_dataset = NeuronGraphDataset(cfg, mode="eval")
+        val_dataset = GraphDINODataset(cfg, mode="eval")
 
         batch_size = (
             val_dataset.num_samples
@@ -171,6 +171,7 @@ def build_dataloader(cfg: DictConfig):
     return tuple(loaders)
 
 
+# TODO: refactor for GNNs
 def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> dict[str, DataLoader]:
     """Create dataloaders for contrastive training and evaluation datasets.
 
@@ -184,9 +185,7 @@ def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> di
         dict[str, DataLoader]: Dictionary of dataloaders for each dataset.
     """
     graph_datasets = {
-        dataset_name: NeuronGraphDataset(
-            cfg=cfg, mode="train" if "train" in dataset_name else "eval"
-        )
+        dataset_name: GraphDINODataset(cfg=cfg, mode="train" if "train" in dataset_name else "eval")
         for dataset_name in datasets
     }
     dataloaders = {}
