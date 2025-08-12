@@ -5,6 +5,7 @@ defaults:
   - training/scheduler: steplr
   - training/logger: tensorboard
   - training/callbacks: checkpoint
+  - training/trainer: default
 
 hydra:
   run:
