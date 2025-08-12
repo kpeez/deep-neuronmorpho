@@ -2,8 +2,7 @@
 
 import hydra
 import pytorch_lightning as pl
-import torch
-from hydra import utils
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 
 from deep_neuronmorpho.engine import (
@@ -16,23 +15,13 @@ from deep_neuronmorpho.engine.trainer_utils import build_dataloader
 def main(cfg: DictConfig) -> None:
     """Train a GraphDINO model using a Hydra DictConfig."""
 
-    print(cfg)
     if cfg.training.get("random_state") is not None:
         pl.seed_everything(cfg.training.random_state, workers=True)
 
-    model = utils.instantiate(cfg.model)
-    callbacks = utils.instantiate(cfg.training.callbacks)
-    logger = utils.instantiate(cfg.training.logger)
+    model = instantiate(cfg.model)
     dataloaders = build_dataloader(cfg)
     lightning_module = GraphDINOLightningModule(model, cfg)
-    trainer = pl.Trainer(
-        max_steps=cfg.training.max_steps,
-        logger=logger,
-        callbacks=callbacks,
-        devices="auto",
-        accelerator="cuda" if torch.cuda.is_available() else "cpu",
-        deterministic=bool(getattr(cfg.training, "deterministic", False)),
-    )
+    trainer = instantiate(cfg.training.trainer)
     trainer.fit(
         lightning_module,
         dataloaders[0],

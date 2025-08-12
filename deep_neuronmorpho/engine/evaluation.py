@@ -17,7 +17,7 @@ from sklearn.preprocessing import StandardScaler
 from torch import nn
 from umap import UMAP
 
-from deep_neuronmorpho.data import NeuronGraphDataset
+from deep_neuronmorpho.data import GraphDINODataset
 
 
 def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFrame:
@@ -34,7 +34,7 @@ def create_embedding_df(model: nn.Module, dataset_file: str | Path) -> pd.DataFr
         and embedding dimensions.
     """
 
-    dataset = NeuronGraphDataset(name=dataset_file, from_file=True)
+    dataset = GraphDINODataset(name=dataset_file, from_file=True)
     model.eval()
     if dataset.num_classes is None:
         graphs = dataset[:]
