@@ -359,7 +359,7 @@ def main(
         help="Path to directory to save processed SWC files. Default is `swc_folder`/output.",
     ),
     file_format: str = Option(
-        "pkl",
+        "csv",
         "-f",
         "--file-format",
         help="Output file format: 'swc' for SWC files or 'pkl' for pickle files. If 'pkl', then the node features and a neighbor mapping is saved.  If 'swc', then a new .swc file is created.",
