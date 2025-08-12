@@ -297,7 +297,7 @@ def process_swc_file(args):
         else:
             final_output_path = (cells_dir / output_stem).with_suffix(".swc")
             with tempfile.NamedTemporaryFile(
-                mode="w", dir=cells_dir, delete=False, suffix=".swc"
+                mode="w", dir=cells_dir, delete=False, suffix=".swc", encoding="utf-8"
             ) as tmp:
                 temp_file_path = Path(tmp.name)
                 swc_data.save_swc(temp_file_path)
