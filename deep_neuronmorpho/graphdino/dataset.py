@@ -9,14 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from torch.utils.data import Dataset as TorchDataset
-from torch_geometric.data import Dataset
-
-from deep_neuronmorpho.data.augmentation import (
-    jitter_node_positions,
-    rotate_node_positions,
-    translate_all_nodes,
-)
+from torch.utils.data import Dataset
 
 from ..data.utils import (
     compute_path_lengths,
@@ -26,17 +19,14 @@ from ..data.utils import (
     remap_neighbors,
     subsample_graph,
 )
+from .augmentations import (
+    jitter_node_positions,
+    rotate_node_positions,
+    translate_all_nodes,
+)
 
 
-class NeuronGraphDataset(Dataset):
-    """Base class for graph datasets."""
-
-    def __init__(self, cfg: DictConfig, mode: str = "train"):
-        self.cfg = cfg
-        self.mode = mode
-
-
-class GraphDINODataset(TorchDataset):
+class GraphDINODataset(Dataset):
     """Dataset of neuronal graphs for training GraphDINO.
 
     Neuronal graphs are assumed to be soma-centered (i.e. soma node
