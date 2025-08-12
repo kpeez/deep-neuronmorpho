@@ -62,7 +62,12 @@ class GraphDINOLightningModule(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = instantiate(self.cfg.training.optimizer, params=self.model.parameters())
-        return optimizer
+        optimizers = {"optimizer": optimizer}
+        if self.cfg.training.scheduler is not None:
+            scheduler = instantiate(self.cfg.training.scheduler, optimizer=optimizer)
+            optimizers["lr_scheduler"] = scheduler
+
+        return optimizers
 
     def set_lr(self):
         """Set the learning rate based on the current iteration."""
