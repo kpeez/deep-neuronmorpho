@@ -9,7 +9,6 @@ from torch import nn
 from torch_geometric.data import Batch
 
 from deep_neuronmorpho.data import augment_graph, compute_laplacian_eigenvectors
-from deep_neuronmorpho.utils import Config
 
 from .evaluation import repeated_kfold_eval
 from .ntxent_loss import NTXEntLoss
@@ -29,7 +28,7 @@ class GraphDINOLightningModule(pl.LightningModule):
 
     Attributes:
         model (nn.Module): The underlying graph neural network model.
-        config (dict or Config): Configuration with model and training parameters.
+        config (DictConfig): Configuration with model and training parameters.
         max_iter (int): Maximum number of training iterations.
         warmup_steps (int): Number of steps for learning rate warmup.
         lr_decay_steps (int): Steps after which learning rate decay is applied.
@@ -44,8 +43,8 @@ class GraphDINOLightningModule(pl.LightningModule):
         Initialize the GraphDINOLightningModule.
 
         Args:
-            model (nn.Module): The graph neural network model.
-            config (dict or Config): Configuration dictionary or object.
+            model (nn.Module): GraphDINO model.
+            config (DictConfig): OmegaConf DictConfig object.
         """
         super().__init__()
         self.model = model
@@ -161,7 +160,7 @@ class ContrastiveGraphModule(pl.LightningModule):
     def __init__(
         self,
         model: nn.Module,
-        config: Config,
+        config: DictConfig,
         node_attrs: str = "nattrs",
         loss_fn: nn.Module | None = None,
     ):
