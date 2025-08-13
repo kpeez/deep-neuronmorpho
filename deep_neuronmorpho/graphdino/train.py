@@ -5,13 +5,10 @@ import pytorch_lightning as pl
 from hydra.utils import instantiate
 from omegaconf import DictConfig
 
-from deep_neuronmorpho.engine import (
-    GraphDINOLightningModule,
-)
-from deep_neuronmorpho.engine.trainer_utils import build_dataloader
+from deep_neuronmorpho.graphdino.trainer_utils import GraphDINOLightningModule, build_dataloader
 
 
-@hydra.main(config_path="../conf", config_name="config", version_base=None)
+@hydra.main(config_path="../../conf", config_name="config", version_base=None)
 def main(cfg: DictConfig) -> None:
     """Train a GraphDINO model using a Hydra DictConfig."""
 

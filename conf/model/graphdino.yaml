@@ -1,6 +1,6 @@
-_target_: deep_neuronmorpho.models.graphdino.GraphDINO
+_target_: deep_neuronmorpho.graphdino.graphdino.GraphDINO
 transformer:
-  _target_: deep_neuronmorpho.models.graphdino.GraphTransformer
+  _target_: deep_neuronmorpho.graphdino.graphdino.GraphTransformer
   n_nodes: ${data.num_nodes}
   dim: 32
   depth: 7

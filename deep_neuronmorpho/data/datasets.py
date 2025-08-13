@@ -1,181 +1,177 @@
-"""Graph dataset class from ssl_neuron.
+"""NeuronDataset for creating PyG datasets from SWC files."""
 
-TODO: This is a temporary class to load the dataset from ssl_neuron. Will need to rewrite
-to utilize torch-geometric's dataset class.
-"""
-
+import bisect
+import os
 from pathlib import Path
 
-import numpy as np
 import torch
-from omegaconf import DictConfig
-from torch.utils.data import Dataset
+from torch_geometric.data import Data, Dataset, InMemoryDataset
+from torch_geometric.data.separate import separate
+from torch_geometric.utils import coalesce, remove_self_loops, to_undirected
 
-from deep_neuronmorpho.data.augmentation import (
-    jitter_node_positions,
-    rotate_node_positions,
-    translate_all_nodes,
-)
-
-from .utils import (
-    compute_path_lengths,
-    drop_random_branch,
-    find_leaf_nodes,
-    neighbors_to_adjacency_torch,
-    remap_neighbors,
-    subsample_graph,
-)
+from deep_neuronmorpho.data.process_swc import SWCData
 
 
-class GraphDINODataset(Dataset):
-    """Dataset of neuronal graphs for training GraphDINO.
+def swc_to_pyg(path: str, label: int | None = None) -> Data:
+    swc = SWCData(path, standardize=False, align=False)
+    G = swc.ntree.get_graph()
+    nodes = sorted(G.nodes())
+    node_to_idx = {n: i for i, n in enumerate(nodes)}
+    coords = torch.tensor(swc.data[["x", "y", "z"]].to_numpy(), dtype=torch.float32)
+    edges = torch.tensor(
+        [(node_to_idx[u], node_to_idx[v]) for (u, v) in G.edges()],
+        dtype=torch.long,
+    ).T
 
-    Neuronal graphs are assumed to be soma-centered (i.e. soma node
-    position is (0, 0, 0) and axons have been removed. Node positions
-    are assumed to be in microns and y-axis is orthogonal to the pia.
+    if edges.numel():
+        edges, _ = remove_self_loops(edges)
+        edges = to_undirected(edges, num_nodes=coords.size(0))
+        edges = coalesce(edges)
+
+    data = Data(x=coords, edge_index=edges)
+    data.sample_id = Path(path).stem
+
+    if label is not None:
+        data.y = torch.tensor(label)
+
+    return data
+
+
+class NeuronDataset(Dataset):
+    """
+    Disk-backed, sharded PyG dataset.
+      - Reads standardized SWC from `raw_dir` (e.g., datasets/interim/<dataset>)
+      - Writes shards to `<root>/processed/shard_*.pt` and index to `<root>/processed/meta.pt`
+      - Always returns a single `Data`; use wrappers for contrastive views.
     """
 
-    def __init__(self, cfg: DictConfig, mode="train"):
-        self.cfg = cfg
-        self.mode = mode
-        dataset_folder = cfg.data.train_dataset if self.mode == "train" else cfg.data.eval_dataset
+    def __init__(
+        self,
+        root: str,
+        dataset_name: str | None = None,
+        raw_dir: str | None = None,
+        labels: dict[str, int] | None = None,
+        shard_size: int = 2000,
+        split_list: str | None = None,
+        transform=None,
+        pre_transform=None,
+    ):
+        self._root = root
+        self._name = dataset_name or Path(root).name
+        self._raw_dir = raw_dir or str(Path(root) / "raw")
+        self._labels = labels or {}
+        self._shard_size = int(shard_size)
 
-        if dataset_folder is None:
-            raise ValueError(f"Dataset for mode '{self.mode}' is not specified in the config.")
+        self._keep = None
+        if split_list:
+            with open(split_list, encoding="utf-8") as f:
+                self._keep = {ln.strip() for ln in f if ln.strip()}
 
-        data_path = Path(dataset_folder)
-        data_path = data_path.resolve()
-        self.cell_files = sorted(data_path.glob("*.pkl"))
-        self.num_samples = len(self.cell_files)
-        if self.num_samples == 0:
-            raise ValueError(f"No graph files found in {data_path}")
+        swc_paths = sorted([str(p) for p in Path(self._raw_dir).glob("*.swc")])
+        if self._keep is not None:
+            swc_paths = [p for p in swc_paths if Path(p).stem in self._keep]
+        self._raw_files = swc_paths
+        # lazy shard cache (keep only last loaded shard to stay tiny)
+        self._cur_sid = None
+        self._cur_data = None
+        self._cur_slices = None
 
-        # augmentation parameters
-        self.jitter_var = cfg.augmentations.jitter
-        self.rotation_axis = cfg.augmentations.rotation_axis
-        self.n_drop_branch = cfg.augmentations.num_drop_branches
-        self.translate_var = cfg.augmentations.translate
-        self.n_nodes = cfg.data.num_nodes
+        super().__init__(root, transform=transform, pre_transform=pre_transform)
 
-    def __len__(self):
-        return self.num_samples
+        self._meta = torch.load(self._meta_path()) if Path(self._meta_path()).exists() else None
+        if self._meta:
+            self._cumsum = self._meta["cumsum"]
+            self._shards = self._meta["shards"]
 
-    def _delete_subbranch(self, neighbors, soma_id, distances, leaf_branch_nodes):
-        leaf_branch_nodes = set(leaf_branch_nodes)
-        not_deleted = set(range(len(neighbors)))
-        for _i in range(self.n_drop_branch):
-            neighbors, drop_nodes = drop_random_branch(
-                leaf_branch_nodes, neighbors, distances, keep_nodes=self.n_nodes
+    @property
+    def processed_dir(self) -> str:
+        return str(Path(self._root) / "processed")
+
+    def _meta_path(self) -> str:
+        return str(Path(self.processed_dir) / "meta.pt")
+
+    @property
+    def raw_file_names(self) -> list[str]:
+        return [Path(p).name for p in self._raw_files]
+
+    @property
+    def processed_file_names(self) -> list[str]:
+        """Require meta.pt to exist; it indexes all shards."""
+        return ["meta.pt"]
+
+    def len(self) -> int:
+        return 0 if self._meta is None else int(self._meta["total"])
+
+    def process(self):
+        os.makedirs(self.processed_dir, exist_ok=True)
+        data_buf: list[Data] = []
+        shards, cumsum, total = [], [], 0
+        sid = 0
+
+        def flush_shard(buf: list[Data], sid: int):
+            nonlocal total
+            if not buf:
+                return
+            if self.pre_transform is not None:
+                buf = [self.pre_transform(d) for d in buf]
+            data, slices = InMemoryDataset.collate(buf)
+            shard_name = f"{self._name}-shard_{sid:05d}.pt"
+            shard_path = Path(self.processed_dir) / shard_name
+            shard_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save((data, slices), str(shard_path))
+            total += len(buf)
+            cumsum.append(total)
+            shards.append(shard_name)
+            buf.clear()
+
+        for swc_path in self._raw_files:
+            stem = Path(swc_path).stem
+            y = self._labels.get(stem)
+            d = swc_to_pyg(swc_path, label=y)
+            data_buf.append(d)
+            if len(data_buf) >= self._shard_size:
+                flush_shard(data_buf, sid)
+                sid += 1
+        flush_shard(data_buf, sid)
+
+        if len(shards) == 1:
+            old = Path(self.processed_dir) / shards[0]
+            new_name = f"{self._name}.pt"
+            new = Path(self.processed_dir) / new_name
+            try:
+                old.replace(new)
+                shards[0] = new_name
+            except OSError:
+                pass
+
+        meta = {
+            "total": total,
+            "cumsum": cumsum,
+            "shards": shards,
+            "shard_size": self._shard_size,
+        }
+        torch.save(meta, self._meta_path())
+
+        self._meta, self._cumsum, self._shards = meta, cumsum, shards
+
+    def get(self, idx: int) -> Data:
+        sid = bisect.bisect_right(self._cumsum, idx)
+        start = 0 if sid == 0 else self._cumsum[sid - 1]
+        local_idx = idx - start
+
+        if self._cur_sid != sid:
+            shard_path = str(Path(self.processed_dir) / self._shards[sid])
+            self._cur_data, self._cur_slices = torch.load(
+                shard_path,
+                map_location="cpu",
+                weights_only=False,
             )
-            not_deleted -= drop_nodes
-            leaf_branch_nodes -= drop_nodes
+            self._cur_sid = sid
 
-            if len(leaf_branch_nodes) == 0:
-                break
-
-        return not_deleted
-
-    def _reduce_nodes(self, neighbors, soma_id, distances, leaf_branch_nodes):
-        """Reduce the number of nodes in the graph to a fixed size.
-
-        This method performs two types of reduction:
-        1. Delete random branches using _delete_subbranch
-        2. Subsample the graph to a fixed number of nodes using subsample_graph
-
-        Args:
-            neighbors: Dict mapping node IDs to their connected neighbors
-            soma_id: ID of the soma node(s) to protect from deletion
-            distances: Dict mapping node IDs to their distance from soma
-            leaf_branch_nodes: Set of leaf and branch nodes
-
-        Returns:
-            neighbors2: Updated neighbors dictionary
-            adj_matrix: Adjacency matrix for GraphDINO
-            not_deleted: List of node IDs that were not deleted
-        """
-        neighbors2 = {k: set(v) for k, v in neighbors.items()}
-        not_deleted = self._delete_subbranch(neighbors2, soma_id, distances, leaf_branch_nodes)
-        neighbors2, not_deleted = subsample_graph(
-            neighbors=neighbors2,
-            not_deleted=not_deleted,
-            keep_nodes=self.n_nodes,
-            protected=soma_id,
+        return separate(
+            cls=Data,
+            batch=self._cur_data,
+            idx=local_idx,
+            slice_dict=self._cur_slices,
+            decrement=False,
         )
-
-        adj_matrix = neighbors_to_adjacency_torch(neighbors2, not_deleted)
-        assert adj_matrix.shape == (self.n_nodes, self.n_nodes), (
-            f"{adj_matrix.shape} != {self.n_nodes} {self.n_nodes}"
-        )
-
-        return neighbors2, adj_matrix, not_deleted
-
-    def _augment_node_position(self, features):
-        pos = features[:, :3]
-        rot_pos = rotate_node_positions(pos, axis=self.rotation_axis)
-        jittered_pos = jitter_node_positions(rot_pos, jitter=self.jitter_var)
-        jittered_pos = translate_all_nodes(
-            jittered_pos,
-            translate_var=self.cfg.augmentations.translate,
-        )
-        features[:, :3] = jittered_pos
-
-        return features
-
-    def _augment(self, cell):
-        features = cell["features"]
-        neighbors = cell["neighbors"]
-        distances = cell["distances"]
-        _neighbors2, adj_matrix, not_deleted = self._reduce_nodes(
-            neighbors, [int(cell["soma_id"])], distances, cell["leaf_branch_nodes"]
-        )
-
-        new_features = features[not_deleted].clone()
-        new_features = self._augment_node_position(new_features)
-
-        return new_features, adj_matrix
-
-    def __getitem__(self, index):
-        cell_file = self.cell_files[index]
-        soma_id = 0
-        cell_data = np.load(cell_file, allow_pickle=True)
-        features = cell_data["features"]
-        neighbors = cell_data["neighbors"]
-
-        assert len(features) == len(neighbors)
-
-        if len(features) >= self.n_nodes or self.mode == "eval":
-            neighbors, _ = subsample_graph(
-                neighbors=neighbors,
-                not_deleted=set(range(len(neighbors))),
-                keep_nodes=1000,
-                protected=[soma_id],
-            )
-            neighbors, subsampled2new = remap_neighbors(neighbors)
-            soma_id = subsampled2new[soma_id]
-            features = features[list(subsampled2new.keys()), :3]
-
-            if not isinstance(features, torch.Tensor):
-                features = torch.tensor(features, dtype=torch.float32)
-
-            leaf_branch_nodes = find_leaf_nodes(neighbors)
-            distances = compute_path_lengths(soma_id, neighbors)
-
-            cell = {
-                "cell_id": cell_file.stem,
-                "features": features,
-                "neighbors": neighbors,
-                "distances": distances,
-                "soma_id": soma_id,
-                "leaf_branch_nodes": leaf_branch_nodes,
-            }
-
-            if self.mode == "train":
-                features1, adj_matrix1 = self._augment(cell)
-                features2, adj_matrix2 = self._augment(cell)
-                return features1, features2, adj_matrix1, adj_matrix2
-            else:
-                return cell["features"], cell["neighbors"]
-        else:
-            # we should probably skip graphs that are smaller than n_nodes when not in eval mode
-            # for now, we'll return None and it should be handled in the dataloader collate_fn
-            return None

@@ -158,6 +158,10 @@ class SWCData:
         This updates both the `data` and `ntree` attributes to contain a neuron without axon nodes.
         """
         self._ntree = self.ntree.get_dendritic_tree()
+        # re-label nodes to be consecutive integers
+        nodes = sorted(self._ntree.nodes())
+        node_map = {node: i for i, node in enumerate(nodes, start=1)}
+        self._ntree.rename_nodes(node_map)
         self._data = self._ntree.to_swc()
         soma_coords = self._data[["x", "y", "z"]].iloc[0]
         self._data[["x", "y", "z"]] -= soma_coords
@@ -284,20 +288,18 @@ def process_swc_file(args):
 
         if drop_axon:
             swc_data.remove_axon()
-            if file_format.lower() == "swc":
-                output_stem = f"{output_stem}-no_axon"
 
         if file_format.lower() in {"pickle", "pkl"}:
-            final_output_path = (cells_dir / output_stem).with_suffix(".pkl")
+            final_output_path = f"{cells_dir / output_stem}.pkl"
             with tempfile.NamedTemporaryFile(
                 mode="wb", dir=cells_dir, delete=False, suffix=".pkl"
             ) as tmp:
                 temp_file_path = Path(tmp.name)
                 swc_data.save_pickle(temp_file_path)
         else:
-            final_output_path = (cells_dir / output_stem).with_suffix(".swc")
+            final_output_path = Path(f"{cells_dir / output_stem}.swc")
             with tempfile.NamedTemporaryFile(
-                mode="w", dir=cells_dir, delete=False, suffix=".swc"
+                mode="w", dir=cells_dir, delete=False, suffix=".swc", encoding="utf-8"
             ) as tmp:
                 temp_file_path = Path(tmp.name)
                 swc_data.save_swc(temp_file_path)
@@ -359,7 +361,7 @@ def main(
         help="Path to directory to save processed SWC files. Default is `swc_folder`/output.",
     ),
     file_format: str = Option(
-        "pkl",
+        "swc",
         "-f",
         "--file-format",
         help="Output file format: 'swc' for SWC files or 'pkl' for pickle files. If 'pkl', then the node features and a neighbor mapping is saved.  If 'swc', then a new .swc file is created.",
@@ -395,7 +397,7 @@ def main(
     swc_folder_path = Path(swc_folder)
     output_dir = Path(output_dir) if output_dir else swc_folder_path.parents[0] / "output"
     output_dir.mkdir(exist_ok=True)
-    cells_dir = output_dir / "data"
+    cells_dir = output_dir / "cells"
     cells_dir.mkdir(exist_ok=True)
     is_array_job = task_id is not None and num_tasks is not None
     current_task_id = task_id if is_array_job else 0

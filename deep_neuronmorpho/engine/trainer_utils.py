@@ -8,16 +8,14 @@ from typing import Any
 
 import pytorch_lightning as pl
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch import nn, optim
-from torch.utils.data import DataLoader as TorchDataLoader
-from torch.utils.data.dataloader import default_collate
 from torch_geometric.data import Dataset
 from torch_geometric.loader import DataLoader
 
-from deep_neuronmorpho.data import GraphDINODataset
+from deep_neuronmorpho.data import NeuronDataset
 from deep_neuronmorpho.models import MACGNN
 from deep_neuronmorpho.utils import Config
 
@@ -121,56 +119,6 @@ def create_dataloader(
     return graph_loader
 
 
-def custom_collate(batch):
-    batch = list(filter(lambda x: x is not None, batch))
-    return default_collate(batch)
-
-
-def build_dataloader(cfg: DictConfig):
-    num_workers = cfg.training.num_workers if cfg.training.num_workers is not None else 0
-    kwargs = (
-        {
-            "num_workers": num_workers,
-            "pin_memory": True,
-            "persistent_workers": num_workers > 0,
-        }
-        if torch.cuda.is_available()
-        else {"num_workers": num_workers}
-    )
-
-    train_loader = TorchDataLoader(
-        GraphDINODataset(cfg, mode="train"),
-        batch_size=cfg.training.batch_size,
-        shuffle=True,
-        drop_last=True,
-        collate_fn=custom_collate,
-        **kwargs,
-    )
-
-    loaders = [train_loader]
-
-    if cfg.data.eval_dataset is not None:
-        val_dataset = GraphDINODataset(cfg, mode="eval")
-
-        batch_size = (
-            val_dataset.num_samples
-            if len(val_dataset) < cfg.training.batch_size
-            else cfg.training.batch_size
-        )
-
-        val_loader = TorchDataLoader(
-            val_dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            drop_last=True,
-            collate_fn=custom_collate,
-            **kwargs,
-        )
-        loaders.append(val_loader)
-
-    return tuple(loaders)
-
-
 # TODO: refactor for GNNs
 def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> dict[str, DataLoader]:
     """Create dataloaders for contrastive training and evaluation datasets.
@@ -185,7 +133,7 @@ def setup_dataloaders(cfg: Config, datasets: Sequence[str], **kwargs: Any) -> di
         dict[str, DataLoader]: Dictionary of dataloaders for each dataset.
     """
     graph_datasets = {
-        dataset_name: GraphDINODataset(cfg=cfg, mode="train" if "train" in dataset_name else "eval")
+        dataset_name: NeuronDataset(cfg=cfg, mode="train" if "train" in dataset_name else "eval")
         for dataset_name in datasets
     }
     dataloaders = {}
