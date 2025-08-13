@@ -33,20 +33,6 @@ class GNNConfig(BaseModel):
     dropout_prob: float | None = None
 
 
-class GraphDINOConfig(BaseModel):
-    """Model architecture and hyperparameters for GraphDINO model."""
-
-    name: str
-    num_classes: int
-    dim: int
-    depth: int
-    n_head: int
-    pos_dim: int
-    move_avg: float
-    center_avg: float
-    teacher_temp: float
-
-
 class OptimizerConfig(BaseModel):
     """Optimizer configuration including learning rate and scheduler parameters."""
 
@@ -95,7 +81,7 @@ class Config(BaseModel):
 
     config_file: str | Path
     data: DataConfig
-    model: GNNConfig | GraphDINOConfig
+    model: GNNConfig
     training: Training
     augmentations: Augmentations | None = None
 
