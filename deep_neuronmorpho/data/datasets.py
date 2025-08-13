@@ -48,43 +48,40 @@ class NeuronDataset(Dataset):
     def __init__(
         self,
         root: str,
-        dataset_name: str,
-        raw_dir: str | None = None,  # if None, use <root>/raw
-        labels: dict[str, int] | None = None,  # basename -> label id
-        shard_size: int = 2000,  # graphs per shard (tune 1-10k)
-        split_list: str | None = None,  # path to txt of basenames to keep
+        dataset_name: str | None = None,
+        raw_dir: str | None = None,
+        labels: dict[str, int] | None = None,
+        shard_size: int = 2000,
+        split_list: str | None = None,
         transform=None,
         pre_transform=None,
     ):
         self._root = root
-        self._name = dataset_name
+        self._name = dataset_name or Path(root).name
         self._raw_dir = raw_dir or str(Path(root) / "raw")
         self._labels = labels or {}
         self._shard_size = int(shard_size)
 
-        # Optional split filter
         self._keep = None
         if split_list:
             with open(split_list, encoding="utf-8") as f:
                 self._keep = {ln.strip() for ln in f if ln.strip()}
 
-        # Enumerate raw files (stable order)
         swc_paths = sorted([str(p) for p in Path(self._raw_dir).glob("*.swc")])
         if self._keep is not None:
             swc_paths = [p for p in swc_paths if Path(p).stem in self._keep]
         self._raw_files = swc_paths
-        # Lazy shard cache (keep only last loaded shard to stay tiny)
+        # lazy shard cache (keep only last loaded shard to stay tiny)
         self._cur_sid = None
         self._cur_data = None
         self._cur_slices = None
 
         super().__init__(root, transform=transform, pre_transform=pre_transform)
 
-        # Load meta index (created in process)
         self._meta = torch.load(self._meta_path()) if Path(self._meta_path()).exists() else None
         if self._meta:
             self._cumsum = self._meta["cumsum"]
-            self._shards = self._meta["shards"]  # list of shard filenames
+            self._shards = self._meta["shards"]
 
     @property
     def processed_dir(self) -> str:
@@ -99,7 +96,7 @@ class NeuronDataset(Dataset):
 
     @property
     def processed_file_names(self) -> list[str]:
-        # Only require meta.pt to exist; it indexes all shards
+        """Require meta.pt to exist; it indexes all shards."""
         return ["meta.pt"]
 
     def len(self) -> int:
@@ -118,8 +115,10 @@ class NeuronDataset(Dataset):
             if self.pre_transform is not None:
                 buf = [self.pre_transform(d) for d in buf]
             data, slices = InMemoryDataset.collate(buf)
-            shard_name = f"{self._name}/shard_{sid:05d}.pt"
-            torch.save((data, slices), str(Path(self.processed_dir) / shard_name))
+            shard_name = f"{self._name}-shard_{sid:05d}.pt"
+            shard_path = Path(self.processed_dir) / shard_name
+            shard_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save((data, slices), str(shard_path))
             total += len(buf)
             cumsum.append(total)
             shards.append(shard_name)
@@ -135,13 +134,25 @@ class NeuronDataset(Dataset):
                 sid += 1
         flush_shard(data_buf, sid)
 
-        meta = {"total": total, "cumsum": cumsum, "shards": shards, "shard_size": self._shard_size}
+        if len(shards) == 1:
+            old = Path(self.processed_dir) / shards[0]
+            new_name = f"{self._name}.pt"
+            new = Path(self.processed_dir) / new_name
+            try:
+                old.replace(new)
+                shards[0] = new_name
+            except OSError:
+                pass
+
+        meta = {
+            "total": total,
+            "cumsum": cumsum,
+            "shards": shards,
+            "shard_size": self._shard_size,
+        }
         torch.save(meta, self._meta_path())
 
-        # Initialize in-memory index for this instance
         self._meta, self._cumsum, self._shards = meta, cumsum, shards
-
-    # ---- item access: map idx -> shard/local_idx ----
 
     def get(self, idx: int) -> Data:
         sid = bisect.bisect_right(self._cumsum, idx)
@@ -151,7 +162,9 @@ class NeuronDataset(Dataset):
         if self._cur_sid != sid:
             shard_path = str(Path(self.processed_dir) / self._shards[sid])
             self._cur_data, self._cur_slices = torch.load(
-                shard_path, map_location="cpu", weights_only=False
+                shard_path,
+                map_location="cpu",
+                weights_only=False,
             )
             self._cur_sid = sid
 
