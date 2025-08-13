@@ -12,7 +12,7 @@ from torch_geometric.utils import coalesce, remove_self_loops, to_undirected
 from deep_neuronmorpho.data.process_swc import SWCData
 
 
-def swc_to_pyg(path: str, label: int | None = None) -> Data:
+def swc_to_pyg(path: str) -> Data:
     swc = SWCData(path, standardize=False, align=False)
     G = swc.ntree.get_graph()
     nodes = sorted(G.nodes())
@@ -31,9 +31,6 @@ def swc_to_pyg(path: str, label: int | None = None) -> Data:
     data = Data(x=coords, edge_index=edges)
     data.sample_id = Path(path).stem
 
-    if label is not None:
-        data.y = torch.tensor(label)
-
     return data
 
 
@@ -50,7 +47,6 @@ class NeuronDataset(Dataset):
         root: str,
         dataset_name: str | None = None,
         raw_dir: str | None = None,
-        labels: dict[str, int] | None = None,
         shard_size: int = 2000,
         split_list: str | None = None,
         transform=None,
@@ -59,7 +55,6 @@ class NeuronDataset(Dataset):
         self._root = root
         self._name = dataset_name or Path(root).name
         self._raw_dir = raw_dir or str(Path(root) / "raw")
-        self._labels = labels or {}
         self._shard_size = int(shard_size)
 
         self._keep = None
@@ -124,10 +119,8 @@ class NeuronDataset(Dataset):
             shards.append(shard_name)
             buf.clear()
 
-        for swc_path in self._raw_files:
-            stem = Path(swc_path).stem
-            y = self._labels.get(stem)
-            d = swc_to_pyg(swc_path, label=y)
+        for swc_file in self._raw_files:
+            d = swc_to_pyg(swc_file)
             data_buf.append(d)
             if len(data_buf) >= self._shard_size:
                 flush_shard(data_buf, shard_id)
