@@ -7,8 +7,7 @@ from omegaconf import DictConfig
 from torch import nn
 from torch.utils.data import DataLoader, default_collate
 
-from deep_neuronmorpho.data import compute_laplacian_eigenvectors
-
+from .data_utils import compute_laplacian_eigenvectors
 from .dataset import GraphDINODataset
 
 
