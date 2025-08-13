@@ -106,7 +106,7 @@ class NeuronDataset(Dataset):
         os.makedirs(self.processed_dir, exist_ok=True)
         data_buf: list[Data] = []
         shards, cumsum, total = [], [], 0
-        sid = 0
+        shard_id = 0
 
         def flush_shard(buf: list[Data], sid: int):
             nonlocal total
@@ -130,9 +130,9 @@ class NeuronDataset(Dataset):
             d = swc_to_pyg(swc_path, label=y)
             data_buf.append(d)
             if len(data_buf) >= self._shard_size:
-                flush_shard(data_buf, sid)
-                sid += 1
-        flush_shard(data_buf, sid)
+                flush_shard(data_buf, shard_id)
+                shard_id += 1
+        flush_shard(data_buf, shard_id)
 
         if len(shards) == 1:
             old = Path(self.processed_dir) / shards[0]
