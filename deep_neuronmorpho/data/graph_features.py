@@ -11,8 +11,8 @@ def compute_neuron_node_feats(pos: Tensor, edge_index: Tensor, root: int) -> Ten
         1. x: x coordinate of node.
         2. y: y coordinate of node.
         3. z: z coordinate of node.
-        4. euclidean_dist_norm: normalized euclidean distance from soma.
-        5. path_dist_norm: normalized path distance from soma.
+        4. radial_log: log of radial distance from soma.
+        5. path_log: log of path distance from soma.
         6. tortuosity: tortuosity of the path.
         7. branch_order: branch order of the node.
         8. strahler_order: strahler order of the node.
@@ -22,13 +22,16 @@ def compute_neuron_node_feats(pos: Tensor, edge_index: Tensor, root: int) -> Ten
         edge_index: [2,E] long parent->child (restricted to soma component)
         root: int
 
-    Returns [N,8]: [x, y, z, radial_norm, path_norm, tortuosity, branch_order, strahler_order]
+    Returns [N,8]: [x, y, z, radial_log, path_log, tortuosity, branch_order, strahler_order]
     """
     N = pos.size(0)
     parent, order, visited = dfs_orient_undirected(
         edge_index=edge_index, root=int(root), num_nodes=N
     )
-    radial_n, path_n, tortuosity = compute_geometry_features(pos, parent, order, visited, root)
+    if (~visited).any():
+        raise ValueError("Graph contains unreachable/isolated nodes; fix construction.")
+
+    radial_log, path_log, tortuosity = compute_geometry_features(pos, parent, order, visited, root)
     branch_order, strahler_order = compute_topology_features(parent, order, N)
 
     x = torch.stack(
@@ -36,8 +39,8 @@ def compute_neuron_node_feats(pos: Tensor, edge_index: Tensor, root: int) -> Ten
             pos[:, 0],
             pos[:, 1],
             pos[:, 2],
-            radial_n,
-            path_n,
+            radial_log,
+            path_log,
             tortuosity,
             branch_order.to(pos.dtype),
             strahler_order.to(pos.dtype),
@@ -46,6 +49,7 @@ def compute_neuron_node_feats(pos: Tensor, edge_index: Tensor, root: int) -> Ten
     )
     if (~visited).any():
         x[~visited] = 0
+
     return x
 
 
@@ -91,10 +95,22 @@ def dfs_orient_undirected(
 
 
 def compute_geometry_features(
-    pos: Tensor, parent: Tensor, order: Tensor, visited: Tensor, root: int
+    pos: Tensor,
+    parent: Tensor,
+    order: Tensor,
+    visited: Tensor,
+    root: int,
+    eps: float = 1e-12,
 ) -> tuple[Tensor, Tensor, Tensor]:
     """
     Compute radial (euclidean) and path distances from soma, and tortuosity.
+
+    Note: We use log-transformed distances to preserve global scale while avoiding numerical instability.
+
+    Computes:
+        - radial_log: log of radial distance from soma
+        - path_log: log of path distance from soma
+        - tortuosity: tortuosity of the path
 
     Args:
         pos: [N,3] float32 positions in DFS pre-order
@@ -104,10 +120,8 @@ def compute_geometry_features(
         root: int
 
     Returns:
-      radial_norm, path_norm, tortuosity
+      radial_log, path_log, tortuosity
     """
-
-    EPS = 1e-8
     device, dtype = pos.device, pos.dtype
     N = pos.size(0)
     idx = torch.arange(N, device=device)
@@ -129,19 +143,13 @@ def compute_geometry_features(
     radial = torch.zeros(N, device=device, dtype=dtype)
     radial[visited] = (pos[visited] - pos[int(root)]).norm(dim=1)
 
-    # per-component normalization + tortuosity
-    if visited.any():
-        pmax = path[visited].max().clamp_min(EPS)
-        rmax = radial[visited].max().clamp_min(EPS)
-    else:
-        pmax = path.new_tensor(1.0)
-        rmax = radial.new_tensor(1.0)
+    tortuosity = torch.ones(N, device=device, dtype=dtype)
+    denom = radial.clamp_min(eps)
+    mask_div = visited & (radial > eps)
+    tortuosity[mask_div] = path[mask_div] / denom[mask_div]
+    tortuosity[int(root)] = torch.as_tensor(1.0, device=device, dtype=dtype)
 
-    path_n = path / pmax
-    radial_n = radial / rmax
-    tortuosity = path_n / radial_n.clamp_min(EPS)
-
-    return radial_n, path_n, tortuosity
+    return torch.log1p(radial), torch.log1p(path), tortuosity
 
 
 def compute_topology_features(
