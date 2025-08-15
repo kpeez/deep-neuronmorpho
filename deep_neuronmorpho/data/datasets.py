@@ -3,6 +3,7 @@
 import bisect
 import os
 from pathlib import Path
+from typing import Callable
 
 import torch
 from torch_geometric.data import Data, Dataset, InMemoryDataset
@@ -16,7 +17,7 @@ from .process_swc import SWCData
 
 class NeuronDataset(Dataset):
     """
-    Disk-backed, sharded PyG dataset.
+    Base dataset class for loading and processing SWC files into PyG Data objects.
       - Reads standardized SWC from `raw_dir` (e.g., datasets/interim/<dataset>)
       - Writes shards to `<root>/processed/shard_*.pt` and index to `<root>/processed/meta.pt`
       - Always returns a single `Data`; use wrappers for contrastive views.
@@ -151,3 +152,23 @@ class NeuronDataset(Dataset):
             slice_dict=self._cur_slices,
             decrement=False,
         )
+
+
+class ContrastiveNeuronDataset(Dataset):
+    """
+    Wrapper dataset that takes single Data object and returns two contrastive views.
+    """
+
+    def __init__(self, dataset: Dataset, transform: Callable):
+        self.dataset = dataset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx: int) -> tuple[Data, Data]:
+        data = self.dataset[idx]
+        g1, g2 = self.transform(data.clone()), self.transform(data.clone())
+        g1.x, g2.x = g1.pos, g2.pos
+
+        return g1, g2
