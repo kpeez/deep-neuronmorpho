@@ -3,43 +3,21 @@
 import bisect
 import os
 from pathlib import Path
+from typing import Callable
 
 import torch
 from torch_geometric.data import Data, Dataset, InMemoryDataset
 from torch_geometric.data.separate import separate
-from torch_geometric.utils import coalesce, remove_self_loops, to_undirected
+from tqdm import tqdm
 
-from deep_neuronmorpho.data.process_swc import SWCData
-
-
-def swc_to_pyg(path: str, label: int | None = None) -> Data:
-    swc = SWCData(path, standardize=False, align=False)
-    G = swc.ntree.get_graph()
-    nodes = sorted(G.nodes())
-    node_to_idx = {n: i for i, n in enumerate(nodes)}
-    coords = torch.tensor(swc.data[["x", "y", "z"]].to_numpy(), dtype=torch.float32)
-    edges = torch.tensor(
-        [(node_to_idx[u], node_to_idx[v]) for (u, v) in G.edges()],
-        dtype=torch.long,
-    ).T
-
-    if edges.numel():
-        edges, _ = remove_self_loops(edges)
-        edges = to_undirected(edges, num_nodes=coords.size(0))
-        edges = coalesce(edges)
-
-    data = Data(x=coords, edge_index=edges)
-    data.sample_id = Path(path).stem
-
-    if label is not None:
-        data.y = torch.tensor(label)
-
-    return data
+from .graph_construction import swc_df_to_pyg_data
+from .graph_features import compute_neuron_node_feats
+from .process_swc import SWCData
 
 
 class NeuronDataset(Dataset):
     """
-    Disk-backed, sharded PyG dataset.
+    Base dataset class for loading and processing SWC files into PyG Data objects.
       - Reads standardized SWC from `raw_dir` (e.g., datasets/interim/<dataset>)
       - Writes shards to `<root>/processed/shard_*.pt` and index to `<root>/processed/meta.pt`
       - Always returns a single `Data`; use wrappers for contrastive views.
@@ -50,7 +28,6 @@ class NeuronDataset(Dataset):
         root: str,
         dataset_name: str | None = None,
         raw_dir: str | None = None,
-        labels: dict[str, int] | None = None,
         shard_size: int = 2000,
         split_list: str | None = None,
         transform=None,
@@ -59,7 +36,6 @@ class NeuronDataset(Dataset):
         self._root = root
         self._name = dataset_name or Path(root).name
         self._raw_dir = raw_dir or str(Path(root) / "raw")
-        self._labels = labels or {}
         self._shard_size = int(shard_size)
 
         self._keep = None
@@ -124,11 +100,12 @@ class NeuronDataset(Dataset):
             shards.append(shard_name)
             buf.clear()
 
-        for swc_path in self._raw_files:
-            stem = Path(swc_path).stem
-            y = self._labels.get(stem)
-            d = swc_to_pyg(swc_path, label=y)
-            data_buf.append(d)
+        for swc_file in tqdm(self._raw_files, desc="Processing SWC files"):
+            swc_df = SWCData.load_swc_data(swc_file)
+            pyg_data = swc_df_to_pyg_data(swc_df)
+            pyg_data.sample_id = Path(swc_file).stem
+            pyg_data.x = compute_neuron_node_feats(pyg_data.x, pyg_data.edge_index, pyg_data.root)
+            data_buf.append(pyg_data)
             if len(data_buf) >= self._shard_size:
                 flush_shard(data_buf, shard_id)
                 shard_id += 1
@@ -175,3 +152,23 @@ class NeuronDataset(Dataset):
             slice_dict=self._cur_slices,
             decrement=False,
         )
+
+
+class ContrastiveNeuronDataset(Dataset):
+    """
+    Wrapper dataset that takes single Data object and returns two contrastive views.
+    """
+
+    def __init__(self, dataset: Dataset, transform: Callable):
+        self.dataset = dataset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx: int) -> tuple[Data, Data]:
+        data = self.dataset[idx]
+        g1, g2 = self.transform(data.clone()), self.transform(data.clone())
+        g1.x, g2.x = g1.pos, g2.pos
+
+        return g1, g2
