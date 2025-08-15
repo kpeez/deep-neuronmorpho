@@ -26,10 +26,10 @@ def test_synthetic_swc_dfs_invariants(synthetic_swc_dataframe: pd.DataFrame):
     # check positions alias
     assert torch.equal(data.pos, data.x)
     # traversal indices attached by default
-    assert hasattr(data, "dfs_first") and hasattr(data, "dfs_last")
-    assert data.dfs_first.shape == (4,)
-    assert data.dfs_last.shape == (4,)
-    assert torch.all(data.dfs_first <= data.dfs_last)
+    assert hasattr(data, "dfs_entry") and hasattr(data, "dfs_exit")
+    assert data.dfs_entry.shape == (4,)
+    assert data.dfs_exit.shape == (4,)
+    assert torch.all(data.dfs_entry <= data.dfs_exit)
 
 
 def test_real_swc_file_order_roundtrip_if_available(swc_dataframe: pd.DataFrame):
