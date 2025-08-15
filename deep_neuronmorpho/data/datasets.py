@@ -7,6 +7,7 @@ from pathlib import Path
 import torch
 from torch_geometric.data import Data, Dataset, InMemoryDataset
 from torch_geometric.data.separate import separate
+from tqdm import tqdm
 
 from .graph_construction import swc_df_to_pyg_data
 from .graph_features import compute_neuron_node_feats
@@ -98,9 +99,10 @@ class NeuronDataset(Dataset):
             shards.append(shard_name)
             buf.clear()
 
-        for swc_file in self._raw_files:
+        for swc_file in tqdm(self._raw_files, desc="Processing SWC files"):
             swc_df = SWCData.load_swc_data(swc_file)
             pyg_data = swc_df_to_pyg_data(swc_df)
+            pyg_data.sample_id = Path(swc_file).stem
             pyg_data.x = compute_neuron_node_feats(pyg_data.x, pyg_data.edge_index, pyg_data.root)
             data_buf.append(pyg_data)
             if len(data_buf) >= self._shard_size:
