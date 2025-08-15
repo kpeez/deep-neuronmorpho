@@ -36,9 +36,14 @@ def create_graph_morphopy(swc_file: str | Path) -> nx.DiGraph:
     neuron_tree = SWCData(swc_file=swc_file, standardize=False, align=False).ntree
     euclidean_dist = neuron_tree.get_radial_distance()
     path_dist = neuron_tree.get_path_length(weight="path_length")
-    euclidean_dist_norm = {k: v / max(euclidean_dist.values()) for k, v in euclidean_dist.items()}
-    path_dist_norm = {k: v / max(path_dist.values()) for k, v in path_dist.items()}
-    tortuosity = {k: v / max(euclidean_dist_norm[k], 1e-8) for k, v in path_dist_norm.items()}
+    euclidean_dist_norm = {k: np.log1p(v) for k, v in euclidean_dist.items()}
+    path_dist_norm = {k: np.log1p(v) for k, v in path_dist.items()}
+    tortuosity = {k: v / max(euclidean_dist[k], 1e-12) for k, v in path_dist.items()}
+    # set root tortuosity to 1.0 (undefined at soma)
+    root_id = min(euclidean_dist, key=euclidean_dist.get)
+    if euclidean_dist[root_id] <= 1e-12:
+        tortuosity[root_id] = 1.0
+
     branch_order = neuron_tree.get_branch_order()
     strahler_order = neuron_tree.get_strahler_order()
 
