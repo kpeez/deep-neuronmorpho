@@ -63,7 +63,7 @@ def swc_df_to_pyg_data(
             edge_ch.append(new_index[cid])
 
     edge_index = torch.tensor([edge_par, edge_ch], dtype=torch.long)
-    data = Data(x=pos, edge_index=edge_index)
+    data = Data(x=pos, pos=pos, edge_index=edge_index)
     data.root = 0
     data.orig_id = orig_id
     if include_traversal_indices:
@@ -74,8 +74,6 @@ def swc_df_to_pyg_data(
             dfs_exit[row_idx] = last_id[nid]
         data.dfs_entry = dfs_entry
         data.dfs_exit = dfs_exit
-    # alias coordinates to PyG position
-    data.pos = data.x
 
     return data
 
