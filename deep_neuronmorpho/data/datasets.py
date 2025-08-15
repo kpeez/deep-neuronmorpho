@@ -7,31 +7,10 @@ from pathlib import Path
 import torch
 from torch_geometric.data import Data, Dataset, InMemoryDataset
 from torch_geometric.data.separate import separate
-from torch_geometric.utils import coalesce, remove_self_loops, to_undirected
 
-from deep_neuronmorpho.data.process_swc import SWCData
-
-
-def swc_to_pyg(path: str) -> Data:
-    swc = SWCData(path, standardize=False, align=False)
-    G = swc.ntree.get_graph()
-    nodes = sorted(G.nodes())
-    node_to_idx = {n: i for i, n in enumerate(nodes)}
-    coords = torch.tensor(swc.data[["x", "y", "z"]].to_numpy(), dtype=torch.float32)
-    edges = torch.tensor(
-        [(node_to_idx[u], node_to_idx[v]) for (u, v) in G.edges()],
-        dtype=torch.long,
-    ).T
-
-    if edges.numel():
-        edges, _ = remove_self_loops(edges)
-        edges = to_undirected(edges, num_nodes=coords.size(0))
-        edges = coalesce(edges)
-
-    data = Data(x=coords, edge_index=edges)
-    data.sample_id = Path(path).stem
-
-    return data
+from .graph_construction import swc_df_to_pyg_data
+from .graph_features import compute_neuron_node_feats
+from .process_swc import SWCData
 
 
 class NeuronDataset(Dataset):
@@ -120,8 +99,10 @@ class NeuronDataset(Dataset):
             buf.clear()
 
         for swc_file in self._raw_files:
-            d = swc_to_pyg(swc_file)
-            data_buf.append(d)
+            swc_df = SWCData.load_swc_data(swc_file)
+            pyg_data = swc_df_to_pyg_data(swc_df)
+            pyg_data.x = compute_neuron_node_feats(pyg_data.x, pyg_data.edge_index, pyg_data.root)
+            data_buf.append(pyg_data)
             if len(data_buf) >= self._shard_size:
                 flush_shard(data_buf, shard_id)
                 shard_id += 1
