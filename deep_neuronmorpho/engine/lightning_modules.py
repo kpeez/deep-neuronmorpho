@@ -2,19 +2,16 @@
 
 import pytorch_lightning as pl
 import torch
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 from sklearn.svm import SVC
-from torch import nn
+from torch import Tensor, nn
 from torch_geometric.data import Batch
 
 from deep_neuronmorpho.data import augment_graph
 
 from .evaluation import repeated_kfold_eval
 from .ntxent_loss import NTXEntLoss
-from .trainer_utils import (
-    create_optimizer,
-    create_scheduler,
-)
 
 
 class ContrastiveGraphModule(pl.LightningModule):
@@ -80,15 +77,16 @@ class ContrastiveGraphModule(pl.LightningModule):
     def best_val_acc(self, value):
         self._best_val_acc = value
 
-    def compute_loss(self, batch_graphs: Batch) -> torch.Tensor:
+    def compute_loss(self, batch_graphs: Batch) -> Tensor:
+        # TODO: use new dataset batching
         aug1_batch = augment_graph(batch_graphs)
-        aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs], is_training=True)
         aug2_batch = augment_graph(batch_graphs)
-        aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs], is_training=True)
+        aug1_embeds = self.model(aug1_batch)
+        aug2_embeds = self.model(aug2_batch)
         loss = self.loss_fn(aug1_embeds, aug2_embeds)
         return loss
 
-    def training_step(self, batch: tuple[Batch, torch.Tensor]) -> torch.Tensor:
+    def training_step(self, batch: tuple[Batch, Tensor]) -> Tensor:
         batch_graphs = batch[0] if isinstance(batch, (list, tuple)) else batch
         loss = self.compute_loss(batch_graphs)
         self.log(
@@ -122,10 +120,10 @@ class ContrastiveGraphModule(pl.LightningModule):
             logger=self.logging,
         )
 
-    def validation_step(self, batch: tuple[Batch, torch.Tensor]) -> None:
-        batch, labels = batch
-        batch_feats = batch.ndata[self.node_attrs]
-        model_output = self.model(batch, batch_feats, is_training=False)
+    def validation_step(self, batch: tuple[Batch, Tensor]) -> None:
+        batch_graphs = batch[0] if isinstance(batch, (list, tuple)) else batch
+        model_output = self.model(batch_graphs)
+        labels = batch_graphs.y
         self.validation_step_outputs.append({"embeddings": model_output, "labels": labels})
 
     def on_validation_epoch_end(self):
@@ -140,17 +138,11 @@ class ContrastiveGraphModule(pl.LightningModule):
         self.validation_step_outputs.clear()
 
     def configure_optimizers(self):
-        optimizer = create_optimizer(
-            model=self.model,
-            optimizer_name=self.cfg.training.optimizer.name,
-            lr=self.cfg.training.optimizer.lr,
-        )
-        if self.cfg.training.optimizer.scheduler is not None:
-            scheduler = create_scheduler(
-                kind=self.cfg.training.optimizer.scheduler["kind"],
-                optimizer=optimizer,
-                step_size=self.cfg.training.optimizer.scheduler["step_size"],
-                factor=self.cfg.training.optimizer.scheduler["factor"],
-            )
-            return {"optimizer": optimizer, "lr_scheduler": scheduler}
-        return optimizer
+        optimizer = instantiate(self.cfg.training.optimizer, params=self.model.parameters())
+        optimizers = {"optimizer": optimizer}
+
+        if self.cfg.training.scheduler is not None:
+            scheduler = instantiate(self.cfg.training.scheduler, optimizer=optimizer)
+            optimizers["lr_scheduler"] = scheduler
+
+        return optimizers
