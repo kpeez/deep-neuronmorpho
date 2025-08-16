@@ -20,59 +20,57 @@ from .mlp import MLP
 from .model_utils import (
     aggregate_tensor,
     compute_embedding_dim,
-    load_attrs_streams,
 )
 
 
 class MACGNN(nn.Module):
     """MACGNN model from [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206)."""
 
-    def __init__(self, args: GNNConfig, device: torch.device | None = None) -> None:
+    def __init__(self, cfg: GNNConfig, device: torch.device | None = None) -> None:
         super().__init__()
-
-        self.args = args
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.use_edge_weight = self.args.use_edge_weight
-        self.learn_eps = self.args.learn_eps or False
-        self.hidden_dim = self.args.hidden_dim
-        self.output_dim = self.args.output_dim
-        self.num_mlp_layers = self.args.num_mlp_layers or 2
-        self.num_gnn_layers = self.args.num_gnn_layers
-        self.graph_pooling_type = self.args.graph_pooling_type
-        self.gnn_layer_aggregation = self.args.gnn_layer_aggregation
-        self.dropout_prob = self.args.dropout_prob
-        self.attrs_streams = load_attrs_streams(self.args.attrs_streams)
-        self.num_streams = len(self.attrs_streams)
-        self.streams_weight = None
-        if self.num_streams == 1:
-            self.stream_aggregation = "none"
-        elif self.num_streams > 1:
-            if not self.args.stream_aggregation:
-                raise ValueError(
-                    "Use ['sum', 'mean', 'max', 'wsum', 'cat'] for aggregation if num_streams > 1."
-                )
-            self.stream_aggregation = self.args.stream_aggregation
+        self.hidden_dim = cfg.hidden_dim
+        self.output_dim = self.cfg.output_dim
+        self.num_mlp_layers = cfg.num_mlp_layers or 2
+        self.num_gnn_layers = cfg.num_gnn_layers
+        self.graph_pooling_type = cfg.graph_pooling_type
+        self.gnn_layer_aggregation = cfg.gnn_layer_aggregation
+        self.dropout_prob = cfg.dropout_prob
+        self.stream_aggregation = cfg.stream_aggregation or "mean"
+        self.learn_eps = cfg.learn_eps or False
+        self.use_edge_weight = cfg.use_edge_weight
 
-        self.gnn_streams = nn.ModuleDict()
-        for stream_name, stream_dims in self.attrs_streams.items():
-            input_dim = len(stream_dims)
-            self.gnn_streams[stream_name] = GIN(
-                input_dim=input_dim,
-                hidden_dim=self.hidden_dim,
-                output_dim=self.hidden_dim,
-                num_layers=self.num_gnn_layers,
-                num_mlp_layers=self.num_mlp_layers,
-                graph_pooling=self.graph_pooling_type,
-                layer_aggregation=self.gnn_layer_aggregation,
-                dropout_prob=self.dropout_prob,
-                learn_eps=self.learn_eps,
-            )
-        # Initialize stream weights if using weighted sum for streams aggregation
-        if self.stream_aggregation == "wsum" and self.num_streams > 1:
+        self.geo_gnn = GIN(
+            input_dim=3,
+            hidden_dim=self.hidden_dim,
+            output_dim=self.hidden_dim,
+            num_layers=self.num_gnn_layers,
+            num_mlp_layers=self.num_mlp_layers,
+            graph_pooling=self.graph_pooling_type,
+            layer_aggregation=self.gnn_layer_aggregation,
+            dropout_prob=self.dropout_prob,
+            learn_eps=self.learn_eps,
+        )
+        self.topo_gnn = GIN(
+            input_dim=5,
+            hidden_dim=self.hidden_dim,
+            output_dim=self.hidden_dim,
+            num_layers=self.num_gnn_layers,
+            num_mlp_layers=self.num_mlp_layers,
+            graph_pooling=self.graph_pooling_type,
+            layer_aggregation=self.gnn_layer_aggregation,
+            dropout_prob=self.dropout_prob,
+            learn_eps=self.learn_eps,
+        )
+
+        # optional weights for `wsum`
+        if self.stream_aggregation == "wsum":
             self.streams_weight = nn.Parameter(
                 torch.ones(1, 1, self.num_streams), requires_grad=True
             )
             nn.init.xavier_uniform_(self.streams_weight)
+        else:
+            self.streams_weight = None
 
         embedding_dim = compute_embedding_dim(
             hidden_dim=self.hidden_dim,
@@ -112,18 +110,10 @@ class MACGNN(nn.Module):
     def forward(self, graphs: Batch) -> Tensor:
         """Forward pass of the model."""
         # Process each stream
-        h_streams_list = [
-            self.process_stream(stream_name, graphs) for stream_name in self.gnn_streams
-        ]
-        # Aggregate across streams
-        if self.stream_aggregation == "none":
-            stream_aggregate_graph_rep = h_streams_list[0]
-        else:
-            h_concat_streams = torch.stack(h_streams_list, dim=-1)
-            stream_aggregate_graph_rep = aggregate_tensor(
-                h_concat_streams,
-                self.stream_aggregation,
-                weights=self.streams_weight,  # only used if stream_aggregation == "wsum"
-            )
+        h_geo = self.geo_gnn(graphs, x=graphs.pos)
+        h_topo = self.topo_gnn(graphs, feat_index=list(range(3, 8)))
+        # Aggregate streams
+        H = torch.stack([h_geo, h_topo], dim=-1)
+        H = aggregate_tensor(H, self.stream_aggregation, weights=self.streams_weight)
 
-        return self.graph_embedding(stream_aggregate_graph_rep)
+        return self.graph_embedding(H)
