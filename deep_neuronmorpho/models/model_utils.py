@@ -92,7 +92,6 @@ class GlobalPooling(Module):
 def compute_embedding_dim(
     hidden_dim: int,
     num_gnn_layers: int,
-    num_streams: int,
     gnn_layer_aggregation: str,
     stream_aggregation: str,
 ) -> int:
@@ -101,7 +100,6 @@ def compute_embedding_dim(
     Args:
         hidden_dim (int): The dimensionality of the hidden layers in the GNN.
         num_gnn_layers (int): The number of GNN layers in the model.
-        num_streams (int): The number of input streams.
         gnn_layer_aggregation (str): The aggregation method used for the GNN layers.
         Possible values are ["sum", "mean", "max", "wsum", "cat"].
         stream_aggregation (str): The aggregation method used for the input streams.
@@ -111,11 +109,11 @@ def compute_embedding_dim(
         int: The embedding dimension computed based on the given parameters.
     """
     if gnn_layer_aggregation == "cat" and stream_aggregation == "cat":
-        embedding_dim = hidden_dim * num_gnn_layers * num_streams
+        embedding_dim = hidden_dim * num_gnn_layers * 2
     elif gnn_layer_aggregation == "cat":
         embedding_dim = hidden_dim * num_gnn_layers
     elif stream_aggregation == "cat":
-        embedding_dim = hidden_dim * num_streams
+        embedding_dim = hidden_dim * 2
     else:
         embedding_dim = hidden_dim
     return embedding_dim
