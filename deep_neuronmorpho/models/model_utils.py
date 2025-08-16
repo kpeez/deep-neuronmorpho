@@ -11,8 +11,8 @@ from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_poo
 def aggregate_tensor(
     tensor_data: Tensor,
     aggregation_method: str = "cat",
-    dim: int = -1,
     weights: Tensor | None = None,
+    dim: int = -1,
 ) -> Tensor:
     """Aggregates tensor data along a given dimension according to the specified aggregation method.
 
@@ -32,7 +32,7 @@ def aggregate_tensor(
         NotImplementedError: If the aggregation method is not implemented.
     """
 
-    def wsum(tensor_data: Tensor, weights: Tensor, dim: int = -1) -> Tensor:
+    def wsum(tensor_data: Tensor, weights: Tensor | None, dim: int = -1) -> Tensor:
         if weights is None:
             raise ValueError("weights cannot be None for weighted sum aggregation.")
 
