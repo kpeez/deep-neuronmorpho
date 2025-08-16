@@ -159,6 +159,7 @@ class ContrastiveNeuronDataset(Dataset):
     Wrapper dataset that takes single Data object and returns two contrastive views.
     """
 
+    # TODO: recompute all features after transform
     def __init__(self, dataset: Dataset, transform: Callable):
         self.dataset = dataset
         self.transform = transform
@@ -169,6 +170,6 @@ class ContrastiveNeuronDataset(Dataset):
     def __getitem__(self, idx: int) -> tuple[Data, Data]:
         data = self.dataset[idx]
         g1, g2 = self.transform(data.clone()), self.transform(data.clone())
-        g1.x, g2.x = g1.pos, g2.pos
+        g1.x[:, :3], g2.x[:, :3] = g1.pos, g2.pos
 
         return g1, g2
