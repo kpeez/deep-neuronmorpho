@@ -14,9 +14,9 @@ class NTXEntLoss:
 
     Inputs:
         - embed_a (Tensor): A tensor of shape `(batch_size, embedding_dim)`
-        containing the embeddings for the original data.
+        containing the embeddings for the view 1 data.
         - embed_b (Tensor): A tensor of shape `(batch_size, embedding_dim)`
-        containing the embeddings for the augmented data.
+        containing the embeddings for the view 2 data.
 
     Returns:
         Tensor: A scalar tensor containing the computed loss value.
