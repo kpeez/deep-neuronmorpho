@@ -97,7 +97,7 @@ class NeuronDataset(Dataset):
             buf.clear()
 
         with Pool(num_workers) as pool:
-            process_iter = pool.imap(self._process_swc_file, self._raw_files)
+            process_iter = pool.imap(process_swc_file, self._raw_files)
             for pyg_data in tqdm(
                 process_iter, total=len(self._raw_files), desc="Processing SWC files"
             ):
@@ -128,14 +128,6 @@ class NeuronDataset(Dataset):
 
         self._meta, self._cumsum, self._shards = meta, cumsum, shards
 
-    def _process_swc_file(self, swc_file: str) -> Data:
-        swc_df = SWCData.load_swc_data(swc_file)
-        pyg_data = swc_df_to_pyg_data(swc_df)
-        pyg_data.sample_id = Path(swc_file).stem
-        pyg_data.x = compute_neuron_node_feats(pyg_data.x, pyg_data.edge_index, pyg_data.root)
-
-        return pyg_data
-
     def get(self, idx: int) -> Data:
         sid = bisect.bisect_right(self._cumsum, idx)
         start = 0 if sid == 0 else self._cumsum[sid - 1]
@@ -157,6 +149,15 @@ class NeuronDataset(Dataset):
             slice_dict=self._cur_slices,
             decrement=False,
         )
+
+
+def process_swc_file(swc_file: str) -> Data:
+    swc_df = SWCData.load_swc_data(swc_file)
+    pyg_data = swc_df_to_pyg_data(swc_df)
+    pyg_data.sample_id = Path(swc_file).stem
+    pyg_data.x = compute_neuron_node_feats(pyg_data.x, pyg_data.edge_index, pyg_data.root)
+
+    return pyg_data
 
 
 class ContrastiveNeuronDataset(Dataset):
