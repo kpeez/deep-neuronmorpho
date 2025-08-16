@@ -2,10 +2,12 @@
 
 import bisect
 import os
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from typing import Callable
 
 import torch
+import typer
 from torch_geometric.data import Data, Dataset, InMemoryDataset
 from torch_geometric.data.separate import separate
 from tqdm import tqdm
@@ -13,6 +15,8 @@ from tqdm import tqdm
 from .graph_construction import swc_df_to_pyg_data
 from .graph_features import compute_neuron_node_feats
 from .process_swc import SWCData
+
+app = typer.Typer()
 
 
 class NeuronDataset(Dataset):
@@ -29,7 +33,6 @@ class NeuronDataset(Dataset):
         dataset_name: str | None = None,
         raw_dir: str | None = None,
         shard_size: int = 2000,
-        split_list: str | None = None,
         transform=None,
         pre_transform=None,
     ):
@@ -38,15 +41,7 @@ class NeuronDataset(Dataset):
         self._raw_dir = raw_dir or str(Path(root) / "raw")
         self._shard_size = int(shard_size)
 
-        self._keep = None
-        if split_list:
-            with open(split_list, encoding="utf-8") as f:
-                self._keep = {ln.strip() for ln in f if ln.strip()}
-
-        swc_paths = sorted([str(p) for p in Path(self._raw_dir).glob("*.swc")])
-        if self._keep is not None:
-            swc_paths = [p for p in swc_paths if Path(p).stem in self._keep]
-        self._raw_files = swc_paths
+        self._raw_files = sorted([str(p) for p in Path(self._raw_dir).glob("*.swc")])
         # lazy shard cache (keep only last loaded shard to stay tiny)
         self._cur_sid = None
         self._cur_data = None
@@ -80,9 +75,10 @@ class NeuronDataset(Dataset):
 
     def process(self):
         os.makedirs(self.processed_dir, exist_ok=True)
-        data_buf: list[Data] = []
         shards, cumsum, total = [], [], 0
         shard_id = 0
+        data_buf: list[Data] = []
+        num_workers = cpu_count()
 
         def flush_shard(buf: list[Data], sid: int):
             nonlocal total
@@ -100,15 +96,16 @@ class NeuronDataset(Dataset):
             shards.append(shard_name)
             buf.clear()
 
-        for swc_file in tqdm(self._raw_files, desc="Processing SWC files"):
-            swc_df = SWCData.load_swc_data(swc_file)
-            pyg_data = swc_df_to_pyg_data(swc_df)
-            pyg_data.sample_id = Path(swc_file).stem
-            pyg_data.x = compute_neuron_node_feats(pyg_data.x, pyg_data.edge_index, pyg_data.root)
-            data_buf.append(pyg_data)
-            if len(data_buf) >= self._shard_size:
-                flush_shard(data_buf, shard_id)
-                shard_id += 1
+        with Pool(num_workers) as pool:
+            process_iter = pool.imap(self._process_swc_file, self._raw_files)
+            for pyg_data in tqdm(
+                process_iter, total=len(self._raw_files), desc="Processing SWC files"
+            ):
+                data_buf.append(pyg_data)
+                if len(data_buf) >= self._shard_size:
+                    flush_shard(data_buf, shard_id)
+                    shard_id += 1
+
         flush_shard(data_buf, shard_id)
 
         if len(shards) == 1:
@@ -130,6 +127,14 @@ class NeuronDataset(Dataset):
         torch.save(meta, self._meta_path())
 
         self._meta, self._cumsum, self._shards = meta, cumsum, shards
+
+    def _process_swc_file(self, swc_file: str) -> Data:
+        swc_df = SWCData.load_swc_data(swc_file)
+        pyg_data = swc_df_to_pyg_data(swc_df)
+        pyg_data.sample_id = Path(swc_file).stem
+        pyg_data.x = compute_neuron_node_feats(pyg_data.x, pyg_data.edge_index, pyg_data.root)
+
+        return pyg_data
 
     def get(self, idx: int) -> Data:
         sid = bisect.bisect_right(self._cumsum, idx)
@@ -173,3 +178,62 @@ class ContrastiveNeuronDataset(Dataset):
         g1.x[:, :3], g2.x[:, :3] = g1.pos, g2.pos
 
         return g1, g2
+
+
+@app.command()
+def main(
+    root_dir: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        resolve_path=True,
+        help="The root directory of the processed dataset.",
+    ),
+    raw_dir: Path = typer.Option(
+        None,
+        "-r",
+        "--raw-dir",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+        help="Directory containing the raw SWC files. Defaults to <root_dir>/raw.",
+    ),
+    dataset_name: str = typer.Option(
+        None,
+        "-n",
+        "--dataset-name",
+        help="The name of the dataset.",
+    ),
+    shard_size: int = typer.Option(
+        4096,
+        "-s",
+        "--shard-size",
+        help="The number of SWC files to process in each shard.",
+    ),
+):
+    """Create a PyG dataset from SWC files."""
+
+    raw_dir = raw_dir if raw_dir is not None else root_dir / "raw"
+    dataset_name = dataset_name if dataset_name is not None else root_dir.name
+
+    typer.echo(f"Processing dataset '{dataset_name}'...")
+    typer.echo(f"  - Root directory: {root_dir}")
+    typer.echo(f"  - Raw SWC files: {raw_dir}")
+    typer.echo(f"  - Shard size: {shard_size}")
+
+    NeuronDataset(
+        str(root_dir),
+        raw_dir=raw_dir,
+        dataset_name=dataset_name,
+        shard_size=shard_size,
+    )
+
+    typer.echo("\n✅ Dataset processing complete.")
+    typer.echo(f"Processed shards are saved in: {root_dir / 'processed'}")
+
+
+if __name__ == "__main__":
+    app()
