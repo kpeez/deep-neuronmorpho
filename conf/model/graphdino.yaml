@@ -1,13 +1,13 @@
 _target_: deep_neuronmorpho.graphdino.graphdino.GraphDINO
 transformer:
   _target_: deep_neuronmorpho.graphdino.graphdino.GraphTransformer
-  n_nodes: ${data.num_nodes}
+  n_nodes: 200
   dim: 32
   depth: 7
   num_heads: 8
   feat_dim: ${data.feat_dim}
   pos_dim: 32
-  num_classes: 1000
+  num_classes: ${model.num_classes}
 num_classes: 1000
 moving_average_decay: 0.999
 center_moving_average_decay: 0.9
