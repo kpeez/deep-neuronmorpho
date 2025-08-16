@@ -54,7 +54,7 @@ class GraphDINODataset(Dataset):
         self.rotation_axis = cfg.augmentations.rotation_axis
         self.n_drop_branch = cfg.augmentations.num_drop_branches
         self.translate_var = cfg.augmentations.translate
-        self.n_nodes = cfg.data.num_nodes or 200
+        self.n_nodes = cfg.model.transformer.n_nodes
 
     def __len__(self):
         return self.num_samples
