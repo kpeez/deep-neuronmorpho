@@ -2,6 +2,7 @@
 
 import bisect
 import os
+from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from typing import Callable
 
@@ -80,9 +81,10 @@ class NeuronDataset(Dataset):
 
     def process(self):
         os.makedirs(self.processed_dir, exist_ok=True)
-        data_buf: list[Data] = []
         shards, cumsum, total = [], [], 0
         shard_id = 0
+        data_buf: list[Data] = []
+        num_workers = cpu_count()
 
         def flush_shard(buf: list[Data], sid: int):
             nonlocal total
@@ -100,15 +102,16 @@ class NeuronDataset(Dataset):
             shards.append(shard_name)
             buf.clear()
 
-        for swc_file in tqdm(self._raw_files, desc="Processing SWC files"):
-            swc_df = SWCData.load_swc_data(swc_file)
-            pyg_data = swc_df_to_pyg_data(swc_df)
-            pyg_data.sample_id = Path(swc_file).stem
-            pyg_data.x = compute_neuron_node_feats(pyg_data.x, pyg_data.edge_index, pyg_data.root)
-            data_buf.append(pyg_data)
-            if len(data_buf) >= self._shard_size:
-                flush_shard(data_buf, shard_id)
-                shard_id += 1
+        with Pool(num_workers) as pool:
+            process_iter = pool.imap(self._process_swc_file, self._raw_files)
+            for pyg_data in tqdm(
+                process_iter, total=len(self._raw_files), desc="Processing SWC files"
+            ):
+                data_buf.append(pyg_data)
+                if len(data_buf) >= self._shard_size:
+                    flush_shard(data_buf, shard_id)
+                    shard_id += 1
+
         flush_shard(data_buf, shard_id)
 
         if len(shards) == 1:
@@ -130,6 +133,14 @@ class NeuronDataset(Dataset):
         torch.save(meta, self._meta_path())
 
         self._meta, self._cumsum, self._shards = meta, cumsum, shards
+
+    def _process_swc_file(self, swc_file: str) -> Data:
+        swc_df = SWCData.load_swc_data(swc_file)
+        pyg_data = swc_df_to_pyg_data(swc_df)
+        pyg_data.sample_id = Path(swc_file).stem
+        pyg_data.x = compute_neuron_node_feats(pyg_data.x, pyg_data.edge_index, pyg_data.root)
+
+        return pyg_data
 
     def get(self, idx: int) -> Data:
         sid = bisect.bisect_right(self._cumsum, idx)
