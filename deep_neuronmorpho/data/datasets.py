@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable
 
 import torch
+import typer
 from torch_geometric.data import Data, Dataset, InMemoryDataset
 from torch_geometric.data.separate import separate
 from tqdm import tqdm
@@ -14,6 +15,8 @@ from tqdm import tqdm
 from .graph_construction import swc_df_to_pyg_data
 from .graph_features import compute_neuron_node_feats
 from .process_swc import SWCData
+
+app = typer.Typer()
 
 
 class NeuronDataset(Dataset):
@@ -30,7 +33,6 @@ class NeuronDataset(Dataset):
         dataset_name: str | None = None,
         raw_dir: str | None = None,
         shard_size: int = 2000,
-        split_list: str | None = None,
         transform=None,
         pre_transform=None,
     ):
@@ -39,15 +41,7 @@ class NeuronDataset(Dataset):
         self._raw_dir = raw_dir or str(Path(root) / "raw")
         self._shard_size = int(shard_size)
 
-        self._keep = None
-        if split_list:
-            with open(split_list, encoding="utf-8") as f:
-                self._keep = {ln.strip() for ln in f if ln.strip()}
-
-        swc_paths = sorted([str(p) for p in Path(self._raw_dir).glob("*.swc")])
-        if self._keep is not None:
-            swc_paths = [p for p in swc_paths if Path(p).stem in self._keep]
-        self._raw_files = swc_paths
+        self._raw_files = sorted([str(p) for p in Path(self._raw_dir).glob("*.swc")])
         # lazy shard cache (keep only last loaded shard to stay tiny)
         self._cur_sid = None
         self._cur_data = None
@@ -184,3 +178,62 @@ class ContrastiveNeuronDataset(Dataset):
         g1.x[:, :3], g2.x[:, :3] = g1.pos, g2.pos
 
         return g1, g2
+
+
+@app.command()
+def main(
+    root_dir: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        resolve_path=True,
+        help="The root directory of the processed dataset.",
+    ),
+    raw_dir: Path = typer.Option(
+        None,
+        "-r",
+        "--raw-dir",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+        help="Directory containing the raw SWC files. Defaults to <root_dir>/raw.",
+    ),
+    dataset_name: str = typer.Option(
+        None,
+        "-n",
+        "--dataset-name",
+        help="The name of the dataset.",
+    ),
+    shard_size: int = typer.Option(
+        4096,
+        "-s",
+        "--shard-size",
+        help="The number of SWC files to process in each shard.",
+    ),
+):
+    """Create a PyG dataset from SWC files."""
+
+    raw_dir = raw_dir if raw_dir is not None else root_dir / "raw"
+    dataset_name = dataset_name if dataset_name is not None else root_dir.name
+
+    typer.echo(f"Processing dataset '{dataset_name}'...")
+    typer.echo(f"  - Root directory: {root_dir}")
+    typer.echo(f"  - Raw SWC files: {raw_dir}")
+    typer.echo(f"  - Shard size: {shard_size}")
+
+    NeuronDataset(
+        str(root_dir),
+        raw_dir=raw_dir,
+        dataset_name=dataset_name,
+        shard_size=shard_size,
+    )
+
+    typer.echo("\n✅ Dataset processing complete.")
+    typer.echo(f"Processed shards are saved in: {root_dir / 'processed'}")
+
+
+if __name__ == "__main__":
+    app()
