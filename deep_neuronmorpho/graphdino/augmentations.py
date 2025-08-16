@@ -1,10 +1,10 @@
 """Tensor-based augmentations of neuron structures for contrastive learning."""
 
+from typing import Any
+
 import numpy as np
 import torch
 from torch.distributions.uniform import Uniform
-
-from deep_neuronmorpho.utils.model_config import Augmentations
 
 
 def jitter_node_positions(
@@ -137,7 +137,7 @@ def drop_branches(
 def augment_graph(
     node_features: torch.Tensor,
     adjacency_list: torch.Tensor,
-    augmentations: Augmentations,
+    augmentations: dict[str, Any],
     keep_nodes: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Apply a sequence of augmentations to node features and adjacency list.
