@@ -1,5 +1,7 @@
 """Graph Isomorphism Network (GIN) model. from [Xu et al. 2019](https://arxiv.org/abs/1810.00826)."""
 
+from typing import Sequence
+
 import torch
 from torch import Tensor, nn
 from torch_geometric.data import Batch
@@ -72,7 +74,12 @@ class GIN(nn.Module):
             in_dim = input_dim if layer == 0 else hidden_dim
             self.linear_prediction.append(nn.Linear(in_dim, output_dim))
 
-    def forward(self, g_batch: Batch, feat_index: list[int] | None = None) -> Tensor:
+    def forward(
+        self,
+        g_batch: Batch,
+        x: Tensor | None = None,
+        feat_index: Sequence[int] | None = None,
+    ) -> Tensor:
         """Forward pass of the GIN model.
 
         After applying the GIN layers, graph-level representations from each layer are obtained
@@ -81,7 +88,8 @@ class GIN(nn.Module):
 
         Args:
             g_batch (Batch): PyG Batch object containing the input graphs.
-            feat_index (list[int]): List of node feature indices to use for the GIN layers.
+            x (Tensor | None): Node features. If None, use g_batch.x.
+            feat_index (Sequence[int]): List of node feature indices to use for the GIN layers.
 
         Returns:
             Tensor: Graph-level representation with output shape is (batch_size, output_dim).
@@ -89,7 +97,7 @@ class GIN(nn.Module):
             (batch_size, num_layers * output_dim).
         """
         edge_index, edge_weight, batch = (g_batch.edge_index, g_batch.edge_attr, g_batch.batch)
-        h = g_batch.x[:, feat_index] if feat_index is not None else g_batch.x
+        h = x if x is not None else g_batch.x[:, feat_index]
         hidden_rep = [h]
         for layer, gin_conv in enumerate(self.gin_layers):
             if self.use_edge_weight:
