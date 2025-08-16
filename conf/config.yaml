@@ -16,7 +16,6 @@ hydra:
 data:
   train_dataset: ./datasets/processed/m1_patchseq/data
   eval_dataset: null
-  num_nodes: 200
   feat_dim: 3
 
 training:
