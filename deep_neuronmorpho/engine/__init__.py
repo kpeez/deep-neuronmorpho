@@ -1,3 +1,3 @@
 from .data_module import NeuronDataModule
-from .lightning_module import ContrastiveGraphModule
+from .lightning_modules import ContrastiveGraphModule
 from .ntxent_loss import NTXEntLoss
