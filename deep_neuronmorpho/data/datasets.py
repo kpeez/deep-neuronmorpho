@@ -33,7 +33,7 @@ class NeuronDataset(Dataset):
         root: str,
         dataset_name: str | None = None,
         raw_dir: str | None = None,
-        shard_size: int = 2000,
+        shard_size: int = 2048,
         transform=None,
         pre_transform=None,
     ):
@@ -50,7 +50,11 @@ class NeuronDataset(Dataset):
 
         super().__init__(root, transform=transform, pre_transform=pre_transform)
 
-        self._meta = torch.load(self._meta_path()) if Path(self._meta_path()).exists() else None
+        self._meta = (
+            torch.load(self._meta_path(), weights_only=False)
+            if Path(self._meta_path()).exists()
+            else None
+        )
         if self._meta:
             self._cumsum = self._meta["cumsum"]
             self._shards = self._meta["shards"]
@@ -141,14 +145,11 @@ class NeuronDataset(Dataset):
             "edge_dim": 0,
             "has_pos": True,
         }
-        print(nodes_counts)
-        print(edges_counts)
         stats = {
             "nodes_per_graph": compute_graph_stats(nodes_counts),
             "edges_per_graph": compute_graph_stats(edges_counts),
             "node_dim": node_dim,
         }
-        print(stats)
         meta = {
             "total": total,
             "cumsum": cumsum,
