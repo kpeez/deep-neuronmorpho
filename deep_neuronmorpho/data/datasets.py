@@ -6,6 +6,7 @@ from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from typing import Callable
 
+import numpy as np
 import torch
 import typer
 from torch_geometric.data import Data, Dataset, InMemoryDataset
@@ -77,23 +78,38 @@ class NeuronDataset(Dataset):
         os.makedirs(self.processed_dir, exist_ok=True)
         shards, cumsum, total = [], [], 0
         shard_id = 0
+        sample_ids: list[str] = []
+        nodes_counts: list[int] = []
+        edges_counts: list[int] = []
+        node_dim: int | None = None
         data_buf: list[Data] = []
         num_workers = cpu_count()
 
         def flush_shard(buf: list[Data], sid: int):
-            nonlocal total
+            nonlocal total, node_dim
             if not buf:
                 return
             if self.pre_transform is not None:
                 buf = [self.pre_transform(d) for d in buf]
+
+            local_nodes = [int(d.num_nodes) for d in buf]
+            local_edges = [int(d.num_edges) for d in buf]
+
+            if node_dim is None and len(buf) > 0 and getattr(buf[0], "x", None) is not None:
+                node_dim = int(buf[0].x.size(1))
+
             data, slices = InMemoryDataset.collate(buf)
             shard_name = f"{self._name}-shard_{sid:05d}.pt"
             shard_path = Path(self.processed_dir) / shard_name
             shard_path.parent.mkdir(parents=True, exist_ok=True)
             torch.save((data, slices), str(shard_path))
+
             total += len(buf)
             cumsum.append(total)
             shards.append(shard_name)
+
+            nodes_counts.extend(local_nodes)
+            edges_counts.extend(local_edges)
             buf.clear()
 
         with Pool(num_workers) as pool:
@@ -101,6 +117,7 @@ class NeuronDataset(Dataset):
             for pyg_data in tqdm(
                 process_iter, total=len(self._raw_files), desc="Processing SWC files"
             ):
+                sample_ids.append(str(pyg_data.sample_id))
                 data_buf.append(pyg_data)
                 if len(data_buf) >= self._shard_size:
                     flush_shard(data_buf, shard_id)
@@ -118,12 +135,29 @@ class NeuronDataset(Dataset):
             except OSError:
                 pass
 
+        graphs = {
+            "num_graphs": total,
+            "node_dim": int(node_dim or 0),
+            "edge_dim": 0,
+            "has_pos": True,
+        }
+        print(nodes_counts)
+        print(edges_counts)
+        stats = {
+            "nodes_per_graph": compute_graph_stats(nodes_counts),
+            "edges_per_graph": compute_graph_stats(edges_counts),
+            "node_dim": node_dim,
+        }
+        print(stats)
         meta = {
             "total": total,
             "cumsum": cumsum,
             "shards": shards,
             "shard_size": self._shard_size,
+            "sample_ids": sample_ids,
             "features": FEATURE_NAMES,
+            "graphs": graphs,
+            "stats": stats,
         }
         torch.save(meta, self._meta_path())
 
@@ -159,6 +193,24 @@ def process_swc_file(swc_file: str) -> Data:
     pyg_data.x = compute_neuron_node_feats(pyg_data.x, pyg_data.edge_index, pyg_data.root)
 
     return pyg_data
+
+
+def compute_graph_stats(counts: list[np.ndarray]) -> dict:
+    """
+    Compute statistics for a list of numpy arrays.
+    """
+    arr = np.asarray(counts, dtype=np.int64)
+    return {
+        "min": np.min(arr),
+        "max": np.max(arr),
+        "mean": np.mean(arr),
+        "std": np.std(arr),
+        "p50": int(np.percentile(arr, 50)) if arr.size > 0 else 0,
+        "p75": int(np.percentile(arr, 75)) if arr.size > 0 else 0,
+        "p90": int(np.percentile(arr, 90)) if arr.size > 0 else 0,
+        "p95": int(np.percentile(arr, 95)) if arr.size > 0 else 0,
+        "p99": int(np.percentile(arr, 99)) if arr.size > 0 else 0,
+    }
 
 
 class ContrastiveNeuronDataset(Dataset):
