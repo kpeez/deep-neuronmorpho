@@ -13,7 +13,7 @@ from torch_geometric.data.separate import separate
 from tqdm import tqdm
 
 from .graph_construction import swc_df_to_pyg_data
-from .graph_features import compute_neuron_node_feats
+from .graph_features import FEATURE_NAMES, compute_neuron_node_feats
 from .process_swc import SWCData
 
 app = typer.Typer()
@@ -123,6 +123,7 @@ class NeuronDataset(Dataset):
             "cumsum": cumsum,
             "shards": shards,
             "shard_size": self._shard_size,
+            "features": FEATURE_NAMES,
         }
         torch.save(meta, self._meta_path())
 

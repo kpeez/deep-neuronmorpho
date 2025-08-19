@@ -2,6 +2,17 @@ import torch
 from torch import Tensor
 from torch_geometric.utils import to_undirected
 
+FEATURE_NAMES = [
+    "x",
+    "y",
+    "z",
+    "radial_log",
+    "path_log",
+    "tortuosity",
+    "branch_order",
+    "strahler_order",
+]
+
 
 @torch.no_grad()
 def compute_neuron_node_feats(pos: Tensor, edge_index: Tensor, root: int) -> Tensor:
