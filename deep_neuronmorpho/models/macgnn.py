@@ -35,7 +35,7 @@ class MACGNN(nn.Module):
         dropout_prob: float,
         stream_aggregation: str,
         learn_eps: bool,
-        use_edge_weight: bool,
+        use_edge_weight: bool = False,
         device: torch.device | None = None,
     ) -> None:
         super().__init__()
