@@ -1,8 +1,9 @@
 """Trainer class for training a model."""
 
+from typing import Callable
+
 import pytorch_lightning as pl
 from hydra.utils import instantiate
-from omegaconf import DictConfig
 from torch import Tensor, nn
 from torch_geometric.data import Batch
 
@@ -17,8 +18,9 @@ class ContrastiveGraphModule(pl.LightningModule):
 
     Attributes:
         model (nn.Module): The underlying graph neural network model.
-        cfg (DictConfig): OmegaConf configuration for model and training parameters.
-        loss_fn (nn.Module): The contrastive loss function.
+        loss_fn (nn.Module): The loss function.
+        cfg_optimizer (Callable): Hydra configuration for optimizer.
+        cfg_scheduler (Callable): Hydra configuration for scheduler.
 
     This module implements the following key functionalities:
         - Contrastive loss calculation using graph augmentation
@@ -33,12 +35,14 @@ class ContrastiveGraphModule(pl.LightningModule):
     def __init__(
         self,
         model: nn.Module,
-        config: DictConfig,
         loss_fn: nn.Module,
+        optimizer: Callable,
+        scheduler: Callable,
     ):
         super().__init__()
         self.model = model
-        self.cfg = config
+        self.cfg_optimizer = optimizer
+        self.cfg_scheduler = scheduler
         self.loss_fn = loss_fn
         self._best_train_loss = float("inf")
         self.logging = True
@@ -93,10 +97,10 @@ class ContrastiveGraphModule(pl.LightningModule):
         )
 
     def configure_optimizers(self):
-        optimizer = instantiate(self.cfg.training.optimizer, params=self.model.parameters())
+        optimizer = instantiate(self.cfg_optimizer, params=self.model.parameters())
         optimizers = {"optimizer": optimizer}
-        if self.cfg.training.scheduler is not None:
-            scheduler = instantiate(self.cfg.training.scheduler, optimizer=optimizer)
+        if self.cfg_scheduler is not None:
+            scheduler = instantiate(self.cfg_scheduler, optimizer=optimizer)
             optimizers["lr_scheduler"] = scheduler
 
         return optimizers
