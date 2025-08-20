@@ -1,9 +1,8 @@
 """Trainer class for training a model."""
 
-from typing import Callable
+from typing import Any
 
 import pytorch_lightning as pl
-from hydra.utils import instantiate
 from torch import Tensor, nn
 from torch_geometric.data import Batch
 
@@ -36,14 +35,14 @@ class ContrastiveGraphModule(pl.LightningModule):
         self,
         model: nn.Module,
         loss_fn: nn.Module,
-        optimizer: Callable,
-        scheduler: Callable,
+        optimizer: Any,
+        scheduler: Any | None = None,
     ):
         super().__init__()
         self.model = model
-        self.cfg_optimizer = optimizer
-        self.cfg_scheduler = scheduler
         self.loss_fn = loss_fn
+        self.optimizer = optimizer
+        self.scheduler = scheduler
         self._best_train_loss = float("inf")
         self.logging = True
 
@@ -64,6 +63,7 @@ class ContrastiveGraphModule(pl.LightningModule):
             embed2 = embed2.view(-1, embed2.shape[-1])
 
         loss = self.loss_fn(embed1, embed2)
+        graphs_per_view = batch[0].num_graphs
 
         self.log(
             "train_loss",
@@ -72,6 +72,7 @@ class ContrastiveGraphModule(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=self.logging,
+            batch_size=graphs_per_view,
         )
         self.best_train_loss = min(self.best_train_loss, loss.item())
         self.log(
@@ -81,6 +82,7 @@ class ContrastiveGraphModule(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=self.logging,
+            batch_size=graphs_per_view,
         )
         return loss
 
@@ -97,10 +99,17 @@ class ContrastiveGraphModule(pl.LightningModule):
         )
 
     def configure_optimizers(self):
-        optimizer = instantiate(self.cfg_optimizer, params=self.model.parameters())
-        optimizers = {"optimizer": optimizer}
-        if self.cfg_scheduler is not None:
-            scheduler = instantiate(self.cfg_scheduler, optimizer=optimizer)
+        """Instantiate optimizer and scheduler assuming configs are partial callables.
+
+        Configs in `conf/training/optimizer/*.yaml` and `conf/training/scheduler/*.yaml`
+        set `_partial_: true`, so Hydra passes callables here. We simply call them
+        with the required runtime arguments.
+        """
+        optimizer = self.optimizer(params=self.model.parameters())
+        optimizers: dict = {"optimizer": optimizer}
+
+        if self.scheduler is not None:
+            scheduler = self.scheduler(optimizer=optimizer)
             optimizers["lr_scheduler"] = scheduler
 
         return optimizers
