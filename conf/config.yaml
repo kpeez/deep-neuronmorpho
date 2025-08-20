@@ -2,13 +2,13 @@ defaults:
   - _self_
   - model: macgnn
   - data: default
-  - training/trainer: default
-  - training/lightning_module: contrastive
-  - training/loss: ntxent
-  - training/optimizer: adam
-  - training/scheduler: steplr
-  - training/logger: tensorboard
-  - training/callbacks: checkpoint
+  - trainer: default
+  - lightning_module: contrastive
+  - loss: ntxent
+  - optimizer: adam
+  - scheduler: steplr
+  - logger: tensorboard
+  - callbacks: checkpoint
 
 hydra:
   run:

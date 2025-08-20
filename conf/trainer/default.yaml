@@ -1,7 +1,7 @@
 _target_: pytorch_lightning.Trainer
 max_steps: 10
-logger: ${training.logger}
-callbacks: ${training.callbacks}
+logger: ${logger}
+callbacks: ${callbacks}
 accelerator: auto
 devices: auto
 deterministic: true

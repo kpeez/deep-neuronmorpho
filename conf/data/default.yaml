@@ -2,6 +2,7 @@ _target_: deep_neuronmorpho.engine.data_module.NeuronDataModule
 dataset_root: ./data/processed/pyg/allen_cell_types/
 batch_size: 64
 num_workers: 0
+persistent_workers: true
 
 transform_config:
   _target_: torch_geometric.transforms.RandomJitter
