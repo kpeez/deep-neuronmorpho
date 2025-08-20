@@ -2,32 +2,40 @@
 
 import pytorch_lightning as pl
 import torch
-from hydra.utils import instantiate
 from omegaconf import DictConfig
 from torch_geometric.loader import DataLoader
 
-from deep_neuronmorpho.data import ContrastiveNeuronDataset
+from deep_neuronmorpho.data import ContrastiveNeuronDataset, NeuronDataset
 
 
 class NeuronDataModule(pl.LightningDataModule):
-    def __init__(self, cfg: DictConfig):
+    def __init__(
+        self,
+        dataset_root: str,
+        transform_config: DictConfig,
+        batch_size: int,
+        num_workers: int,
+    ):
         super().__init__()
-        self.cfg = cfg
+        self.dataset_root = dataset_root
+        self.transform_config = transform_config
+        self.batch_size = batch_size
+        self.num_workers = num_workers
         self.train_dataset = None
-        self.num_workers = cfg.training.num_workers
         self.pin_memory = torch.cuda.is_available()
 
     def setup(self, stage: str | None = None):
-        self.train_dataset = instantiate(self.cfg.data.train)
-        self.train_dataset = ContrastiveNeuronDataset(
-            self.train_dataset,
-            transform=self.cfg.augmentations,
-        )
+        if stage == "fit":
+            base_dataset = NeuronDataset(self.dataset_root)
+            self.train_dataset = ContrastiveNeuronDataset(
+                base_dataset,
+                transform=self.transform_config,
+            )
 
     def train_dataloader(self):
         return DataLoader(
             self.train_dataset,
-            batch_size=self.cfg.training.batch_size,
+            batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             shuffle=True,
