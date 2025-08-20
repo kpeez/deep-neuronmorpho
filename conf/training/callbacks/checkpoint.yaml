@@ -1,7 +1,7 @@
 _target_: pytorch_lightning.callbacks.ModelCheckpoint
 monitor: train_loss
 mode: min
-every_n_train_steps: ${training.logging_steps}
+every_n_train_steps: ${training.trainer.log_every_n_steps}
 save_top_k: 1
 save_last: true
-dirpath: ${training.run_dir}/checkpoints
+dirpath: ${run_dir}/checkpoints
