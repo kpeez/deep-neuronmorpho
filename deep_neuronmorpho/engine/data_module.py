@@ -15,6 +15,7 @@ class NeuronDataModule(pl.LightningDataModule):
         transform_config: DictConfig,
         batch_size: int,
         num_workers: int,
+        **kwargs,
     ):
         super().__init__()
         self.dataset_root = dataset_root
@@ -23,6 +24,7 @@ class NeuronDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.train_dataset = None
         self.pin_memory = torch.cuda.is_available()
+        self.kwargs = kwargs
 
     def setup(self, stage: str | None = None):
         if stage == "fit":
@@ -40,4 +42,5 @@ class NeuronDataModule(pl.LightningDataModule):
             pin_memory=self.pin_memory,
             shuffle=True,
             drop_last=True,
+            **self.kwargs,
         )
