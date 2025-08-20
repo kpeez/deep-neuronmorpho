@@ -3,11 +3,14 @@
 import pytorch_lightning as pl
 import torch
 from hydra.utils import instantiate
+from omegaconf import DictConfig
 from torch_geometric.loader import DataLoader
+
+from deep_neuronmorpho.data import ContrastiveNeuronDataset
 
 
 class NeuronDataModule(pl.LightningDataModule):
-    def __init__(self, cfg):
+    def __init__(self, cfg: DictConfig):
         super().__init__()
         self.cfg = cfg
         self.train_dataset = None
@@ -15,7 +18,11 @@ class NeuronDataModule(pl.LightningDataModule):
         self.pin_memory = torch.cuda.is_available()
 
     def setup(self, stage: str | None = None):
-        self.train_dataset = instantiate(self.cfg.data.train_dataset)
+        self.train_dataset = instantiate(self.cfg.data.train)
+        self.train_dataset = ContrastiveNeuronDataset(
+            self.train_dataset,
+            transform=self.cfg.augmentations,
+        )
 
     def train_dataloader(self):
         return DataLoader(
