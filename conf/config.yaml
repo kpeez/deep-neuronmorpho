@@ -1,11 +1,12 @@
 defaults:
   - _self_
   - model: macgnn
+  - training/loss: ntxent
   - training/optimizer: adam
   - training/scheduler: steplr
+  - training/lightning_module: contrastive
   - training/logger: tensorboard
   - training/callbacks: checkpoint
-  - training/trainer: default
 
 hydra:
   run:
@@ -13,22 +14,46 @@ hydra:
   job:
     chdir: false
 
+# Dataset configuration
 data:
-  train_dataset: ./datasets/processed/m1_patchseq/data
-  eval_dataset: null
-  feat_dim: 3
+  train:
+    root: ./data/processed/pyg/allen_cell_types/
+  transform:
+    _target_: torch_geometric.transforms.RandomJitter
+    translate: 10
+  #   augmentations: ${augmentations}
 
 training:
   logging_dir: ./runs/demo_runs/
+  run_dir: ${training.logging_dir}/${now:%Y-%m-%d_%H-%M-%S}
   max_steps: 10
   batch_size: 64
-  eval_interval: 1
   random_state: 42
   logging_steps: 1
   num_workers: 0
 
 augmentations:
   jitter: 1.0
-  translate: 10
+  translate: 10.0
   rotation_axis: y
   num_drop_branches: 10
+
+datamodule:
+  _target_: deep_neuronmorpho.engine.data_module.NeuronDataModule
+  dataset_root: ${data.train.root}
+  transform_config:
+    _target_: ${data.transform._target_}
+    translate: ${data.transform.translate}
+  batch_size: ${training.batch_size}
+  num_workers: ${training.num_workers}
+
+trainer:
+  _target_: pytorch_lightning.Trainer
+  max_steps: ${training.max_steps}
+  logger: ${training.logger}
+  callbacks: ${training.callbacks}
+  accelerator: auto
+  devices: auto
+  deterministic: true
+  log_every_n_steps: ${training.logging_steps}
+

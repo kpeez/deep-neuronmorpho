@@ -1,4 +1,5 @@
 _target_: torch.optim.RMSprop
+_partial_: true
 lr: 1e-4
 alpha: 0.9
 eps: 1e-8

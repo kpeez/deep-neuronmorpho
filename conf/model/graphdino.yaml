@@ -5,7 +5,7 @@ transformer:
   dim: 32
   depth: 7
   num_heads: 8
-  feat_dim: ${data.feat_dim}
+  feat_dim: 3
   pos_dim: 32
   num_classes: ${model.num_classes}
 num_classes: 1000
