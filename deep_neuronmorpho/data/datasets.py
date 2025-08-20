@@ -87,7 +87,7 @@ class NeuronDataset(Dataset):
         edges_counts: list[int] = []
         node_dim: int | None = None
         data_buf: list[Data] = []
-        num_workers = cpu_count()
+        num_workers = min(cpu_count(), 8)
 
         def flush_shard(buf: list[Data], sid: int):
             nonlocal total, node_dim
