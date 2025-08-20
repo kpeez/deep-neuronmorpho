@@ -1,0 +1,2 @@
+_target_: deep_neuronmorpho.engine.ntxent_loss.NTXEntLoss
+temp: 0.5
