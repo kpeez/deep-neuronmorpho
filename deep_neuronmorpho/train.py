@@ -10,9 +10,9 @@ def train_model(cfg: DictConfig) -> None:
     if cfg.seed is not None:
         pl.seed_everything(cfg.seed, workers=True)
 
-    lightning_module = instantiate(cfg.training.lightning_module)
-    datamodule = instantiate(cfg.data)
-    trainer = instantiate(cfg.training.trainer)
+    datamodule: pl.LightningDataModule = instantiate(cfg.data)
+    lightning_module: pl.LightningModule = instantiate(cfg.lightning_module)
+    trainer: pl.Trainer = instantiate(cfg.trainer)
     trainer.fit(
         lightning_module,
         datamodule=datamodule,
