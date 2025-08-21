@@ -87,7 +87,7 @@ class NeuronDataset(Dataset):
         edges_counts: list[int] = []
         node_dim: int | None = None
         data_buf: list[Data] = []
-        num_workers = min(cpu_count(), 8)
+        num_workers = cpu_count()
 
         def flush_shard(buf: list[Data], sid: int):
             nonlocal total, node_dim
@@ -116,10 +116,8 @@ class NeuronDataset(Dataset):
             edges_counts.extend(local_edges)
             buf.clear()
 
-        with Pool(processes=num_workers, maxtasksperchild=512) as pool:
-            process_iter = pool.imap_unordered(
-                self._process_swc_file, self._raw_files, chunksize=32
-            )
+        with Pool(processes=num_workers) as pool:
+            process_iter = pool.imap(process_swc_file, self._raw_files)
             for pyg_data in tqdm(
                 process_iter, total=len(self._raw_files), desc="Processing SWC files"
             ):
