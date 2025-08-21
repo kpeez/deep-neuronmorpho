@@ -37,7 +37,7 @@ class GraphDINODataset(Dataset):
     def __init__(self, cfg: DictConfig, mode="train"):
         self.cfg = cfg
         self.mode = mode
-        dataset_folder = cfg.data.train_dataset if self.mode == "train" else cfg.data.eval_dataset
+        dataset_folder = cfg.train_dataset if self.mode == "train" else cfg.eval_dataset
 
         if dataset_folder is None:
             raise ValueError(f"Dataset for mode '{self.mode}' is not specified in the config.")
@@ -54,7 +54,7 @@ class GraphDINODataset(Dataset):
         self.rotation_axis = cfg.augmentations.rotation_axis
         self.n_drop_branch = cfg.augmentations.num_drop_branches
         self.translate_var = cfg.augmentations.translate
-        self.n_nodes = cfg.model.transformer.n_nodes
+        self.n_nodes = cfg.n_nodes
 
     def __len__(self):
         return self.num_samples
