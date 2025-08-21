@@ -1,10 +1,12 @@
 """Utilities for training the GraphDINO model."""
 
+from typing import Any
+
 import pytorch_lightning as pl
 import torch
-from hydra.utils import instantiate
 from omegaconf import DictConfig
 from torch import nn
+from torch.optim.lr_scheduler import ExponentialLR, LinearLR, SequentialLR
 from torch.utils.data import DataLoader, default_collate
 
 from .data_utils import compute_laplacian_eigenvectors
@@ -28,10 +30,9 @@ class GraphDINOLightningModule(pl.LightningModule):
         init_lr (float): Initial learning rate.
         exp_decay (float): Exponential decay factor for learning rate.
         curr_iter (int): Current iteration counter.
-        automatic_optimization (bool): Always False as we handle optimization manually.
     """
 
-    def __init__(self, model: nn.Module, config: DictConfig):
+    def __init__(self, model: nn.Module, optimizer: Any, max_steps: int):
         """
         Initialize the GraphDINOLightningModule.
 
@@ -41,24 +42,41 @@ class GraphDINOLightningModule(pl.LightningModule):
         """
         super().__init__()
         self.model = model
-        self.cfg = config
-        self.max_iter = self.cfg.training.max_steps
-        self.init_lr = self.cfg.training.optimizer.lr
-        self.exp_decay = 0.5
+        self.max_iter = max_steps
+        self.init_lr = optimizer
+        self.optimizer = optimizer
         self.warmup_steps = self.max_iter // 50
         self.lr_decay_steps = self.max_iter // 5
-
-        self.curr_iter = 0
-
-        self.automatic_optimization = False
+        self.exp_decay = 0.5
+        self.save_hyperparameters(ignore=["model"])
+        # self.curr_iter = 0
 
     def configure_optimizers(self):
-        optimizer = instantiate(self.cfg.training.optimizer, params=self.model.parameters())
+        """
+        Set up the optimizer and a sequential learning rate scheduler
+        that combines linear warmup with exponential decay.
+        """
+        optimizer = self.optimizer(params=self.model.parameters())
         optimizers = {"optimizer": optimizer}
-        if self.cfg.training.scheduler is not None:
-            scheduler = instantiate(self.cfg.training.scheduler, optimizer=optimizer)
-            optimizers["lr_scheduler"] = scheduler
-
+        # warmup for the first `warmup_steps`
+        warmup_scheduler = LinearLR(
+            optimizer, start_factor=1e-9, end_factor=1.0, total_iters=self.warmup_steps
+        )
+        # exponential decay after warmup
+        gamma = self.exp_decay ** (1 / self.lr_decay_steps)
+        decay_scheduler = ExponentialLR(optimizer, gamma=gamma)
+        # warmup scheduler runs for `warmup_steps`, then the decay scheduler takes over.
+        lr_scheduler = SequentialLR(
+            optimizer,
+            schedulers=[warmup_scheduler, decay_scheduler],
+            milestones=[self.warmup_steps],
+        )
+        optimizers["lr_scheduler"] = {
+            "scheduler": lr_scheduler,
+            "name": "learning_rate",
+            "interval": "step",
+            "frequency": 1,
+        }
         return optimizers
 
     def set_lr(self):
@@ -90,19 +108,11 @@ class GraphDINOLightningModule(pl.LightningModule):
         Returns:
             torch.Tensor: The loss value.
         """
-        optimizer = self.optimizers()
         f1, f2, a1, a2 = [x.float() for x in batch]
-
         l1 = compute_laplacian_eigenvectors(a1)
         l2 = compute_laplacian_eigenvectors(a2)
-
-        self.set_lr()
-        optimizer.zero_grad(set_to_none=True)
         loss = self.model(f1, f2, a1, a2, l1, l2)
-        self.manual_backward(loss.sum())
-        optimizer.step()
         self.model.update_moving_average()
-        self.curr_iter += 1
         self.log("train_loss", loss.mean(), on_step=True, on_epoch=True, prog_bar=True)
 
         return loss
@@ -122,51 +132,46 @@ class GraphDINOLightningModule(pl.LightningModule):
         print(f"Epoch {self.current_epoch} | Loss {avg_loss:.4f}")
 
 
+class GraphDINODataModule(pl.LightningDataModule):
+    def __init__(self, cfg: DictConfig, **kwargs):
+        super().__init__()
+        self.cfg = cfg
+        self.kwargs = kwargs
+        print(self.cfg, "cfg")
+        print(f"using {self.cfg.num_workers} workers!!!!")
+
+    def setup(self, stage: str):
+        self.train_dataset = GraphDINODataset(self.cfg, mode="train")
+        if self.cfg.eval_dataset is not None:
+            self.val_dataset = GraphDINODataset(self.cfg, mode="eval")
+
+    def train_dataloader(self):
+        print("using batch size", self.cfg.batch_size)
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.cfg.batch_size,
+            shuffle=True,
+            drop_last=True,
+            num_workers=self.cfg.num_workers,
+            persistent_workers=self.cfg.num_workers > 0,
+            collate_fn=custom_collate,
+        )
+
+    def val_dataloader(self):
+        if self.val_dataset is None:
+            return None
+
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.cfg.batch_size,
+            shuffle=False,
+            drop_last=False,
+            collate_fn=custom_collate,
+            num_workers=self.cfg.num_workers,
+            persistent_workers=self.cfg.num_workers > 0,
+        )
+
+
 def custom_collate(batch):
     batch = list(filter(lambda x: x is not None, batch))
     return default_collate(batch)
-
-
-def build_dataloader(cfg: DictConfig):
-    num_workers = cfg.training.num_workers if cfg.training.num_workers is not None else 0
-    kwargs = (
-        {
-            "num_workers": num_workers,
-            "pin_memory": True,
-            "persistent_workers": num_workers > 0,
-        }
-        if torch.cuda.is_available()
-        else {"num_workers": num_workers}
-    )
-
-    train_loader = DataLoader(
-        GraphDINODataset(cfg, mode="train"),
-        batch_size=cfg.training.batch_size,
-        shuffle=True,
-        drop_last=True,
-        collate_fn=custom_collate,
-        **kwargs,
-    )
-
-    loaders = [train_loader]
-
-    if cfg.data.eval_dataset is not None:
-        val_dataset = GraphDINODataset(cfg, mode="eval")
-
-        batch_size = (
-            val_dataset.num_samples
-            if len(val_dataset) < cfg.training.batch_size
-            else cfg.training.batch_size
-        )
-
-        val_loader = DataLoader(
-            val_dataset,
-            batch_size=batch_size,
-            shuffle=False,
-            drop_last=True,
-            collate_fn=custom_collate,
-            **kwargs,
-        )
-        loaders.append(val_loader)
-
-    return tuple(loaders)
