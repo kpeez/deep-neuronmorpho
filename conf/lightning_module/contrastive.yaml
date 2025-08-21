@@ -1,0 +1,5 @@
+_target_: deep_neuronmorpho.engine.lightning_modules.ContrastiveGraphModule
+model: ${model}
+loss_fn: ${loss}
+optimizer: ${optimizer}
+scheduler: ${scheduler}

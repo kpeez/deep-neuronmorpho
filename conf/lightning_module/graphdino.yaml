@@ -1,0 +1,7 @@
+_target_: deep_neuronmorpho.graphdino.trainer_utils.GraphDINOLightningModule
+model: ${model}
+
+automatic_optimization: false
+warmup_steps: 1000
+lr_decay_steps: 5000
+exp_decay: 0.9999

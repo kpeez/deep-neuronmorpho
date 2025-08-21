@@ -13,8 +13,6 @@ import torch
 from torch import Tensor, nn
 from torch_geometric.data import Batch
 
-from deep_neuronmorpho.utils.model_config import GNNConfig
-
 from .gin import GIN
 from .mlp import MLP
 from .model_utils import (
@@ -26,19 +24,32 @@ from .model_utils import (
 class MACGNN(nn.Module):
     """MACGNN model from [Zhao et al. 2022](https://ieeexplore.ieee.org/document/9895206)."""
 
-    def __init__(self, cfg: GNNConfig, device: torch.device | None = None) -> None:
+    def __init__(
+        self,
+        hidden_dim: int,
+        output_dim: int,
+        num_mlp_layers: int,
+        num_gnn_layers: int,
+        graph_pooling_type: str,
+        gnn_layer_aggregation: str,
+        dropout_prob: float,
+        stream_aggregation: str,
+        learn_eps: bool,
+        use_edge_weight: bool = False,
+        device: torch.device | None = None,
+    ) -> None:
         super().__init__()
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+        self.num_mlp_layers = num_mlp_layers or 2
+        self.num_gnn_layers = num_gnn_layers
+        self.graph_pooling_type = graph_pooling_type
+        self.gnn_layer_aggregation = gnn_layer_aggregation
+        self.dropout_prob = dropout_prob
+        self.stream_aggregation = stream_aggregation or "mean"
+        self.learn_eps = learn_eps or False
+        self.use_edge_weight = use_edge_weight
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.hidden_dim = cfg.hidden_dim
-        self.output_dim = self.cfg.output_dim
-        self.num_mlp_layers = cfg.num_mlp_layers or 2
-        self.num_gnn_layers = cfg.num_gnn_layers
-        self.graph_pooling_type = cfg.graph_pooling_type
-        self.gnn_layer_aggregation = cfg.gnn_layer_aggregation
-        self.dropout_prob = cfg.dropout_prob
-        self.stream_aggregation = cfg.stream_aggregation or "mean"
-        self.learn_eps = cfg.learn_eps or False
-        self.use_edge_weight = cfg.use_edge_weight
 
         self.geo_gnn = GIN(
             input_dim=3,
@@ -65,9 +76,7 @@ class MACGNN(nn.Module):
 
         # optional weights for `wsum`
         if self.stream_aggregation == "wsum":
-            self.streams_weight = nn.Parameter(
-                torch.ones(1, 1, self.num_streams), requires_grad=True
-            )
+            self.streams_weight = nn.Parameter(torch.ones(1, 1, 2), requires_grad=True)
             nn.init.xavier_uniform_(self.streams_weight)
         else:
             self.streams_weight = None
@@ -75,7 +84,6 @@ class MACGNN(nn.Module):
         embedding_dim = compute_embedding_dim(
             hidden_dim=self.hidden_dim,
             num_gnn_layers=self.num_gnn_layers,
-            num_streams=self.num_streams,
             gnn_layer_aggregation=self.gnn_layer_aggregation,
             stream_aggregation=self.stream_aggregation,
         )

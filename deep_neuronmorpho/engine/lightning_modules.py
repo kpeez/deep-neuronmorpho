@@ -1,20 +1,10 @@
 """Trainer class for training a model."""
 
+from typing import Any
+
 import pytorch_lightning as pl
-import torch
-from omegaconf import DictConfig
-from sklearn.svm import SVC
-from torch import nn
+from torch import Tensor, nn
 from torch_geometric.data import Batch
-
-from deep_neuronmorpho.data import augment_graph
-
-from .evaluation import repeated_kfold_eval
-from .ntxent_loss import NTXEntLoss
-from .trainer_utils import (
-    create_optimizer,
-    create_scheduler,
-)
 
 
 class ContrastiveGraphModule(pl.LightningModule):
@@ -27,17 +17,13 @@ class ContrastiveGraphModule(pl.LightningModule):
 
     Attributes:
         model (nn.Module): The underlying graph neural network model.
-        cfg (Config): Configuration object containing model and training parameters.
-        node_attrs (str): The key for node attributes in the graph data.
-        loss_fn (NTXEntLoss): The contrastive loss function.
-        _best_train_loss (float): The best (lowest) training loss observed.
-        _best_val_acc (float): The best (highest) validation accuracy observed.
-        validation_step_outputs (list): Stores outputs from validation steps.
+        loss_fn (nn.Module): The loss function.
+        cfg_optimizer (Callable): Hydra configuration for optimizer.
+        cfg_scheduler (Callable): Hydra configuration for scheduler.
 
     This module implements the following key functionalities:
         - Contrastive loss calculation using graph augmentation
         - Training and validation steps for contrastive learning
-        - Accumulation of embeddings for k-fold cross-validation
         - Configuration of optimizer and learning rate scheduler
 
         The class leverages PyTorch Lightning's LightningModule interface, implementing
@@ -48,20 +34,16 @@ class ContrastiveGraphModule(pl.LightningModule):
     def __init__(
         self,
         model: nn.Module,
-        config: DictConfig,
-        node_attrs: str = "nattrs",
-        loss_fn: nn.Module | None = None,
+        loss_fn: nn.Module,
+        optimizer: Any,
+        scheduler: Any | None = None,
     ):
         super().__init__()
         self.model = model
-        self.cfg = config
-        self.node_attrs = node_attrs
-        self.loss_fn = (
-            loss_fn if loss_fn is not None else NTXEntLoss(self.cfg.training.contra_loss_temp)
-        )
+        self.loss_fn = loss_fn
+        self.optimizer = optimizer
+        self.scheduler = scheduler
         self._best_train_loss = float("inf")
-        self._best_val_acc = 0.0
-        self.validation_step_outputs = []
         self.logging = True
 
     @property
@@ -72,25 +54,17 @@ class ContrastiveGraphModule(pl.LightningModule):
     def best_train_loss(self, value):
         self._best_train_loss = value
 
-    @property
-    def best_val_acc(self):
-        return self._best_val_acc
+    def training_step(self, batch: tuple[Batch, Batch]) -> Tensor:
+        embed1, embed2 = self.model(batch[0]), self.model(batch[1])
+        embed1 = self.all_gather(embed1, sync_grads=True)
+        embed2 = self.all_gather(embed2, sync_grads=True)
+        if embed1.dim() > 2:
+            embed1 = embed1.view(-1, embed1.shape[-1])
+            embed2 = embed2.view(-1, embed2.shape[-1])
 
-    @best_val_acc.setter
-    def best_val_acc(self, value):
-        self._best_val_acc = value
+        loss = self.loss_fn(embed1, embed2)
+        graphs_per_view = batch[0].num_graphs
 
-    def compute_loss(self, batch_graphs: Batch) -> torch.Tensor:
-        aug1_batch = augment_graph(batch_graphs)
-        aug1_embeds = self.model(aug1_batch, aug1_batch.ndata[self.node_attrs], is_training=True)
-        aug2_batch = augment_graph(batch_graphs)
-        aug2_embeds = self.model(aug2_batch, aug2_batch.ndata[self.node_attrs], is_training=True)
-        loss = self.loss_fn(aug1_embeds, aug2_embeds)
-        return loss
-
-    def training_step(self, batch: tuple[Batch, torch.Tensor]) -> torch.Tensor:
-        batch_graphs = batch[0] if isinstance(batch, (list, tuple)) else batch
-        loss = self.compute_loss(batch_graphs)
         self.log(
             "train_loss",
             loss.item(),
@@ -98,6 +72,7 @@ class ContrastiveGraphModule(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=self.logging,
+            batch_size=graphs_per_view,
         )
         self.best_train_loss = min(self.best_train_loss, loss.item())
         self.log(
@@ -107,6 +82,7 @@ class ContrastiveGraphModule(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=self.logging,
+            batch_size=graphs_per_view,
         )
         return loss
 
@@ -122,35 +98,18 @@ class ContrastiveGraphModule(pl.LightningModule):
             logger=self.logging,
         )
 
-    def validation_step(self, batch: tuple[Batch, torch.Tensor]) -> None:
-        batch, labels = batch
-        batch_feats = batch.ndata[self.node_attrs]
-        model_output = self.model(batch, batch_feats, is_training=False)
-        self.validation_step_outputs.append({"embeddings": model_output, "labels": labels})
-
-    def on_validation_epoch_end(self):
-        all_embeds = torch.cat([x["embeddings"] for x in self.validation_step_outputs])
-        all_labels = torch.cat([x["labels"] for x in self.validation_step_outputs])
-        eval_embeds = all_embeds.cpu().numpy()
-        eval_labels = all_labels.cpu().numpy()
-        clf = SVC()
-        val_cv_acc, _ = repeated_kfold_eval(X=eval_embeds, y=eval_labels, model=clf, n_splits=5)
-        self.log("val_cv_acc", val_cv_acc)
-        self.best_val_acc = max(self.best_val_acc, val_cv_acc)
-        self.validation_step_outputs.clear()
-
     def configure_optimizers(self):
-        optimizer = create_optimizer(
-            model=self.model,
-            optimizer_name=self.cfg.training.optimizer.name,
-            lr=self.cfg.training.optimizer.lr,
-        )
-        if self.cfg.training.optimizer.scheduler is not None:
-            scheduler = create_scheduler(
-                kind=self.cfg.training.optimizer.scheduler["kind"],
-                optimizer=optimizer,
-                step_size=self.cfg.training.optimizer.scheduler["step_size"],
-                factor=self.cfg.training.optimizer.scheduler["factor"],
-            )
-            return {"optimizer": optimizer, "lr_scheduler": scheduler}
-        return optimizer
+        """Instantiate optimizer and scheduler assuming configs are partial callables.
+
+        Configs in `conf/training/optimizer/*.yaml` and `conf/training/scheduler/*.yaml`
+        set `_partial_: true`, so Hydra passes callables here. We simply call them
+        with the required runtime arguments.
+        """
+        optimizer = self.optimizer(params=self.model.parameters())
+        optimizers: dict = {"optimizer": optimizer}
+
+        if self.scheduler is not None:
+            scheduler = self.scheduler(optimizer=optimizer)
+            optimizers["lr_scheduler"] = scheduler
+
+        return optimizers

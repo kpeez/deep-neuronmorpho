@@ -1,0 +1,10 @@
+_target_: deep_neuronmorpho.models.macgnn.MACGNN
+num_gnn_layers: 5
+num_mlp_layers: 2
+hidden_dim: 128
+output_dim: 256
+dropout_prob: 0.5
+learn_eps: False # learnable eps in GINConv
+graph_pooling_type: "max" # "sum", "mean", "max"
+gnn_layer_aggregation: "cat" # ["sum", "mean", "max", "wsum", "cat"]
+stream_aggregation: "wsum" # ["sum", "mean", "max", "wsum", "cat"]

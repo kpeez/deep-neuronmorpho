@@ -1,0 +1,8 @@
+_target_: pytorch_lightning.Trainer
+max_steps: 10
+logger: ${logger}
+callbacks: ${callbacks}
+accelerator: auto
+devices: auto
+deterministic: true
+log_every_n_steps: 10
