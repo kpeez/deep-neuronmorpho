@@ -1,0 +1,56 @@
+# @package _global_
+
+# This is a self-contained experiment file for replicating the GraphDINO results.
+# All necessary configurations are defined directly within this file for maximum isolation.
+
+defaults:
+  - override /model: null
+  - override /lightning_module: null
+  - override /data: null
+  - override /optimizer: adam
+  - override /trainer: default
+
+model:
+  _target_: deep_neuronmorpho.graphdino.graphdino.GraphDINO
+  transformer:
+    _target_: deep_neuronmorpho.graphdino.graphdino.GraphTransformer
+    n_nodes: 200
+    dim: 32
+    depth: 7
+    num_heads: 8
+    feat_dim: 3
+    pos_dim: 32
+    num_classes: ${model.num_classes}
+  num_classes: 1000
+  moving_average_decay: 0.999
+  center_moving_average_decay: 0.9
+  teacher_temp: 0.06
+
+lightning_module:
+  _target_: deep_neuronmorpho.graphdino.trainer_utils.GraphDINOLightningModule
+  model: ${model}
+  optimizer: ${optimizer}
+  max_steps: ${trainer.max_steps}
+
+data:
+  _target_: deep_neuronmorpho.graphdino.trainer_utils.GraphDINODataModule
+  cfg:
+    train_dataset: ./data/processed/graphdino/allen_cell_types/
+    eval_dataset: ./data/processed/graphdino/allen_cell_types/
+    batch_size: 64
+    num_workers: 4
+    n_nodes: 1000
+    augmentations:
+      jitter: 10
+      rotation_axis: y
+      num_drop_branches: 1
+      translate: 10
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 0.001
+
+trainer:
+  max_steps: 100000
+  log_every_n_steps: 3
+  accelerator: cpu
