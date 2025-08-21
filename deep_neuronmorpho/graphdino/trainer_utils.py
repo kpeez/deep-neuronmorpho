@@ -121,10 +121,12 @@ class GraphDINOLightningModule(pl.LightningModule):
         """Customize what gets saved in the checkpoint."""
         checkpoint["curr_iter"] = self.curr_iter
 
-    def on_load_checkpoint(self, checkpoint: dict) -> None:
-        """Customize what gets loaded from the checkpoint."""
-        if "curr_iter" in checkpoint:
-            self.curr_iter = checkpoint["curr_iter"]
+    def on_train_batch_end(self, outputs, batch, batch_idx):
+        """
+        This hook is called after the optimizer step.
+        It's the correct place for the EMA update.
+        """
+        self.model.update_moving_average()
 
     def on_train_epoch_end(self):
         """Called at the end of a training epoch."""
