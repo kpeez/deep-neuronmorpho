@@ -19,9 +19,3 @@ hydra:
 run_dir: ./runs/demo_runs/${now:%Y-%m-%d_%H-%M-%S}
 seed: 42
 ckpt_path: null
-
-augmentations:
-  jitter: 1.0
-  translate: 10.0
-  rotation_axis: y
-  num_drop_branches: 10
