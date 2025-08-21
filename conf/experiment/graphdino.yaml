@@ -43,12 +43,12 @@ data:
     augmentations:
       jitter: 10
       rotation_axis: y
-      num_drop_branches: 1
+      num_drop_branches: 10
       translate: 10
 
 optimizer:
   _target_: torch.optim.Adam
-  lr: 0.001
+  lr: 0.0001
 
 trainer:
   max_steps: 100000
