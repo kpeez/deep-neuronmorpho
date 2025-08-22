@@ -230,7 +230,6 @@ class ContrastiveNeuronDataset(Dataset):
     def __getitem__(self, idx: int) -> tuple[Data, Data]:
         data = self.dataset[idx]
         g1, g2 = self.transform(data.clone()), self.transform(data.clone())
-        g1.x[:, :3], g2.x[:, :3] = g1.pos, g2.pos
 
         return g1, g2
 
