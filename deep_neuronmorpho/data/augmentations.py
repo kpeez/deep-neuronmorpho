@@ -40,7 +40,7 @@ class RandomTranslate(BaseTransform):
         return data
 
 
-class DropRandomBranch(BaseTransform):
+class DropRandomBranches(BaseTransform):
     def __init__(self):
         raise NotImplementedError
 
@@ -48,7 +48,7 @@ class DropRandomBranch(BaseTransform):
         raise NotImplementedError
 
 
-class SyncPosToFeatures(BaseTransform):
+class SyncPositionToFeatures(BaseTransform):
     """
     Updates the first 3 dimensions of data.x with the current data.pos values.
     Use at the end of your transform chain to ensure .x always reflects the transformed positions.
