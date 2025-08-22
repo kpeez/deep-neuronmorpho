@@ -1,16 +1,39 @@
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import gridspec
+from torch_geometric.data import Data
+from torch_geometric.utils import to_networkx
 from umap import UMAP
 
 from deep_neuronmorpho.data import SWCData
 from deep_neuronmorpho.engine.evaluation import get_similar_neurons, reduce_dimensionality
+
+
+def view_pyg_neuron(
+    pyg_graph: Data, projection: Literal["xy", "xz", "yz"] = "xy", ax: plt.Axes | None = None
+) -> None:
+    if "".join(sorted(projection)) == "xy":
+        indices = [0, 1]
+    elif "".join(sorted(projection)) == "xz":
+        indices = [0, 2]
+    elif "".join(sorted(projection)) == "yz":
+        indices = [1, 2]
+
+    pyg_graph_proj = pyg_graph.clone()
+    pyg_graph_proj.pos = pyg_graph_proj.pos[:, indices]
+    nx_graph = to_networkx(pyg_graph_proj, node_attrs=["pos"])
+
+    if ax is None:
+        _fig, ax = plt.subplots()
+
+    nx.draw(nx_graph, pos=nx_graph.nodes(data="pos"), node_size=4, arrows=False, ax=ax)
 
 
 def check_labels(df: pd.DataFrame, neuron_labels: Mapping[str, str]) -> pd.DataFrame:
