@@ -2,6 +2,7 @@ defaults:
   - _self_
   - model: macgnn
   - data: default
+  - augmentations: default
   - trainer: default
   - lightning_module: contrastive
   - loss: ntxent
