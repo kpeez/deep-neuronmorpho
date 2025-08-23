@@ -1,0 +1,13 @@
+_target_: torch_geometric.transforms.Compose
+transforms:
+  - _target_: deep_neuronmorpho.data.augmentations.DropRandomBranches
+    drop_fraction: 0.25
+    min_keep_nodes: 200
+  - _target_: torch_geometric.transforms.RandomRotate
+    degrees: 180
+    axis: 1
+  - _target_: deep_neuronmorpho.data.augmentations.RandomTranslate
+    translate: 0.1
+  - _target_: torch_geometric.transforms.RandomJitter
+    translate: 2.0
+  - _target_: deep_neuronmorpho.data.augmentations.RecomputeNodeFeatures

@@ -138,49 +138,6 @@ def subsample_graph(
     return neighbors, not_deleted
 
 
-def drop_random_branch(
-    nodes: list[int],
-    neighbors: dict[int, list[int]],
-    distances: dict[int, int],
-    keep_nodes: int = 200,
-) -> tuple[dict[int, list[int]], set[int]]:
-    """
-    Removes a terminal branch. Starting nodes should be between
-    branching node and leaf (see leaf_branch_nodes)
-
-    Args:
-        nodes: List of nodes of the graph
-        neighbors: Dict of neighbors per node
-        distances: Dict of distances of nodes to origin
-        keep_nodes: Number of nodes to keep in graph
-    """
-    start = list(nodes)[torch.randint(len(nodes), (1,)).item()]
-    to = next(iter(neighbors[start]))
-
-    if distances[start] > distances[to]:
-        start, to = to, start
-
-    drop_nodes = [to]
-    next_nodes = [n for n in neighbors[to] if n != start]
-
-    while next_nodes:
-        s = next_nodes.pop(0)
-        drop_nodes.append(s)
-        next_nodes += [n for n in neighbors[s] if n not in drop_nodes]
-
-    if len(neighbors) - len(drop_nodes) < keep_nodes:
-        return neighbors, set()
-    else:
-        # Delete nodes.
-        for key in drop_nodes:
-            if key in neighbors:
-                for k in neighbors[key]:
-                    neighbors[k].remove(key)
-                del neighbors[key]
-
-        return neighbors, set(drop_nodes)
-
-
 def remap_neighbors(neighbors: dict[int, list[int]]) -> tuple[dict[int, list[int]], dict[int, int]]:
     """
     Remap node indices to be between 0 and the number of nodes.

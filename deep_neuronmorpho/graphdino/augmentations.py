@@ -1,7 +1,5 @@
 """Tensor-based augmentations of neuron structures for contrastive learning."""
 
-from typing import Any
-
 import numpy as np
 import torch
 from torch.distributions.uniform import Uniform
@@ -110,63 +108,44 @@ def rotate_node_positions(node_features: torch.Tensor, axis: str | None = None) 
     return node_features
 
 
-def drop_branches(
-    node_features: torch.Tensor,
-    adjacency_list: torch.Tensor,
-    n_branches: int,
-    keep_nodes: int = 100,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Randomly drop a specified number of branches from the graph.
-
-    This augmentation randomly selects branches to drop from the leaf nodes,
-    and removes them along with any affected edges.
+def drop_random_branch(
+    nodes: list[int],
+    neighbors: dict[int, list[int]],
+    distances: dict[int, int],
+    keep_nodes: int = 200,
+) -> tuple[dict[int, list[int]], set[int]]:
+    """
+    Removes a terminal branch. Starting nodes should be between
+    branching node and leaf (see leaf_branch_nodes)
 
     Args:
-        node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
-        adjacency_list: Tensor of shape (num_edges, 2) containing edge connections.
-        n_branches: Number of branches to drop.
-        keep_nodes: Minimum number of nodes to keep in graph.
-
-    Returns:
-        Tuple of (augmented node features, augmented adjacency list).
+        nodes: List of nodes of the graph
+        neighbors: Dict of neighbors per node
+        distances: Dict of distances of nodes to origin
+        keep_nodes: Number of nodes to keep in graph
     """
-    # TODO: Implement this
-    raise NotImplementedError("Dropping branches is not implemented yet")
+    start = list(nodes)[torch.randint(len(nodes), (1,)).item()]
+    to = next(iter(neighbors[start]))
 
+    if distances[start] > distances[to]:
+        start, to = to, start
 
-def augment_graph(
-    node_features: torch.Tensor,
-    adjacency_list: torch.Tensor,
-    augmentations: dict[str, Any],
-    keep_nodes: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Apply a sequence of augmentations to node features and adjacency list.
+    drop_nodes = [to]
+    next_nodes = [n for n in neighbors[to] if n != start]
 
-    Args:
-        node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
-        adjacency_list: Tensor of shape (num_edges, 2) containing edge connections.
-        augmentations: Dictionary mapping augmentation types to their parameters.
-                     The order of keys determines the sequence of application.
+    while next_nodes:
+        s = next_nodes.pop(0)
+        drop_nodes.append(s)
+        next_nodes += [n for n in neighbors[s] if n not in drop_nodes]
 
-    Returns:
-        Tuple of (augmented node features, augmented adjacency list).
-    """
+    if len(neighbors) - len(drop_nodes) < keep_nodes:
+        return neighbors, set()
+    else:
+        # Delete nodes.
+        for key in drop_nodes:
+            if key in neighbors:
+                for k in neighbors[key]:
+                    neighbors[k].remove(key)
+                del neighbors[key]
 
-    if augmentations.num_drop_branches is not None:
-        node_features, adjacency_list = drop_branches(
-            node_features,
-            adjacency_list,
-            n_branches=augmentations.num_drop_branches,
-            keep_nodes=keep_nodes,
-        )
-
-    if augmentations.jitter is not None:
-        node_features = jitter_node_positions(node_features, jitter=augmentations.jitter)
-
-    if augmentations.translate is not None:
-        node_features = translate_all_nodes(node_features, translate_var=augmentations.translate)
-
-    if augmentations.rotate_axis is not None:
-        node_features = rotate_node_positions(node_features, axis=augmentations.rotate_axis)
-
-    return node_features, adjacency_list
+        return neighbors, set(drop_nodes)

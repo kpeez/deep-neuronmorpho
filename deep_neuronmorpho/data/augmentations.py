@@ -1,172 +1,264 @@
-"""Tensor-based augmentations of neuron structures for contrastive learning."""
+"""Augmentations and transformations for contrastive learning."""
 
-from typing import Any
+import math
+from typing import Sequence
 
-import numpy as np
 import torch
-from torch.distributions.uniform import Uniform
+from torch import Tensor
+from torch_geometric.data import Data
+from torch_geometric.transforms import BaseTransform
+
+from .graph_features import compute_neuron_node_feats
 
 
-def jitter_node_positions(
-    node_features: torch.Tensor,
-    jitter: float,
-) -> torch.Tensor:
-    """Shift node positions by adding Gaussian noise.
+class RandomTranslate(BaseTransform):
+    """
+    Translates entire graph by the same random offset.
+    This is what you want for "translate nodes" - moving the whole graph together.
+    """
 
-    This augmentation shifts 3D coordinates of all points by adding
-    Gaussian noise to their positions, similar to PyTorch Geometric's RandomJitter.
+    def __init__(self, translate: float | Sequence[float]):
+        """
+        Args:
+            translate (float): Maximum translation in each dimension.
+        """
+        self.translate = translate
+
+    def __call__(self, data):
+        if not hasattr(data, "pos") or data.pos is None:
+            return data
+
+        pos = data.pos
+        dim = pos.size(-1)
+        translation = torch.randn(dim, device=pos.device, dtype=torch.float32) * self.translate
+
+        data.pos += translation.unsqueeze(0)
+        return data
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(translate={self.translate})"
+
+
+class DropRandomBranches(BaseTransform):
+    """
+    Randomly drops entire branches (subtrees) from a neuron graph.
+
+    This transform serves as a structural data augmentation, creating realistic
+    variations of a neuron's morphology. It ensures that no isolated nodes are
+    created by always removing complete subtrees.
+
+    - The selection algorithm uses a vectorized, weighted random sampling strategy (weighted by subtree size).
+    - The process selects branches that fit within the budget and makes a final "best-effort" choice
+    to land as close to the target as possible if no perfect fits remain.
+    - The selection can be biased using the `alpha` parameter. Setting `alpha > 1` will favor
+      dropping larger branches, while `alpha < 1` will favor smaller ones.
 
     Args:
-        node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
-                       XYZ coordinates are assumed to be in the first 3 columns.
-        std_noise: Standard deviation of Gaussian noise.
+        drop_fraction (float): Target fraction of nodes to drop (0.0-0.3 recommended).
+        min_keep_nodes (int): Minimum number of nodes to retain in the graph.
+        alpha (float): Weight ∝ size**alpha.
+        recompute_features (bool): Whether to recompute the node features after dropping branches.
 
     Returns:
-        Augmented node features tensor.
+        New Data object with dropped branches and recomputed features.
     """
-    node_features = node_features.clone()
-    node_features[:, :3] += torch.normal(
-        mean=0,
-        std=jitter,
-        size=(node_features.shape[0], 3),
-        device=node_features.device,
-    )
-    return node_features
 
+    def __init__(
+        self,
+        drop_fraction: float = 0.15,
+        min_keep_nodes: int = 50,
+        alpha: float = 1.0,
+        recompute_features: bool = False,
+    ):
+        if drop_fraction < 0 or drop_fraction > 1:
+            raise ValueError(f"drop_fraction must be in [0, 1], got {drop_fraction}")
+        if min_keep_nodes < 1:
+            raise ValueError(f"min_keep_nodes must be >= 1, got {min_keep_nodes}")
 
-def translate_all_nodes(node_features: torch.Tensor, translate_var: float) -> torch.Tensor:
-    """Translate all nodes by a specified amount.
+        self.drop_fraction = drop_fraction
+        self.min_keep_nodes = min_keep_nodes
+        self.alpha = alpha
+        self.recompute_features = recompute_features
 
-    This augmentation shifts 3D coordinates of all points by adding a constant vector,
-    similar to PyTorch Geometric's RandomTranslate.
+    def __call__(self, data: Data) -> Data:
+        """
+        Apply branch dropping to the input graph.
 
-    Args:
-        node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
-                       XYZ coordinates are assumed to be in the first 3 columns.
-        translate_var: Amount to translate each node.
+        Args:
+            data: PyG Data object with required attributes:
+                - pos: [N, 3] node positions
+                - edge_index: [2, E] edge connections
+                - dfs_entry: [N] DFS entry indices
+                - dfs_exit: [N] DFS exit indices
+                - root: int (root node index, typically 0)
 
-    Returns:
-        Augmented node features tensor.
-    """
-    jitter = torch.randn(3, device=node_features.device, dtype=torch.float32) * translate_var
-    node_features[:, :3] += jitter
+        Returns:
+            New Data object with dropped branches and recomputed features.
+        """
+        required_attrs = ["pos", "edge_index", "dfs_entry", "dfs_exit", "root"]
+        for attr in required_attrs:
+            if not hasattr(data, attr):
+                raise ValueError(f"Data object missing required attribute: {attr}")
 
-    return node_features
-
-
-def rotate_node_positions(node_features: torch.Tensor, axis: str | None = None) -> torch.Tensor:
-    """Perform a random 3D rotation on node coordinates.
-
-    This augmentation rotates the input tensor along the given axis, using [Rodrigues' rotation formula](https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula).
-
-    Args:
-        node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
-                       XYZ coordinates are assumed to be in the first 3 columns.
-
-    Returns:
-        Augmented node features tensor with rotated XYZ coordinates.
-    """
-    if axis is None:
-        return node_features
-
-    device = node_features.device
-
-    if axis is not None:
-        if axis == "x":
-            rotation_axis = torch.tensor([1, 0, 0], dtype=torch.float32, device=device)
-        elif axis == "y":
-            rotation_axis = torch.tensor([0, 1, 0], dtype=torch.float32, device=device)
-        elif axis == "z":
-            rotation_axis = torch.tensor([0, 0, 1], dtype=torch.float32, device=device)
-
-    # Generate rotation angle
-    angle_dist = Uniform(0, np.pi)
-    theta = angle_dist.sample().to(device)
-    cos_theta, sin_theta = torch.cos(theta), torch.sin(theta)
-
-    # Orthonormal unit vector along rotation axis
-    u = rotation_axis / rotation_axis.norm()
-
-    # Outer product of u with itself used to project vectors onto the plane perpendicular to u
-    outer = torch.ger(u, u)
-
-    # This matrix rotates vectors along `u` axis by angle `theta`
-    rotate_mat = (
-        cos_theta * torch.eye(3, device=device)  # Rotation about rotate_axis
-        + sin_theta
-        * torch.tensor(  # Rotation about plane perpendicular to rotate_axis
-            [
-                [0, -u[2], u[1]],
-                [u[2], 0, -u[0]],
-                [-u[1], u[0], 0],
-            ],
+        N = data.pos.size(0)
+        device = data.pos.device
+        drop_mask = self._select_branches_to_drop(
+            dfs_entry=data.dfs_entry,
+            dfs_exit=data.dfs_exit,
+            N=N,
+            root=data.root,
+            drop_fraction=self.drop_fraction,
+            min_keep_nodes=self.min_keep_nodes,
             device=device,
+            alpha=self.alpha,
         )
-        + (1 - cos_theta) * outer  # Projection onto plane perpendicular to rotate_axis
-    )
+        keep_mask = ~drop_mask
+        new_pos, new_edge_index = self._filter_graph_structure(
+            pos=data.pos,
+            edge_index=data.edge_index,
+            keep_mask=keep_mask,
+        )
+        new_data = Data(pos=new_pos, edge_index=new_edge_index, root=0)
+        for key, value in data:
+            if key in {"pos", "edge_index", "x", "dfs_entry", "dfs_exit", "root"}:
+                continue
+            if torch.is_tensor(value) and value.dim() > 0 and int(value.size(0)) == N:
+                new_data[key] = value[keep_mask]
+            else:
+                new_data[key] = value
 
-    node_features[:, :3] = torch.matmul(node_features[:, :3], rotate_mat)
+        if self.recompute_features:
+            new_data.x = compute_neuron_node_feats(new_data.pos, new_data.edge_index, new_data.root)
 
-    return node_features
+        return new_data
 
+    def _select_branches_to_drop(
+        self,
+        dfs_entry: Tensor,
+        dfs_exit: Tensor,
+        N: int,
+        root: int,
+        drop_fraction: float,
+        min_keep_nodes: int,
+        device: torch.device,
+        alpha: float = 1.0,
+        extra_weights: Tensor | None = None,
+    ) -> Tensor:
+        """
+        Selects which branches to drop based on DFS entry/exit indices.
 
-def drop_branches(
-    node_features: torch.Tensor,
-    adjacency_list: torch.Tensor,
-    n_branches: int,
-    keep_nodes: int = 100,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Randomly drop a specified number of branches from the graph.
+        Args:
+            dfs_entry: [N] preorder entry indices
+            dfs_exit: [N] preorder exit indices
+            N: number of nodes
+            root: root node index
+            drop_fraction: target fraction of nodes to drop
+            min_keep_nodes: minimum number of nodes to keep
+            device: device to use
+            alpha: weight ∝ size**alpha
 
-    This augmentation randomly selects branches to drop from the leaf nodes,
-    and removes them along with any affected edges.
+        Returns:
+            [N] bool mask over NODE IDs (True = drop)
+        """
+        K = max(int(min_keep_nodes), math.ceil((1.0 - float(drop_fraction)) * N))
+        K = max(1, min(K, N - 1))
+        # sizes & weights
+        sizes = (dfs_exit - dfs_entry + 1).to(torch.float32).clamp_min(1)
+        w = sizes ** float(alpha)
+        if extra_weights is not None:
+            w = w * extra_weights.to(w)
+        # candidates: exclude root
+        cand = torch.arange(N - 1, device=device) + 1
+        # size-weighted random order (Gumbel/Exp trick)
+        keys = -torch.log(torch.rand_like(w[cand])) / w[cand].clamp_min(1)
+        order = cand[torch.argsort(keys)]  # small key first
+        # preorder coverage & node-wise mask
+        covered_pre = torch.zeros(N, dtype=torch.bool, device=device)
+        drop_nodes = torch.zeros(N, dtype=torch.bool, device=device)
+        # map: preorder index -> node id
+        pre2node = torch.empty(N, dtype=torch.long, device=device)
+        pre2node[dfs_entry] = torch.arange(N, device=device)
 
-    Args:
-        node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
-        adjacency_list: Tensor of shape (num_edges, 2) containing edge connections.
-        n_branches: Number of branches to drop.
-        keep_nodes: Minimum number of nodes to keep in graph.
+        remaining_keep = N
+        best_over = None
+        best_gap = float("inf")  # how far below K we'd land
 
-    Returns:
-        Tuple of (augmented node features, augmented adjacency list).
-    """
-    # TODO: Implement this
-    raise NotImplementedError("Dropping branches is not implemented yet")
+        for i in order.tolist():
+            s = int(dfs_entry[i].item())
+            t = int(dfs_exit[i].item())
+            if covered_pre[s]:
+                continue
+            sz = t - s + 1
 
+            # take if we can stay >= K keeps
+            if remaining_keep - sz >= K:
+                covered_pre[s : t + 1] = True
+                drop_nodes[pre2node[s : t + 1]] = True
+                remaining_keep -= sz
+            else:
+                # remember best feasible overshoot (stay >= min_keep_nodes)
+                post = remaining_keep - sz
+                if post >= min_keep_nodes:
+                    gap = K - post  # >= 0
+                    if gap < best_gap:
+                        best_gap = gap
+                        best_over = (s, t, sz)
 
-def augment_graph(
-    node_features: torch.Tensor,
-    adjacency_list: torch.Tensor,
-    augmentations: dict[str, Any],
-    keep_nodes: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Apply a sequence of augmentations to node features and adjacency list.
+        # one-shot overshoot if still above K
+        if remaining_keep > K and best_over is not None:
+            s, t, sz = best_over
+            covered_pre[s : t + 1] = True
+            drop_nodes[pre2node[s : t + 1]] = True
 
-    Args:
-        node_features: Tensor of shape (num_nodes, feat_dim) containing node features.
-        adjacency_list: Tensor of shape (num_edges, 2) containing edge connections.
-        augmentations: Dictionary mapping augmentation types to their parameters.
-                     The order of keys determines the sequence of application.
+        drop_nodes[int(root)] = False
 
-    Returns:
-        Tuple of (augmented node features, augmented adjacency list).
-    """
+        return drop_nodes
 
-    if augmentations.num_drop_branches is not None:
-        node_features, adjacency_list = drop_branches(
-            node_features,
-            adjacency_list,
-            n_branches=augmentations.num_drop_branches,
-            keep_nodes=keep_nodes,
+    def _filter_graph_structure(
+        self, pos: Tensor, edge_index: Tensor, keep_mask: Tensor
+    ) -> tuple[Tensor, Tensor]:
+        """Filter positions and edges based on keep_mask."""
+        N = pos.size(0)
+        device = pos.device
+        keep_indices = torch.where(keep_mask)[0]
+        # map old -> new indices
+        new_idx = torch.full((N,), -1, dtype=torch.long, device=device)
+        new_idx[keep_indices] = torch.arange(len(keep_indices), device=device)
+        # filter and remap edges
+        new_pos = pos[keep_mask]
+        edge_mask = keep_mask[edge_index[0]] & keep_mask[edge_index[1]]
+        new_edge_index = new_idx[edge_index[:, edge_mask]]
+
+        return new_pos, new_edge_index
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"drop_fraction={self.drop_fraction}, "
+            f"min_keep_nodes={self.min_keep_nodes}, "
+            f"recompute_features={self.recompute_features})"
         )
 
-    if augmentations.jitter is not None:
-        node_features = jitter_node_positions(node_features, jitter=augmentations.jitter)
 
-    if augmentations.translate is not None:
-        node_features = translate_all_nodes(node_features, translate_var=augmentations.translate)
+class RecomputeNodeFeatures(BaseTransform):
+    """
+    Recomputes the node features using the current data.pos values.
+    Use at the end of your transform chain to ensure .x always reflects the transformed positions.
 
-    if augmentations.rotate_axis is not None:
-        node_features = rotate_node_positions(node_features, axis=augmentations.rotate_axis)
+    Node features: \n
+        1. x: x coordinate of node.
+        2. y: y coordinate of node.
+        3. z: z coordinate of node.
+        4. radial_log: log of radial distance from soma.
+        5. path_log: log of path distance from soma.
+        6. tortuosity: tortuosity of the path.
+        7. branch_order: branch order of the node.
+        8. strahler_order: strahler order of the node.
 
-    return node_features, adjacency_list
+    See `compute_neuron_node_feats` for more details.
+    """
+
+    def __call__(self, data: Data) -> Data:
+        root = int(getattr(data, "root", 0))
+        data.x = compute_neuron_node_feats(data.pos, data.edge_index, root)
+        return data
