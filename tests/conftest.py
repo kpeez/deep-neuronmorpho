@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from torch_geometric.data import Data
 
-from deep_neuronmorpho.data import SWCData
+from deep_neuronmorpho.data import SWCData, swc_df_to_pyg_data
 
 TESTS_ROOT_DIR = Path(__file__).parent
 
@@ -31,3 +32,8 @@ def synthetic_swc_dataframe() -> pd.DataFrame:
             "parent": [-1, 1, 1, 3],
         }
     )
+
+
+@pytest.fixture
+def pyg_data(swc_dataframe: pd.DataFrame) -> Data:
+    return swc_df_to_pyg_data(swc_dataframe)
