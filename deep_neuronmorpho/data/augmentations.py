@@ -20,14 +20,9 @@ class RandomTranslate(BaseTransform):
     def __init__(self, translate: float | Sequence[float]):
         """
         Args:
-            translate (float or sequence): Maximum translation in each dimension.
-                If float, same value is used for all dimensions.
-                If sequence, should match the number of dimensions in pos.
+            translate (float): Maximum translation in each dimension.
         """
-        if isinstance(translate, (int, float)):
-            self.translate = translate
-        else:
-            self.translate = translate
+        self.translate = translate
 
     def __call__(self, data):
         if not hasattr(data, "pos") or data.pos is None:
@@ -35,13 +30,8 @@ class RandomTranslate(BaseTransform):
 
         pos = data.pos
         dim = pos.size(-1)
+        translation = torch.randn(dim, device=pos.device, dtype=torch.float32) * self.translate
 
-        if isinstance(self.translate, (int, float)):
-            translation = torch.uniform(-self.translate, self.translate, (dim,))
-        else:
-            translation = torch.tensor(
-                [torch.uniform(-t, t, (1,)).item() for t in self.translate[:dim]]
-            )
         data.pos += translation.unsqueeze(0)
         return data
 
